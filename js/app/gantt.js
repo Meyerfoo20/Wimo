@@ -199,7 +199,8 @@ function ritaGantt(andraForsok) {
     if (!valda.length)
         html += '<div class="g-tom"><b>Inga projekt valda</b><span>Kryssa i ett eller flera projekt till vänster.</span></div>';
     else
-        html += ganttTabell(data, { fran, till, dagar, dw, x, bredd, per, dra: true });
+        // Schemat visar bara det som finns i kalendern (tavlan): inget skapas eller dras här.
+        html += ganttTabell(data, { fran, till, dagar, dw, x, bredd, per, dra: false });
     html += "</div></div>";
     box.innerHTML = '<div class="p4-gantt">' + html + "</div>";
 
@@ -773,10 +774,15 @@ function ganttRitaBild() {
     return c;
 }
 
-/* ---------- lägg till direkt i schemat ---------- */
+/* ---------- lägg till direkt i schemat (avstängt) ---------- */
+
+const GANTT_LAGG_TILL = false;
 
 // Plustecknet på varje rad i sidopanelen. Ligger inuti radens knapp, därför ett span med rollen knapp.
 function ganttPlus(nyckel, etikett) {
+    // Avstängt: poster läggs till i kalendern, schemat hämtar dem därifrån.
+    if (!GANTT_LAGG_TILL)
+        return "";
     return '<span class="g-plus" role="button" tabindex="0" data-gplus="' + esc(nyckel) + '" title="' + esc(etikett) +
         '" aria-label="' + esc(etikett) + '">+</span>';
 }

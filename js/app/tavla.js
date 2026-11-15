@@ -228,7 +228,7 @@ function framtidsKontroll(dag, fortsatt) {
         { txt: "Avbryt", primar: true, fn: stangModal }]);
 }
 
-const REGISTERTYPER = ["person", "kategori", "foretag", "aktivitet"];
+const REGISTERTYPER = ["person", "kategori", "foretag", "aktivitet", "tpaktivitet"];
 
 function regLista(ctx, objekt) {
     const p = ctx && ctx.projekt;
@@ -242,6 +242,8 @@ function regLista(ctx, objekt) {
     }
     if (objekt === "person")
         return p.resurser && Array.isArray(p.resurser.personer) ? p.resurser.personer : null;
+    if (objekt === "tpaktivitet")
+        return p.tidplan && Array.isArray(p.tidplan.aktiviteter) ? p.tidplan.aktiviteter : null;
     if (objekt === "kategori")
         return p.resurser && Array.isArray(p.resurser.kategorier) ? p.resurser.kategorier : null;
     return null;

@@ -1,0 +1,329 @@
+/* ======================================================================
+   Wimo · Tidplan
+   ====================================================================== */
+
+.ik-tidplan {
+  --ik: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h7M3 12h5M3 19h7'/%3E%3Crect x='12' y='3.5' width='9' height='3' rx='0.5'/%3E%3Crect x='10' y='10.5' width='7' height='3' rx='0.5'/%3E%3Crect x='14' y='17.5' width='7' height='3' rx='0.5'/%3E%3C/svg%3E");
+}
+
+#tidplan { grid-column: 1 / -1; min-width: 0; }
+body.p4-kontovy #tidplan { display: none !important; }
+
+.tp-hero { margin-bottom: 18px; }
+
+/* tabell till vänster, kalender till höger – samma radhöjd så de linjerar */
+.tp-yta {
+  --tp-rh: 36px;
+  --tp-kol: 50px minmax(160px, 1fr) 118px 76px 104px;
+  display: grid;
+  grid-template-columns: minmax(440px, 520px) minmax(0, 1fr);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--r-l);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+/* ---- tabellen ---- */
+.tp-tabell { border-right: 1.5px solid var(--border-strong); min-width: 0; }
+.tp-rad {
+  display: grid;
+  grid-template-columns: var(--tp-kol);
+  height: var(--tp-rh);
+  border-bottom: 1px solid var(--border-light);
+}
+.tp-huvud {
+  background: var(--bg-alt);
+  border-bottom: 1.5px solid var(--border-color);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.tp-c {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px;
+  border-right: 1px solid var(--border-light);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.tp-c:last-child { border-right: 0; }
+.tp-nr {
+  justify-content: flex-end;
+  padding: 0 8px 0 0;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.tp-e { cursor: text; outline: none; }
+.tp-rad:not(.tp-huvud):hover { background: color-mix(in srgb, var(--bg-alt) 70%, transparent); }
+.tp-e:focus { box-shadow: inset 0 0 0 2px var(--accent-pop); background: var(--bg-card); }
+.tp-e.redigerar { padding: 0; box-shadow: inset 0 0 0 2px var(--accent-pop); background: var(--bg-card); }
+.tp-in {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: none;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+}
+.tp-c[data-tpfalt="namn"] { font-weight: 600; }
+.tp-under .tp-c[data-tpfalt="namn"] { padding-left: calc(10px + var(--niva) * 18px); font-weight: 500; }
+.tp-c[data-tpfalt="kalkTimmar"] { justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.tp-per { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tp-huvud .tp-c:nth-child(1), .tp-huvud .tp-c:nth-child(4) { justify-content: flex-end; }
+.tp-huvud .tp-c:nth-child(1) { padding: 0 8px 0 0; }
+.tp-tom { color: var(--text-faint); font-weight: 400; }
+
+/* dra en rad i namnet för att flytta den */
+.tp-tabell { position: relative; }
+.tp-rad.tp-lyft { opacity: .45; }
+.tp-droplinje {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-pop);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 5;
+}
+body.tp-raddrar, body.tp-raddrar * { cursor: grabbing !important; user-select: none; }
+.tp-las .tp-e { cursor: default; }
+
+/* den tomma raden längst ned */
+.tp-nyrad .tp-c[data-tpfalt="namn"] { font-weight: 400; }
+.tp-nyrad { background: repeating-linear-gradient(90deg, transparent 0 6px, color-mix(in srgb, var(--border-light) 60%, transparent) 6px 7px) bottom / 100% 1px no-repeat; }
+
+/* ---- kalendern: en kolumn per arbetsdag (mån–fre) ---- */
+.tp-kalender { position: relative; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+.tp-kalinre { position: relative; }
+.tp-kalhuvud {
+  display: flex;
+  height: var(--tp-rh);
+  background: var(--bg-alt);
+  border-bottom: 1.5px solid var(--border-color);
+}
+.tp-kalhuvud span {
+  flex: none;
+  width: calc(var(--dw) * 5);
+  display: block;
+  line-height: calc(var(--tp-rh) - 1.5px);
+  padding-left: 7px;
+  border-right: 1px solid var(--border-color);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tp-kalhuvud small { margin-left: 5px; font-weight: 500; color: var(--text-faint); font-size: 11.5px; }
+.tp-kalrad {
+  position: relative;
+  height: var(--tp-rh);
+  border-bottom: 1px solid var(--border-light);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--dw) * 5 - 1px), var(--border-color) calc(var(--dw) * 5 - 1px) calc(var(--dw) * 5)),
+    repeating-linear-gradient(90deg, transparent 0 calc(var(--dw) - 1px), color-mix(in srgb, var(--border-light) 55%, transparent) calc(var(--dw) - 1px) var(--dw));
+  cursor: crosshair;
+}
+.tp-kalrad[data-tpspar="ny"] { cursor: default; }
+.tp-las .tp-kalrad { cursor: default; }
+
+/* staplarna */
+.tp-stapel {
+  position: absolute;
+  top: 5px;
+  height: calc(var(--tp-rh) - 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  /* samma kant som posterna på tavlan: 3 px runt om, färgad till vänster och nedtill, rakt hörn där de möts */
+  border: 3px solid var(--produktion-kant);
+  border-left-color: var(--produktion);
+  border-bottom-color: var(--produktion);
+  border-radius: var(--r-s);
+  border-bottom-left-radius: 0;
+  background: var(--produktion-fyll);
+  color: var(--produktion);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: grab;
+  outline: none;
+  touch-action: none;
+  z-index: 1;
+}
+.tp-stapel:hover { filter: brightness(.97); }
+.tp-stapel.vald, .tp-stapel:focus-visible { box-shadow: 0 0 0 2px var(--accent-pop); z-index: 2; }
+.tp-stapel.drar { cursor: grabbing; box-shadow: 3px 3px 0 color-mix(in srgb, var(--produktion) 35%, transparent); z-index: 3; }
+.tp-dgr { pointer-events: none; }
+/* handtagen täcker även den tjocka kanten, så man träffar dem längst ut på stapeln */
+.tp-hand { position: absolute; top: -3px; bottom: -3px; width: 9px; cursor: ew-resize; }
+.tp-hand.v { left: -3px; }
+.tp-hand.h { right: -3px; }
+.tp-ghost {
+  pointer-events: none;
+  background: color-mix(in srgb, var(--produktion-fyll) 70%, transparent);
+  border-style: dashed;
+  box-sizing: border-box;
+  opacity: .9;
+}
+.tp-las .tp-stapel { cursor: default; }
+.tp-las .tp-hand { display: none; }
+body.tp-drar, body.tp-drar * { cursor: grabbing !important; user-select: none; }
+
+.tp-idag {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent-pop);
+  opacity: .55;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.tp-hero .g-meta { font-variant-numeric: tabular-nums; }
+/* periodväljaren: en sammanhållen knappgrupp */
+.tp-nav { display: inline-flex; border: 1.5px solid var(--border-color); border-radius: var(--r-s); background: var(--bg-card); overflow: hidden; }
+.tp-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tp-nav button:last-child { border-right: 0; }
+.tp-nav button:hover { background: var(--bg-alt); }
+.tp-nav svg { display: block; }
+
+/* kortkommandon, hopfällda under tabellen */
+.tp-genvagar { margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+.tp-genvagar summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.tp-genvagar summary::-webkit-details-marker { display: none; }
+.tp-genvagar summary::marker { content: ""; font-size: 0; }
+.tp-genvagar summary svg { transition: transform .15s; }
+.tp-genvagar[open] summary svg { transform: rotate(90deg); }
+.tp-genvagar summary:hover { color: var(--text-main); }
+.tp-genvagar dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  align-items: center;
+  margin: 10px 0 0;
+  max-width: 560px;
+}
+.tp-genvagar dt { color: var(--text-main); font-weight: 600; white-space: nowrap; }
+.tp-genvagar dd { margin: 0; }
+.tp-genvagar kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  font: 600 12px/18px inherit;
+  font-family: inherit;
+  text-align: center;
+  color: var(--text-main);
+}
+
+@media (max-width: 1100px) {
+  .tp-yta { grid-template-columns: 1fr; }
+  .tp-kalender { display: none; }
+  .tp-tabell { border-right: 0; }
+}
+@media (max-width: 700px) {
+  .tp-yta { overflow-x: auto; }
+  .tp-tabell { min-width: 520px; }
+}
+.tp-genvagar > summary::before { content: none; display: none; }
+.tp-genvagar > summary { padding: 0; margin: 0; }
+
+/* ---- färg per aktivitet ---- */
+.tpc-gron { --tpc: var(--produktion); --tpc-fyll: var(--produktion-fyll); --tpc-kant: var(--produktion-kant); }
+.tpc-bla { --tpc: var(--ovrigt); --tpc-fyll: var(--ovrigt-fyll); --tpc-kant: var(--ovrigt-kant); }
+.tpc-orange { --tpc: var(--ue); --tpc-fyll: var(--ue-fyll); --tpc-kant: var(--ue-kant); }
+.tpc-lila { --tpc: var(--avrop); --tpc-fyll: var(--avrop-fyll); --tpc-kant: var(--avrop-kant); }
+.tpc-rod { --tpc: var(--leverans); --tpc-fyll: var(--leverans-fyll); --tpc-kant: var(--leverans-kant); }
+.tpc-brun { --tpc: var(--franvaro); --tpc-fyll: var(--franvaro-fyll); --tpc-kant: var(--franvaro-kant); }
+.tp-kalrad .tp-stapel {
+  border-color: var(--tpc-kant, var(--produktion-kant));
+  border-left-color: var(--tpc, var(--produktion));
+  border-bottom-color: var(--tpc, var(--produktion));
+  background: var(--tpc-fyll, var(--produktion-fyll));
+  color: var(--tpc, var(--produktion));
+}
+.tp-kalrad .tp-stapel.drar { box-shadow: 3px 3px 0 color-mix(in srgb, var(--tpc, var(--produktion)) 35%, transparent); }
+.tp-kalrad .tp-ghost { background: color-mix(in srgb, var(--tpc-fyll, var(--produktion-fyll)) 70%, transparent); }
+
+.tp-nr { gap: 8px; }
+.tp-farg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-right: auto;
+  margin-left: 9px;
+  padding: 0;
+  border: 2px solid var(--tpc);
+  border-radius: 3px;
+  background: var(--tpc-fyll);
+  cursor: pointer;
+}
+.tp-farg:hover { transform: scale(1.2); }
+.tp-farg:focus-visible { outline: 2px solid var(--accent-pop); outline-offset: 2px; }
+.tp-las .tp-farg { cursor: default; pointer-events: none; }
+
+.tp-fargval {
+  position: absolute;
+  z-index: 3000;
+  display: flex;
+  gap: 6px;
+  padding: 7px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-s);
+  background: var(--bg-card);
+  box-shadow: var(--skugga-hard, 4px 4px 0 rgba(0, 0, 0, .12));
+}
+.tp-fargval button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--tpc-kant);
+  border-left: 3px solid var(--tpc);
+  border-bottom: 3px solid var(--tpc);
+  border-radius: 5px 5px 5px 0;
+  background: var(--tpc-fyll);
+  cursor: pointer;
+}
+.tp-fargval button:hover { transform: translateY(-1px); }
+.tp-fargval button.vald { outline: 2px solid var(--text-main); outline-offset: 2px; }
+.tp-fargval button:focus-visible { outline: 2px solid var(--accent-pop); outline-offset: 2px; }

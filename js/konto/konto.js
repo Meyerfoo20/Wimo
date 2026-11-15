@@ -2660,6 +2660,7 @@
         tk.kort = tk.kort.filter((k) => !k.dag || k.dag >= fran || !k.klar);
         tk.historik = [];
         x.dagbok = [];
+        delete x.tidplan;
         tk.hinder = tk.hinder.filter((h) => h.status !== "lost" || !h.lostTid || String(h.lostTid).slice(0, 10) >= fran);
         x.tavlor = [tk];
         x.aktiv = tid;

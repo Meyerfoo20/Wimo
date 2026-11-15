@@ -335,10 +335,36 @@ function rustaTavla(t) {
     });
 }
 
+// Tidplanen (egen modul, oberoende av fyraveckorstavlans kort). Skapas tom om den saknas.
+function rustaTidplan(p) {
+    if (!p.tidplan || typeof p.tidplan !== "object" || Array.isArray(p.tidplan))
+        p.tidplan = {};
+    const tp = p.tidplan;
+    if (!Array.isArray(tp.aktiviteter))
+        tp.aktiviteter = [];
+    if (!Array.isArray(tp.resursTyper))
+        tp.resursTyper = [];
+    if (!tp.kalender || typeof tp.kalender !== "object")
+        tp.kalender = {};
+    if (!Array.isArray(tp.kalender.ledigaDagar))
+        tp.kalender.ledigaDagar = [];
+    if (!(tp.kalender.arbTimmarPerDag > 0))
+        tp.kalender.arbTimmarPerDag = 8;
+    tp.aktiviteter.forEach((a, i) => {
+        if (!Array.isArray(a.perioder))
+            a.perioder = [];
+        if (typeof a.ordning !== "number")
+            a.ordning = i + 1;
+        if (a.foralder === undefined)
+            a.foralder = null;
+    });
+}
+
 function rustaProjekt(p, idag, genId) {
     p.tavlor = p.tavlor || [];
     if (!Array.isArray(p.dagbok))
         p.dagbok = [];
+    rustaTidplan(p);
     if (!p.tavlor.length)
         p.tavlor.push(nyTavla("Produktion", idag, genId));
     p.tavlor.forEach(rustaTavla);

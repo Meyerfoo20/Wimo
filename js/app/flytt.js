@@ -35,7 +35,7 @@ function angraForeKlar(txt, fore, tavla, projekt) {
     document.getElementById("angraText").textContent = visad;
     rad.classList.remove("dold");
     clearTimeout(angraTimer);
-    angraTimer = setTimeout(angraForeAvbryt, 15000);
+    angraTimer = setTimeout(angraForeAvbryt, 5000);
     angraFore = { txt: visad, fore: samlad, tavla: tavla.id, projekt: projekt.id, timer: angraTimer };
 }
 

@@ -56,6 +56,11 @@
                 stangForslag();
         }
         catch (e) { }
+        try {
+            if (tidplanOppen())
+                stangTidplan();
+        }
+        catch (e) { }
     }
     document.querySelectorAll("[data-nav]").forEach(function (b) {
         b.addEventListener("click", function () {
@@ -98,6 +103,10 @@
                 oppnaForslag();
                 window.scrollTo({ top: 0 });
             }
+            else if (vy === "tidplan") {
+                oppnaTidplan();
+                window.scrollTo({ top: 0 });
+            }
             markeraNav();
         });
     });
@@ -127,6 +136,8 @@
                 return "dagbok";
             if (forslagOppen())
                 return "forslag";
+            if (tidplanOppen())
+                return "tidplan";
         }
         catch (e) { }
         return "tavla";
@@ -152,6 +163,7 @@
         obs.observe($("hjalp"), { attributes: true, attributeFilter: ["class"] });
         obs.observe($("dagbok"), { attributes: true, attributeFilter: ["class"] });
         obs.observe($("forslag"), { attributes: true, attributeFilter: ["class"] });
+        obs.observe($("tidplan"), { attributes: true, attributeFilter: ["class"] });
     }
     function stangMeny() { document.body.classList.remove("p4-menyoppen"); $("p4Meny").setAttribute("aria-expanded", "false"); }
     $("p4Meny").addEventListener("click", function () {

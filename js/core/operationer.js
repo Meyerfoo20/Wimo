@@ -1194,3 +1194,147 @@ function opAndraPerson(person, falt, klocka, genId) {
         fore: registerFore("person", person, falt),
         historik: [] };
 }
+
+/* ==== Tidplan ===========================================================
+   Aktiviteterna ligger i p.tidplan.aktiviteter (objekttyp "tpaktivitet").
+   Raderna visas i fältet ordning, inte efter datum. Ordningen är ett tal:
+   en ny rad mellan två andra får medelvärdet, så inga andra rader ändras. */
+
+function tpAktiviteter(p) {
+    return p && p.tidplan && Array.isArray(p.tidplan.aktiviteter) ? p.tidplan.aktiviteter : [];
+}
+
+// Syskonen (samma förälder) i användarens ordning.
+function tpSyskon(p, foralder) {
+    return tpAktiviteter(p).filter(a => (a.foralder || null) === (foralder || null))
+        .slice().sort((a, b) => a.ordning - b.ordning);
+}
+
+const TP_FALT = ["namn", "ansvarig", "farg", "kalkTimmar", "foralder", "ordning", "perioder"];
+
+// o: { namn, ansvarig, kalkTimmar, efter: id | null, fore: id | null }. Utan efter/fore hamnar raden sist.
+function opTpNyAktivitet(p, o, klocka, genId) {
+    if (!p || !p.tidplan)
+        return { ok: false, fel: "tidplan saknas", andringar: [], fore: [], historik: [] };
+    o = o || {};
+    const namn = typeof o.namn === "string" ? o.namn.trim() : "";
+    const ref = tpAktiviteter(p).find(a => a.id === (o.efter || o.fore)) || null;
+    const foralder = ref ? (ref.foralder || null) : null;
+    const rader = tpSyskon(p, foralder);
+    let ordning;
+    if (!ref)
+        ordning = rader.length ? rader[rader.length - 1].ordning + 1 : 1;
+    else {
+        const i = rader.indexOf(ref);
+        const granne = o.efter ? rader[i + 1] : rader[i - 1];
+        ordning = granne ? (ref.ordning + granne.ordning) / 2 : ref.ordning + (o.efter ? 1 : -1);
+    }
+    const a = { id: "ta" + uid(genId), foralder: foralder, ordning: ordning, namn: namn,
+        ansvarig: typeof o.ansvarig === "string" ? o.ansvarig.trim() : "", farg: "",
+        kalkTimmar: typeof o.kalkTimmar === "number" && o.kalkTimmar >= 0 ? o.kalkTimmar : null, perioder: [] };
+    return { ok: true, fel: null,
+        andringar: [{ typ: "lagg", objekt: "tpaktivitet", id: a.id, varde: a }],
+        fore: [{ objekt: "tpaktivitet", id: a.id, varde: null }],
+        historik: [] };
+}
+
+function opTpAndraAktivitet(a, falt) {
+    if (!a || !a.id || !falt || typeof falt !== "object")
+        return { ok: false, fel: "aktivitet eller fält saknas", andringar: [], fore: [], historik: [] };
+    const namn = Object.keys(falt);
+    if (!namn.length)
+        return { ok: false, fel: "inga fält", andringar: [], fore: [], historik: [] };
+    if (namn.some(n => TP_FALT.indexOf(n) < 0))
+        return { ok: false, fel: "okänt fält", andringar: [], fore: [], historik: [] };
+    if (namn.every(n => a[n] === falt[n]))
+        return { ok: false, fel: "ingen ändring", andringar: [], fore: [], historik: [] };
+    return { ok: true, fel: null,
+        andringar: [{ typ: "satt", objekt: "tpaktivitet", id: a.id, falt: falt }],
+        fore: registerFore("tpaktivitet", a, falt),
+        historik: [] };
+}
+
+// Raden och dess underaktiviteter tas bort. Ångra lägger tillbaka dem som de var.
+function opTpTaBortAktivitet(p, a) {
+    if (!a || !a.id || tpAktiviteter(p).indexOf(a) < 0)
+        return { ok: false, fel: "aktiviteten finns inte", andringar: [], fore: [], historik: [] };
+    const bort = [a];
+    for (let i = 0; i < bort.length; i++)
+        tpAktiviteter(p).forEach(x => { if (x.foralder === bort[i].id && bort.indexOf(x) < 0) bort.push(x); });
+    return { ok: true, fel: null,
+        andringar: bort.map(x => ({ typ: "taBort", objekt: "tpaktivitet", id: x.id })),
+        fore: bort.map(x => ({ objekt: "tpaktivitet", id: x.id, varde: JSON.parse(JSON.stringify(x)) })),
+        historik: [] };
+}
+
+// Flyttar raden ett steg upp (-1) eller ned (+1) bland syskonen genom att byta ordning med grannen.
+function opTpFlyttaAktivitet(p, a, steg) {
+    const rader = tpSyskon(p, a && a.foralder);
+    const i = rader.indexOf(a), j = i + (steg < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= rader.length)
+        return { ok: false, fel: "kan inte flyttas längre", andringar: [], fore: [], historik: [] };
+    const b = rader[j];
+    let oa = b.ordning, ob = a.ordning;
+    if (oa === ob)
+        oa = ob + (steg < 0 ? -0.5 : 0.5);
+    return { ok: true, fel: null,
+        andringar: [{ typ: "satt", objekt: "tpaktivitet", id: a.id, falt: { ordning: oa } },
+            { typ: "satt", objekt: "tpaktivitet", id: b.id, falt: { ordning: ob } }],
+        fore: [{ objekt: "tpaktivitet", id: a.id, falt: "ordning", varde: a.ordning },
+            { objekt: "tpaktivitet", id: b.id, falt: "ordning", varde: b.ordning }],
+        historik: [] };
+}
+
+/* ---- Tidplan: perioder (staplarna i kalendern) ----
+   En period = { id, start (arbetsdag, ISO), arbDagar (≥ 1), farg, bemanning: [] }.
+   Hela listan byts ut vid varje ändring (nya objekt, inget ändras på plats),
+   så ångra kan lägga tillbaka den gamla listan som den var. */
+
+function tpNyPeriod(start, arbDagar, genId) {
+    return { id: "tq" + uid(genId), start: start, arbDagar: Math.max(1, Math.round(arbDagar) || 1), farg: "", bemanning: [] };
+}
+
+function opTpSattPerioder(a, perioder) {
+    if (!a || !Array.isArray(perioder))
+        return { ok: false, fel: "aktivitet eller perioder saknas", andringar: [], fore: [], historik: [] };
+    if (perioder.some(q => !q || !q.id || typeof q.start !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(q.start) || !(q.arbDagar >= 1)))
+        return { ok: false, fel: "ogiltig period", andringar: [], fore: [], historik: [] };
+    return opTpAndraAktivitet(a, { perioder: perioder });
+}
+
+function opTpNyPeriodPa(a, start, arbDagar, genId) {
+    const q = tpNyPeriod(start, arbDagar, genId);
+    const patch = opTpSattPerioder(a, (a.perioder || []).concat([q]));
+    if (patch.ok)
+        patch.period = q;
+    return patch;
+}
+
+function opTpAndraPeriod(a, periodId, falt) {
+    const lista = a && a.perioder || [];
+    if (!lista.some(q => q.id === periodId))
+        return { ok: false, fel: "perioden finns inte", andringar: [], fore: [], historik: [] };
+    return opTpSattPerioder(a, lista.map(q => q.id === periodId ? Object.assign({}, q, falt, { id: q.id }) : q));
+}
+
+function opTpTaBortPeriod(a, periodId) {
+    const lista = a && a.perioder || [];
+    if (!lista.some(q => q.id === periodId))
+        return { ok: false, fel: "perioden finns inte", andringar: [], fore: [], historik: [] };
+    return opTpSattPerioder(a, lista.filter(q => q.id !== periodId));
+}
+
+// Flyttar raden så att den hamnar mellan två rader (fore/efter kan vara null = först/sist).
+// Bara den flyttade radens ordning ändras. Raden hamnar på samma nivå som raden ovanför.
+function opTpFlyttaMellan(p, a, fore, efter) {
+    if (!a || tpAktiviteter(p).indexOf(a) < 0)
+        return { ok: false, fel: "aktiviteten finns inte", andringar: [], fore: [], historik: [] };
+    const foralder = fore ? (fore.foralder || null) : efter ? (efter.foralder || null) : null;
+    const o1 = fore && (fore.foralder || null) === foralder ? fore.ordning : null;
+    const o2 = efter && (efter.foralder || null) === foralder ? efter.ordning : null;
+    const ordning = o1 !== null && o2 !== null ? (o1 + o2) / 2 : o1 !== null ? o1 + 1 : o2 !== null ? o2 - 1 : 1;
+    const falt = { ordning: ordning };
+    if ((a.foralder || null) !== foralder)
+        falt.foralder = foralder;
+    return opTpAndraAktivitet(a, falt);
+}
