@@ -931,18 +931,38 @@
 
     // ---------- konflikter ----------
     // Samma del (ett kort, ett hinder …) har ändrats både här och någon annanstans.
+    // Användaren ska inte behöva välja: molnets version (det de andra ser) gäller alltid,
+    // och det som fanns lokalt i de berörda tavlorna sparas först i papperskorgen.
+    function sakerhetskopieraLokalt(id, nycklar) {
+        const p = plan4.projekt.find((x) => x.id === id);
+        if (!p) return;
+        let alla = !nycklar;
+        const tids = new Set();
+        (nycklar || []).forEach((key) => { const i = key.indexOf("/"); if (i > 0) tids.add(key.slice(0, i)); else alla = true; });
+        (p.tavlor || []).forEach((t) => {
+            if (!alla && !tids.has(t.id)) return;
+            if ((t.kort || []).length + (t.hinder || []).length) tillKorg(p, t, "Din version innan synk (ändrat på två ställen)");
+        });
+    }
+    function autoLos(id) {
+        setTimeout(() => {
+            const k = konflikter.get(id);
+            if (!k) return;
+            sakerhetskopieraLokalt(id, k.borttagen ? null : [...k.delar.keys()]);
+            losKonflikt(id, false);
+            status("Uppdaterat från molnet – din tidigare version finns i papperskorgen under Mitt konto");
+        }, 0);
+    }
     function registreraKonflikter(id, lista) {
         const p = plan4.projekt.find((x) => x.id === id);
         const k = konflikter.get(id) || { namn: p ? p.projekt : "", delar: new Map(), borttagen: false };
         lista.forEach((r) => k.delar.set(r.key, r));
         konflikter.set(id, k);
-        lage = "konflikt";
-        uppdateraUI();
+        autoLos(id);
     }
     function registreraBorttaget(id, namn) {
         konflikter.set(id, { namn: namn, delar: new Map(), borttagen: true });
-        lage = "konflikt";
-        uppdateraUI();
+        autoLos(id);
     }
     function losKonflikt(id, behallMin) {
         const k = konflikter.get(id);
