@@ -1026,14 +1026,33 @@ function filtrera() {
     });
 }
 
+const FLIKAR_MAX = 3;   // fler tavlor än så blir en rullgardin
+
+function bytTavla(id) {
+    state.aktiv = id; valdKedja = null; vyOffset = 0; spara(); rita();
+}
+
 function ritaFlikar() {
     const f = document.getElementById("flikar");
     f.innerHTML = "";
-    state.tavlor.forEach(t => {
+    const gammal = document.getElementById("tavelMeny");
+    if (gammal) gammal._stang();
+    if (state.tavlor.length > FLIKAR_MAX) {
+        const akt = state.tavlor.find(t => t.id === state.aktiv) || state.tavlor[0];
+        const b = document.createElement("button");
+        b.className = "flik aktiv tavelval";
+        b.setAttribute("aria-haspopup", "true");
+        b.setAttribute("aria-expanded", "false");
+        b.title = "Byt tavla (" + state.tavlor.length + " tavlor i projektet)";
+        b.innerHTML = '<span class="tavelval-namn">' + esc(akt.namn) + '</span><span class="tavelval-antal">' + state.tavlor.length + '</span><span class="p4-caret" aria-hidden="true"></span>';
+        b.addEventListener("click", () => tavelMeny(b));
+        f.appendChild(b);
+    }
+    else state.tavlor.forEach(t => {
         const b = document.createElement("button");
         b.className = "flik" + (t.id === state.aktiv ? " aktiv" : "");
         b.textContent = t.namn;
-        b.addEventListener("click", () => { state.aktiv = t.id; valdKedja = null; vyOffset = 0; spara(); rita(); });
+        b.addEventListener("click", () => bytTavla(t.id));
         f.appendChild(b);
     });
     const p = document.createElement("button");
@@ -1042,6 +1061,51 @@ function ritaFlikar() {
     p.title = "Skapa en ny tavla i projektet, t.ex. för ett annat delområde";
     p.addEventListener("click", nyTavlaDialog);
     f.appendChild(p);
+}
+
+// Rullgardin med projektets tavlor (när de är fler än FLIKAR_MAX).
+function tavelMeny(knapp) {
+    const gammal = document.getElementById("tavelMeny");
+    if (gammal) { gammal._stang(); return; }
+    const m = document.createElement("div");
+    m.id = "tavelMeny";
+    m.className = "p4d-pop tavelmeny";
+    m.setAttribute("role", "menu");
+    m.innerHTML = state.tavlor.map(t => '<button type="button" role="menuitemradio" class="tm-rad' + (t.id === state.aktiv ? " aktiv" : "") +
+        '" aria-checked="' + (t.id === state.aktiv) + '" data-t="' + esc(t.id) + '"><span class="tm-bock" aria-hidden="true"></span>' + esc(t.namn) + '</button>').join("") +
+        '<div class="tm-fot"><button type="button" class="p4d-lank" data-ny="1">+ Ny tavla</button></div>';
+    document.body.appendChild(m);
+    const r = knapp.getBoundingClientRect();
+    m.style.left = Math.min(Math.max(8, r.left), innerWidth - m.offsetWidth - 8) + "px";
+    m.style.top = (r.bottom + 6) + "px";
+    knapp.setAttribute("aria-expanded", "true");
+    const rader = [...m.querySelectorAll(".tm-rad")];
+    function stang(fokus) {
+        m.remove();
+        knapp.setAttribute("aria-expanded", "false");
+        document.removeEventListener("pointerdown", utanfor, true);
+        document.removeEventListener("keydown", tangent, true);
+        if (fokus) knapp.focus();
+    }
+    m._stang = stang;
+    const utanfor = e => { if (!m.contains(e.target) && !knapp.contains(e.target)) stang(); };
+    const tangent = e => {
+        const i = rader.indexOf(document.activeElement);
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); stang(true); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); rader[(i + 1) % rader.length].focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); rader[(i - 1 + rader.length) % rader.length].focus(); }
+        else if (e.key === "Tab") stang();
+    };
+    m.addEventListener("click", e => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        stang();
+        if (b.dataset.ny) nyTavlaDialog();
+        else if (b.dataset.t !== state.aktiv) bytTavla(b.dataset.t);
+    });
+    document.addEventListener("keydown", tangent, true);
+    (m.querySelector(".tm-rad.aktiv") || rader[0]).focus();
+    setTimeout(() => document.addEventListener("pointerdown", utanfor, true), 0);
 }
 
 let visaLosta = false;
