@@ -13,6 +13,18 @@ function resKat(p, id) { return (p.resurser.kategorier || []).find(c => c.id ===
 
 function resPers(p, id) { return (p.resurser.personer || []).find(x => x.id === id) || null; }
 
+// En person kan höra till alla tavlor (tavlor saknas eller är tom) eller bara till vissa.
+function resPaTavla(x, tid) { return !x || !Array.isArray(x.tavlor) || !x.tavlor.length || !tid || x.tavlor.indexOf(tid) >= 0; }
+
+function resTavlorText(p, x) {
+    const l = Array.isArray(x.tavlor) ? x.tavlor.filter(id => p.tavlor.some(t => t.id === id)) : [];
+    if (!l.length || l.length === p.tavlor.length)
+        return "Alla tavlor";
+    if (l.length === 1)
+        return (p.tavlor.find(t => t.id === l[0]) || {}).namn || "1 tavla";
+    return l.length + " tavlor";
+}
+
 function katKort(namn) {
     const n = (namn || "").replace(/arbetare$/i, "").trim();
     return (n || namn || "").toLowerCase();

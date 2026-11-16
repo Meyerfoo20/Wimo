@@ -284,7 +284,8 @@ function bemanningRedigerare(p, b, period, egetId) {
         '<button type="button" class="egetknapp" id="bemLagg">+ Resursbehov</button>' +
         '<div class="rubrik2" style="margin-top:12px">Namngivna personer</div>' +
         '<div class="bempers">' + ordning.map(c => {
-        const ic = pers.filter(x => x.kategoriId === c.id && (x.aktiv || (b.personer || []).indexOf(x.id) >= 0));
+        const tid = typeof T === "function" && T() ? T().id : null;
+        const ic = pers.filter(x => x.kategoriId === c.id && ((x.aktiv && resPaTavla(x, tid)) || (b.personer || []).indexOf(x.id) >= 0));
         if (!ic.length)
             return "";
         return '<div class="bemgrupp"><b>' + esc(c.namn) + '</b>' + ic.map(x => '<label><input type="checkbox" class="bemP" value="' + x.id + '"' + ((b.personer || []).indexOf(x.id) >= 0 ? " checked" : "") + '> ' +
@@ -381,7 +382,8 @@ let resFilter = { vy: "person", period: "2v", fran: null, till: null, omf: "proj
 
 function resursPersonTabell(p, u) {
     const r = p.resurser;
-    const synliga = r.personer.filter(x => x.aktiv || u.karta[x.id] || u.franvaro[x.id]);
+    const tid = resFilter.omf === "tavla" && T() ? T().id : null;
+    const synliga = r.personer.filter(x => ((x.aktiv && resPaTavla(x, tid)) || u.karta[x.id] || u.franvaro[x.id]));
     if (!synliga.length)
         return '<p class="utom">Inga personer att visa.</p>';
     const sorterade = synliga.slice().sort((a, b) => {

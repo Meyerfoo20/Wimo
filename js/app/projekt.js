@@ -170,7 +170,7 @@ function raderaProjektDialog(id) {
 
 function resursbankDialog() {
     const p = state, r = p.resurser;
-    const kropp = '<p class="hjalp" style="margin-top:0">Projektets egna yrkesarbetare, gemensamma för alla tavlor. ' +
+    const kropp = '<p class="hjalp" style="margin-top:0">Projektets egna yrkesarbetare. ' + (p.tavlor.length > 1 ? 'Under Tavlor väljer du om en person finns på alla tavlor eller bara på några. ' : "") +
         'Bara det som behövs för produktionsplaneringen — namn, yrkesgrupp och om personen är aktiv.</p>' +
         '<div class="rubrik2">Yrkesgrupper</div>' +
         (r.kategorier.length ? '<div class="katlista">' + r.kategorier.map(c => '<span class="katchip"><input class="f" data-kat="' + c.id + '" value="' + esc(c.namn) + '">' +
@@ -179,11 +179,12 @@ function resursbankDialog() {
                 'Träarbetare, Betongarbetare, Maskinförare, Övrigt</button></p>') +
         '<div class="bemrad"><input class="f" id="rbNyKat" placeholder="Ny yrkesgrupp"><button type="button" class="mknapp" id="rbLaggKat">Lägg till</button></div>' +
         (r.kategorier.length ? '<div class="rubrik2" style="margin-top:14px">Personer</div>' +
-            '<table class="lista"><thead><tr><th>Namn</th><th>Yrkesgrupp</th><th>Aktiv</th><th></th></tr></thead><tbody>' +
+            '<table class="lista"><thead><tr><th>Namn</th><th>Yrkesgrupp</th>' + (p.tavlor.length > 1 ? "<th>Tavlor</th>" : "") + '<th>Aktiv</th><th></th></tr></thead><tbody>' +
             r.personer.slice().sort((a, b) => a.namn.localeCompare(b.namn, "sv")).map(x => '<tr' + (x.aktiv ? "" : ' class="utford"') + '>' +
                 '<td><input class="f" data-pn="' + x.id + '" value="' + esc(x.namn) + '"></td>' +
                 '<td><select class="f" data-pk="' + x.id + '">' + r.kategorier.map(c => '<option value="' + c.id + '"' +
                 (c.id === x.kategoriId ? " selected" : "") + '>' + esc(c.namn) + '</option>').join("") + '</select></td>' +
+                (p.tavlor.length > 1 ? '<td><button type="button" class="rb-tavlor" data-pt="' + x.id + '" aria-haspopup="true">' + esc(resTavlorText(p, x)) + '</button></td>' : "") +
                 '<td><input type="checkbox" data-pa="' + x.id + '"' + (x.aktiv ? " checked" : "") + '></td>' +
                 '<td><button type="button" class="parkiv" data-pr="' + x.id + '">Ta bort</button></td></tr>').join("") +
             '</tbody></table>' +
@@ -256,6 +257,7 @@ function resursbankDialog() {
         om();
     }));
     document.querySelectorAll("[data-pr]").forEach(e => e.addEventListener("click", () => raderaPersonDialog(e.dataset.pr)));
+    document.querySelectorAll("[data-pt]").forEach(e => e.addEventListener("click", (ev) => { ev.stopPropagation(); rbTavlorVal(p, e); }));
     const lp = document.getElementById("rbLaggPers");
     if (lp)
         lp.addEventListener("click", () => {
@@ -269,6 +271,49 @@ function resursbankDialog() {
                 return;
             om();
         });
+}
+
+// Liten ruta för att välja vilka tavlor en person hör till. Inget valt = alla tavlor.
+function rbTavlorVal(p, knapp) {
+    const gammal = document.getElementById("rbTavlorRuta");
+    if (gammal) { const samma = gammal.dataset.pid === knapp.dataset.pt; gammal.remove(); if (samma) return; }
+    const x = resPers(p, knapp.dataset.pt);
+    if (!x)
+        return;
+    const valda = Array.isArray(x.tavlor) ? x.tavlor.filter(id => p.tavlor.some(t => t.id === id)) : [];
+    const alla = !valda.length;
+    const ruta = document.createElement("div");
+    ruta.id = "rbTavlorRuta";
+    ruta.className = "rb-tavlorruta";
+    ruta.dataset.pid = x.id;
+    ruta.innerHTML = '<label class="rb-alla"><input type="checkbox" value=""' + (alla ? " checked" : "") + '> Alla tavlor</label>' +
+        p.tavlor.map(t => '<label><input type="checkbox" value="' + esc(t.id) + '"' + (!alla && valda.indexOf(t.id) >= 0 ? " checked" : "") + "> " + esc(t.namn) + "</label>").join("") +
+        '<p class="hjalp">Personen syns bara på de valda tavlorna när man bemannar ett moment.</p>';
+    knapp.parentElement.style.position = "relative";
+    knapp.parentElement.appendChild(ruta);
+    const spara1 = (lista) => {
+        const patch = opAndraPerson(x, { tavlor: lista }, null, null);
+        if (patch.ok && appliceraPatch(patch, { tavla: T(), projekt: p })) {
+            spara();
+            knapp.textContent = resTavlorText(p, x);
+        }
+    };
+    ruta.addEventListener("click", (e) => e.stopPropagation());
+    ruta.addEventListener("change", (e) => {
+        const boxar = [...ruta.querySelectorAll("input")], allaBox = boxar[0];
+        if (e.target === allaBox) {
+            boxar.slice(1).forEach(b => { b.checked = false; });
+            allaBox.checked = true;
+            return spara1([]);
+        }
+        const lista = boxar.slice(1).filter(b => b.checked).map(b => b.value);
+        // alla eller inga valda = alla tavlor
+        const blirAlla = !lista.length || lista.length === p.tavlor.length;
+        allaBox.checked = blirAlla;
+        if (blirAlla) boxar.slice(1).forEach(b => { b.checked = false; });
+        spara1(blirAlla ? [] : lista);
+    });
+    setTimeout(() => document.addEventListener("click", function stang() { ruta.remove(); document.removeEventListener("click", stang); }), 0);
 }
 
 function raderaPersonDialog(pid) {
@@ -609,6 +654,8 @@ function tavlaInstallningar(t) {
                 if (state.tavlor.length < 2)
                     return status("Sista tavlan kan inte tas bort");
                 state.tavlor = state.tavlor.filter(x => x.id !== t.id);
+                // markera att tavlan togs bort med flit, så synken får ta bort den i molnet
+                if (typeof window.p4TavlaBorttagen === "function") window.p4TavlaBorttagen(state.id, t.id);
                 state.aktiv = state.tavlor[0].id;
                 stangModal();
                 spara();

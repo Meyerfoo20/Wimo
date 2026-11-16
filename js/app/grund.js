@@ -135,6 +135,9 @@ function rotdata() {
 }
 
 async function sparaNu() {
+    // Wimo är öppet i ett annat fönster som har tagit över: det här fönstret skriver inget.
+    if (window.p4Passiv)
+        return false;
     const data = JSON.stringify(rotdata());
     try {
         if (window.storage && window.storage.set) {

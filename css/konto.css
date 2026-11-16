@@ -924,3 +924,28 @@ body.p4-projlas .flik.plus {
 .p4-ks-skaparad { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 0; padding: 12px 14px; border: 2px solid var(--border-color); border-radius: var(--r-m, 10px); }
 .p4-ks-skaparad span { display: grid; gap: 2px; }
 .p4-ks-skaparad small { color: var(--text-muted); font-size: 12px; }
+
+/* Wimo öppet i ett annat fönster */
+.p4-passiv {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(21, 24, 27, .55);
+}
+.p4-passiv-ruta {
+  max-width: 440px;
+  padding: 26px 28px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--r-l);
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, .18);
+}
+.p4-passiv-ruta h2 { margin: 0 0 10px; font-size: 20px; }
+.p4-passiv-ruta p { margin: 0 0 18px; color: var(--text-muted); line-height: 1.5; }
+.p4-ks-lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.p4-ks-lista li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--r-s); background: var(--bg-main); }
+.p4-ks-lista small { color: var(--text-muted); }

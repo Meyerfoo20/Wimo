@@ -47,7 +47,7 @@
     const konflikter = new Map();  // projekt-id → { namn, molnData, molnRev, borttagen }
 
     function lasJson(n, std) { try { return JSON.parse(localStorage.getItem(n)) || std; } catch (e) { return std; } }
-    function skrivJson(n, v) { try { localStorage.setItem(n, JSON.stringify(v)); } catch (e) { } }
+    function skrivJson(n, v) { if (window.p4Passiv) return; try { localStorage.setItem(n, JSON.stringify(v)); } catch (e) { } }
     function enhetsId() {
         let id = null;
         try { id = localStorage.getItem(ENHETNYCKEL); } catch (e) { }
@@ -71,6 +71,24 @@
     let moln = lasMolnet();
     const SKARM = (new URLSearchParams(location.search).get("skarm") || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 40);
     function sparaMoln() { basVersion++; skrivJson(MOLNNYCKEL, moln); }
+
+    // ---------- Wimo öppet i två fönster (t.ex. appen och en flik) ----------
+    // Fönstren delar samma lokala lagring. Skriver ett annat fönster dit blir det här fönstret
+    // vilande: det skickar och sparar inget, så två olika versioner aldrig blandas ihop.
+    window.addEventListener("storage", (e) => {
+        if (window.p4Passiv || (e.key !== MOLNNYCKEL && e.key !== NYCKEL)) return;
+        window.p4Passiv = true;
+        clearTimeout(pushTimer);
+        const lager = document.createElement("div");
+        lager.className = "p4-passiv";
+        lager.setAttribute("role", "dialog");
+        lager.setAttribute("aria-modal", "true");
+        lager.innerHTML = '<div class="p4-passiv-ruta"><h2>Wimo är öppet i ett annat fönster</h2>' +
+            "<p>För att inget ska skrivas över används Wimo bara i ett fönster i taget. Ändringarna sparas i det andra fönstret.</p>" +
+            '<button type="button" class="p4-btn p4-btn-primar">Använd det här fönstret</button></div>';
+        lager.querySelector("button").addEventListener("click", () => location.reload());
+        document.body.appendChild(lager);
+    });
 
     // Kort, stabil kontrollsumma (FNV-1a) för att se om ett projekt ändrats sedan senaste synk.
     function hash(txt) {
@@ -347,6 +365,121 @@
     // De delar som ändrats lokalt sedan senaste synk (som jag får spara).
     const andCache = new Map();
     let basVersion = 0;                       // ökas när molnets baslinje ändras
+    // Tavlor som användaren tagit bort med flit (i det här fönstret).
+    const borttagnaTavlor = new Set();
+    window.p4TavlaBorttagen = (pid, tid) => { borttagnaTavlor.add(pid + "|" + tid); andCache.delete(pid); };
+    const avsiktligtBorttagen = (pid, tid) => borttagnaTavlor.has(pid + "|" + tid);
+
+    // Hämtar en hel tavla från molnet och lägger in den här (används när den saknas av misstag).
+    const aterhamtas = new Set();
+    async function aterhamtaTavla(pid, tid) {
+        const nyckel = pid + "|" + tid;
+        if (aterhamtas.has(nyckel) || !anvandare) return;
+        aterhamtas.add(nyckel);
+        try {
+            const snap = await fb.fs.getDocs(delSamling(pid, tid));
+            const b = moln.delar[pid];
+            if (!b) return;
+            Object.keys(b).forEach((key) => { if (key.startsWith(tid + "/")) delete b[key]; });
+            // molnets version gäller för hela tavlan (tvinga), även delar som det här fönstret självt skickat
+            const ink = { delar: new Map(), tider: {}, rensa: new Set(), tvinga: true };
+            snap.docs.forEach((d) => {
+                const x = d.data();
+                skickat.delete(pid + "|" + tid + "/" + d.id);
+                ink.delar.set(tid + "/" + d.id, { rev: x.rev || 0, data: x.data || "", pos: x.pos || 0, borttagen: !!x.borttagen });
+            });
+            andCache.delete(pid);
+            if (tillampaDelar(pid, ink)) { ursSparaNu(); rita(); status("Tavlan hämtades om från molnet"); }
+            sparaMoln();
+        } catch (e) { console.warn("Wimo: kunde inte hämta om tavlan", e); }
+        finally { aterhamtas.delete(nyckel); }
+    }
+
+    // ---------- papperskorg på den här datorn ----------
+    // När en tavla (eller många poster i den) försvinner genom synken sparas den lokala
+    // kopian här i 30 dagar, så den kan återställas från Mitt konto.
+    const KORGNYCKEL = "wimo_papperskorg";
+    function lasKorg() {
+        const k = lasJson(KORGNYCKEL, []);
+        const grans = Date.now() - 30 * 864e5;
+        return Array.isArray(k) ? k.filter((x) => x && x.tid > grans && x.tavla && x.pid) : [];
+    }
+    function tillKorg(p, t, orsak) {
+        try {
+            const k = lasKorg();
+            k.unshift({ id: uid(), tid: Date.now(), pid: p.id, projekt: p.projekt || "", tavla: JSON.parse(JSON.stringify(t)), orsak });
+            skrivJson(KORGNYCKEL, k.slice(0, 20));
+        } catch (e) { console.warn("Wimo papperskorg:", e); }
+    }
+    function sparaForsvunnet(gammal, ny) {
+        if (!gammal || !ny) return;
+        (gammal.tavlor || []).forEach((t) => {
+            const nt = (ny.tavlor || []).find((x) => x.id === t.id);
+            const innehall = (t.kort || []).length + (t.hinder || []).length;
+            if (!nt) { if (innehall) tillKorg(gammal, t, "Tavlan försvann vid synk"); return; }
+            const kvar = new Set((nt.kort || []).map((k) => k.id));
+            const borta = (t.kort || []).filter((k) => !kvar.has(k.id)).length;
+            if (borta >= 5) tillKorg(gammal, t, borta + " poster försvann vid synk");
+        });
+    }
+    window.p4Papperskorg = lasKorg;
+    window.p4AterstallKorg = async (id) => {
+        const k = lasKorg(), x = k.find((y) => y.id === id);
+        if (!x) return false;
+        const p = plan4.projekt.find((q) => q.id === x.pid);
+        if (!p) { status("Projektet finns inte på den här datorn", true); return false; }
+        // Läs tavlans delar i molnet först, så att återställningen skrivs ovanpå rätt version
+        // (borttagna delar finns kvar som tomma med ett versionsnummer).
+        const b = moln.delar[p.id];
+        if (anvandare && b) {
+            try {
+                const tid = x.tavla.id, snap = await fb.fs.getDocs(delSamling(p.id, tid));
+                snap.docs.forEach((d) => {
+                    const y = d.data(), key = tid + "/" + d.id;
+                    b[key] = [y.rev || 0, y.borttagen ? null : hash(y.data || "")];
+                    skickat.delete(p.id + "|" + key);
+                });
+                if (moln.tid[p.id]) delete moln.tid[p.id][tid];
+            } catch (e) { console.warn("Wimo återställning:", e); }
+        }
+        const t = p.tavlor.find((q) => q.id === x.tavla.id);
+        if (!t) p.tavlor.push(x.tavla);
+        else {
+            // tavlan finns: lägg tillbaka de poster och hinder som saknas
+            ["kort", "hinder", "aterkom"].forEach((s) => {
+                const har = new Set((t[s] || []).map((o) => o.id));
+                (x.tavla[s] || []).forEach((o) => { if (!har.has(o.id)) (t[s] = t[s] || []).push(o); });
+            });
+        }
+        borttagnaTavlor.delete(p.id + "|" + x.tavla.id);
+        andCache.delete(p.id);
+        skrivJson(KORGNYCKEL, k.filter((y) => y.id !== id));
+        spara(); rita();
+        status("Tavlan " + (x.tavla.namn || "") + " är återställd");
+        return true;
+    };
+
+    function ritaKorg() {
+        const kort = $("ksKorg");
+        if (!kort) return;
+        const k = lasKorg();
+        kort.classList.toggle("dold", !k.length);
+        if (!k.length) { kort.innerHTML = ""; return; }
+        kort.innerHTML = '<div class="p4-ks-rubrikrad"><h2>Papperskorg på den här datorn</h2></div>' +
+            '<p class="hjalp">Tavlor som försvann vid en synk sparas här i 30 dagar. Återställ lägger tillbaka tavlan, eller de poster som saknas, och synkar den till alla.</p>' +
+            '<ul class="p4-ks-lista">' + k.map((x) => {
+                const n = (x.tavla.kort || []).length;
+                return "<li><span><b>" + esc(x.tavla.namn || "Tavla") + "</b> · " + esc(x.projekt) + "<br><small>" + esc(x.orsak || "") + " · " +
+                    n + (n === 1 ? " post" : " poster") + " · " + esc(new Date(x.tid).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) + "</small></span>" +
+                    '<span class="p4-ks-atgarder"><button type="button" class="mknapp primar" data-korg="' + esc(x.id) + '">Återställ</button></span></li>';
+            }).join("") + "</ul>";
+    }
+    document.addEventListener("click", (e) => {
+        const b = e.target.closest && e.target.closest("#ksKorg [data-korg]");
+        if (!b) return;
+        Promise.resolve(window.p4AterstallKorg(b.dataset.korg)).then((ok) => { if (ok) { ritaKorg(); schemalaggPush(0); } });
+    });
+
     function andringar(p) {
         const b = moln.delar[p.id];
         if (!b) return [];
@@ -355,6 +488,35 @@
         if (c && c.j === j && c.v === basVersion) return c.ut;
         const k = konflikter.get(p.id), iKonflikt = (key) => !!(k && k.delar && k.delar.has(key));
         const { delar: L, pos } = dela(p), ut = [];
+        // SKYDD: en tavla som finns i molnet men saknas här tas aldrig bort i molnet,
+        // om inte användaren själv tagit bort just den tavlan. Saknas den här av någon annan
+        // anledning (två fönster, avbruten synk) hämtas den i stället om från molnet.
+        const saknade = new Set();
+        Object.keys(b).forEach((key) => {
+            const i = key.indexOf("/");
+            if (i > 0 && key.slice(i + 1) === "_tavla" && b[key][1] !== null && !L.has(key) && !avsiktligtBorttagen(p.id, key.slice(0, i)))
+                saknade.add(key.slice(0, i));
+        });
+        if (saknade.size) saknade.forEach((tid) => aterhamtaTavla(p.id, tid));
+        // SKYDD: många borttagna poster på en gång i samma tavla, utan att tavlan tagits bort med flit,
+        // stoppas och tavlan hämtas om. (En vanlig borttagning gäller en eller några få poster.)
+        const bortPer = new Map(), finnsPer = new Map();
+        Object.keys(b).forEach((key) => {
+            const i = key.indexOf("/");
+            if (i < 0 || b[key][1] === null || !/^(kort|hinder)_/.test(key.slice(i + 1))) return;
+            const tid = key.slice(0, i);
+            finnsPer.set(tid, (finnsPer.get(tid) || 0) + 1);
+            if (!L.has(key)) bortPer.set(tid, (bortPer.get(tid) || 0) + 1);
+        });
+        bortPer.forEach((n, tid) => {
+            if (saknade.has(tid) || avsiktligtBorttagen(p.id, tid)) return;
+            if (n >= 15 && n > (finnsPer.get(tid) || 0) * 0.5) {
+                saknade.add(tid);
+                console.warn("Wimo: stoppade borttagning av " + n + " poster i tavla " + tid + " och hämtar om den");
+                aterhamtaTavla(p.id, tid);
+            }
+        });
+        const skyddad = (key) => { const i = key.indexOf("/"); return i > 0 && saknade.has(key.slice(0, i)); };
         for (const [key, data] of L) {
             const bb = b[key], h = hash(data);
             if (bb && bb[1] === h) continue;
@@ -362,7 +524,7 @@
             ut.push({ key, rev: (bb ? bb[0] : 0) + 1, h, falt: { data, pos: pos.get(key) || 0, borttagen: false } });
         }
         Object.keys(b).forEach((key) => {
-            if (b[key][1] === null || L.has(key) || iKonflikt(key) || !tillat(p.id, key)) return;
+            if (b[key][1] === null || L.has(key) || iKonflikt(key) || !tillat(p.id, key) || skyddad(key)) return;
             ut.push({ key, rev: b[key][0] + 1, h: null, falt: { data: "", pos: 0, borttagen: true } });
         });
         andCache.set(p.id, { j, v: basVersion, ut });
@@ -377,7 +539,7 @@
         let i = 0;
         ((m && m.tavlor) || []).forEach((e) => {
             if (lok.has(e.id)) { if (i < lokala.length) ut.push(lokala[i++]); }
-            else if (!(b[e.id + "/_tavla"] !== undefined && tavlaRatt(pid, e.id) !== "ingen")) ut.push({ id: e.id, namn: e.namn || "Tavla" });
+            else if (!(b[e.id + "/_tavla"] !== undefined && tavlaRatt(pid, e.id) !== "ingen" && avsiktligtBorttagen(pid, e.id))) ut.push({ id: e.id, namn: e.namn || "Tavla" });
         });
         while (i < lokala.length) ut.push(lokala[i++]);
         return ut;
@@ -579,6 +741,7 @@
     function sattIn(ny) {
         const id = ny.id, i = plan4.projekt.findIndex((p) => p.id === id);
         const gammal = i >= 0 ? plan4.projekt[i] : null;
+        sparaForsvunnet(gammal, ny);
         if (i >= 0) plan4.projekt[i] = ny; else plan4.projekt.push(ny);
         if (state === gammal || state.id === id) { angraForeAvbryt(); state = ny; valdKedja = null; }
         // ett tomt reservprojekt (när användaren saknade projekt) behövs inte längre
@@ -632,7 +795,7 @@
     let aktivtSkrivet;             // senast sparade aktiva projekt i användardokumentet
 
     async function push() {
-        if (!anvandare || !synkKlar) return;
+        if (!anvandare || !synkKlar || window.p4Passiv) return;
         if (pushPagar) { pushIgen = true; return; }
         pushPagar = true;
         let fel = null;
@@ -971,6 +1134,8 @@
             const lokal = L.has(key) ? hash(L.get(key)) : null, bas = bb ? bb[1] : null, mh = r.borttagen ? null : hash(r.data);
             if (!ink.tvinga && lokal !== bas && lokal !== mh) { krockar.push(r); continue; }
             if (r.borttagen) L.delete(key); else { L.set(key, r.data); pos.set(key, r.pos); }
+            // någon har lagt tillbaka en tavla som jag tagit bort: den är inte längre borttagen av mig
+            if (!r.borttagen && key.endsWith("/_tavla")) borttagnaTavlor.delete(pid + "|" + key.slice(0, key.indexOf("/")));
             b[key] = [r.rev, mh];
             if (lokal !== mh) andrat = true;
         }
@@ -1415,6 +1580,7 @@
             ritaAnsokningar();
             ritaAdmin();
             ritaForslagAdmin();
+            ritaKorg();
         } catch (e) {
             console.error("Wimo kontosidan:", e);
             sida.innerHTML = '<div class="p4-ks-kort"><h2>Kontosidan kunde inte visas</h2>' +
@@ -1451,6 +1617,7 @@
             '<section class="p4-ks-kort p4-ks-projekt dold" id="ksAnsok"></section>' +
             '<section class="p4-ks-kort p4-ks-projekt dold" id="ksAdmin"></section>' +
             '<section class="p4-ks-kort dold" id="ksForslag"></section>' +
+            '<section class="p4-ks-kort dold" id="ksKorg"></section>' +
 
             '<div class="p4-ks-rutnat">' +
 
@@ -1491,8 +1658,7 @@
                   '<li><span class="et">Senast synkad</span><span>' + esc(senastSynkad ? senastSynkad.toLocaleString("sv-SE") : "—") + "</span></li>" +
                   '<li><span class="et">Enhets-id</span><span>' + esc(ENHET) + "</span></li>" +
                 "</ul>" +
-                '<p class="hjalp">Ändringar sparas först här och laddas upp till molnet inom någon sekund. Utan nät sparas de här tills nätet är tillbaka.</p>' +
-                '<div class="p4-ks-knappar"><button type="button" class="mknapp" data-ks="synka">Synka nu</button></div>' +
+                '<p class="hjalp">Ändringar sparas först här och laddas upp till molnet inom någon sekund, och andras ändringar kommer in av sig själva. Utan nät sparas de här tills nätet är tillbaka.</p>' +
               "</section>" +
 
               '<section class="p4-ks-kort">' +
@@ -1572,7 +1738,7 @@
               '<span class="p4-ks-status ' + (lage === "synkad" ? "ok" : lage === "konflikt" || lage === "fel" ? "konflikt" : "vantar") + '">' +
               esc(lagesText()) + "</span>" +
               '<span class="p4-ks-knappar p4-ks-hoger-knappar">' + (kanSkapaProjekt() ? '<button type="button" class="mknapp" data-ks="nyttprojekt">+ Nytt projekt</button>' : "") +
-              '<button type="button" class="mknapp" data-ks="synka">Synka nu</button></span></div>' +
+              "</span></div>" +
             (konflikter.size ? '<div class="notis">Välj vilken version som ska gälla för projekten som ändrats på två ställen.</div>' : "") +
             '<div class="p4-ks-tabellram"><table class="lista p4-ks-tabell"><thead><tr><th>Projekt</th><th>Tavlor</th><th>Poster</th>' + (harNagonAdminroll() ? "<th>Medlemmar</th><th>Projektkod</th>" : "") + '<th>Senast ändrat</th><th>Molnet</th><th></th></tr></thead>' +
             "<tbody>" + rader + "</tbody></table></div>";
