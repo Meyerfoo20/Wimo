@@ -19,14 +19,8 @@
   display: none;
 }
 .projektknapp .p4-hindermark {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--varning-fyll);
-  font-size: 12px;
-}
-.projektknapp .p4-hindermark.sen {
-  background: var(--leverans-fyll);
+  background: none;
+  font-size: 15px;
 }
 
 /* ---------- notisen ---------- */
