@@ -531,3 +531,47 @@ function skrivUtResurser(f) {
         (f.vy === "grupp" ? resursGruppTabell(p, u) : resursPersonTabell(p, u));
     skrivUt(html, true);
 }
+
+/* ---------- välja tavlor för något i projektet (back up, att göra) ----------
+   Inget ikryssat eller alla ikryssade = gäller alla tavlor (sparas som []). */
+function tavelValHtml(prefix, valda, rubrik, hjalpTxt) {
+    const p = state;
+    if (p.tavlor.length < 2) return "";
+    const v = (valda || []).filter(id => p.tavlor.some(t => t.id === id));
+    const alla = !v.length;
+    return '<div class="falt tavelval" id="' + prefix + 'Tv"><label>' + esc(rubrik || "Gäller tavlor") + '</label><div class="krysslista">' +
+        '<label><input type="checkbox" class="tvAlla"' + (alla ? " checked" : "") + '> <b>Alla tavlor</b></label>' +
+        p.tavlor.map(t => '<label><input type="checkbox" class="tvEn" value="' + esc(t.id) + '"' +
+            (!alla && v.indexOf(t.id) >= 0 ? " checked" : "") + '> ' + esc(t.namn) + '</label>').join("") +
+        '</div>' + (hjalpTxt ? '<p class="hjalp" style="margin:4px 0 0">' + esc(hjalpTxt) + '</p>' : "") + '</div>';
+}
+function tavelValKoppla(prefix) {
+    const box = document.getElementById(prefix + "Tv");
+    if (!box) return;
+    const alla = box.querySelector(".tvAlla"), en = [...box.querySelectorAll(".tvEn")];
+    alla.addEventListener("change", () => { if (alla.checked) en.forEach(e => { e.checked = false; }); else if (!en.some(e => e.checked)) alla.checked = true; });
+    en.forEach(e => e.addEventListener("change", () => {
+        const n = en.filter(x => x.checked).length;
+        if (n === en.length) { en.forEach(x => { x.checked = false; }); alla.checked = true; }
+        else alla.checked = !n;
+    }));
+}
+function tavelValLas(prefix) {
+    const box = document.getElementById(prefix + "Tv");
+    if (!box) return [];
+    const l = [...box.querySelectorAll(".tvEn:checked")].map(e => e.value);
+    return l.length === state.tavlor.length ? [] : l;
+}
+// Gäller x för tavlan tid? Tavlor som inte längre finns räknas bort.
+function paTavlan(p, x, tid) {
+    const l = Array.isArray(x.tavlor) ? x.tavlor.filter(id => p.tavlor.some(t => t.id === id)) : [];
+    return !l.length || !tid || l.indexOf(tid) >= 0;
+}
+// Filter-väljare överst i en lista: en tavla eller alla.
+function tavelFilterHtml(id, varde) {
+    const p = state;
+    if (p.tavlor.length < 2) return "";
+    return '<select class="f dashval tavelfilter" id="' + id + '" aria-label="Visa för tavla">' +
+        '<option value=""' + (!varde ? " selected" : "") + '>Alla tavlor</option>' +
+        p.tavlor.map(t => '<option value="' + esc(t.id) + '"' + (varde === t.id ? " selected" : "") + '>' + esc(t.namn) + '</option>').join("") + '</select>';
+}

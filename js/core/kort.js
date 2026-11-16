@@ -295,7 +295,7 @@ function kortText(k, t, p) {
 }
 
 function attGoraForDag(t, iso, p) {
-    return fAktiviteter(p).filter(a => a.kalender && a.kalender.tavlaId === t.id && a.kalender.dag === iso && a.status !== "Ej aktuell")
+    return fAktiviteter(p).filter(a => fKalenderPa(p, a, t.id) && a.kalender.dag === iso && a.status !== "Ej aktuell")
         .map(a => ({ id: "ag_" + a.id, attgora: a.id, virtuell: true, typ: "ovrigt", dag: iso, text: "Att göra · " + a.titel,
         tid: "", slutTid: "", plats: "", vem: a.ansvarig || "", not: a.kommentar || "", klar: fKlar(a), kedja: null, roll: null,
         orsak: null, flyttar: [], skapad: a.skapad || "" }));

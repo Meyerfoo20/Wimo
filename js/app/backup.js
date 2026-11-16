@@ -10,6 +10,12 @@ const BU_PRIO = { hog: "Hög", normal: "Normal", lag: "Låg" };
 const BU_PRIOORDNING = { hog: 0, normal: 1, lag: 2 };
 const BU_VADER = { inne: "Inomhus", ute: "Utomhus", bada: "Inne eller ute" };
 let buFilter = "redo";
+let buTavla = null;   // null = följ aktiv tavla, "" = alla tavlor, annars tavel-id
+
+// Vilka tavlor jobbet gäller. Äldre jobb har bara tavlaId (en tavla eller hela projektet).
+function buTavlor(j) { return Array.isArray(j.tavlor) ? j.tavlor : (j.tavlaId ? [j.tavlaId] : []); }
+function buPaTavla(p, j, tid) { return paTavlan(p, { tavlor: buTavlor(j) }, tid); }
+function buVisadTavla() { return buTavla === null ? (state.tavlor.length > 1 ? T().id : "") : buTavla; }
 
 // "Var" skrivs fritt. Står det inne/inomhus räknas jobbet som inomhus (föreslås vid dåligt väder).
 function buVaderAv(text) {
@@ -49,6 +55,7 @@ function oppnaBackup() {
     try { stangGantt(); } catch (e) { }
     document.body.classList.add("dashlage");
     document.getElementById("backup").classList.remove("dold");
+    buTavla = null;
     ritaBackup();
 }
 
@@ -96,14 +103,13 @@ function buVaderTips(p, redoInne) {
 
 function buKort(p, j) {
     const st = buStatus(p, j), las = buLas();
-    const t = j.tavlaId && p.tavlor.find(x => x.id === j.tavlaId);
     const chip = (klass, txt) => '<span class="bu-chip ' + klass + '">' + txt + "</span>";
     const chips = [
         chip("vader-" + (j.vader || "bada"), "📌 " + esc(buVarText(j))),
         j.tid ? chip("", "⏱ " + esc(j.tid)) : "",
         j.personer ? chip("", "👷 " + esc(String(j.personer)) + (j.kompetens ? " · " + esc(j.kompetens) : "")) : j.kompetens ? chip("", "👷 " + esc(j.kompetens)) : "",
         j.plats ? chip("", "📍 " + esc(j.plats)) : "",
-        t && p.tavlor.length > 1 ? chip("", esc(t.namn)) : "",
+        p.tavlor.length > 1 ? chip("", esc(resTavlorText(p, { tavlor: buTavlor(j) }))) : "",
     ].join("");
     let lage = "";
     if (st === "planerad")
@@ -131,7 +137,8 @@ function ritaBackup() {
     const box = document.getElementById("backup");
     if (!box || box.classList.contains("dold"))
         return;
-    const p = state, lista = buLista(p);
+    const p = state, vt = buVisadTavla();
+    const lista = buLista(p).filter(j => buPaTavla(p, j, vt));
     const med = lista.map(j => ({ j, st: buStatus(p, j) }));
     const antal = { redo: 0, planerad: 0, klar: 0 };
     med.forEach(x => antal[x.st]++);
@@ -154,6 +161,7 @@ function ritaBackup() {
         '<div class="g-knappar">' +
         '<div class="g-seg" role="group" aria-label="Visa">' + flik("redo", "Redo", antal.redo) +
         flik("planerad", "Inplanerade", antal.planerad) + flik("klar", "Klara", antal.klar) + flik("alla", "Alla") + "</div>" +
+        tavelFilterHtml("buTavlaFilter", vt) +
         (buLas() ? "" : '<button type="button" class="p4-btn p4-btn-primar" data-bu="ny">+ Nytt back-up jobb</button>') +
         "</div></div>";
     html += '<div class="bu-intro"><b>Alltid redo att sysselsätta personalen.</b> Fyll på med jobb som inte behöver göras just nu men som kan göras ' +
@@ -168,6 +176,8 @@ function ritaBackup() {
     else
         html += '<div class="bu-grid">' + visas.map(x => buKort(p, x.j)).join("") + "</div>";
     box.innerHTML = '<div class="p4-backup">' + html + "</div>";
+    const tf = document.getElementById("buTavlaFilter");
+    if (tf) tf.addEventListener("change", () => { buTavla = tf.value; ritaBackup(); });
     uppdateraBackupBadge();
 }
 
@@ -175,7 +185,8 @@ function uppdateraBackupBadge() {
     const b = document.getElementById("p4BuBadge");
     if (!b || !state)
         return;
-    const n = buLista(state).filter(j => buStatus(state, j) === "redo").length;
+    const tid = state.tavlor.length > 1 && typeof T === "function" && T() ? T().id : "";
+    const n = buLista(state).filter(j => buStatus(state, j) === "redo" && buPaTavla(state, j, tid)).length;
     b.textContent = n;
     b.classList.toggle("dold", !n);
 }
@@ -197,8 +208,7 @@ function buDialog(j) {
         '<div class="falt"><label for="buPers">Antal personer</label><input class="f" id="buPers" type="number" min="1" max="50" value="' + esc(j.personer || "") + '" placeholder="T.ex. 2"></div></div>' +
         '<div class="tva"><div class="falt"><label for="buKomp">Yrke / vem</label><input class="f" id="buKomp" value="' + esc(j.kompetens || "") + '" placeholder="T.ex. Snickare, MVB"></div>' +
         '<div class="falt"><label for="buPlats">Plats / del</label><input class="f" id="buPlats" value="' + esc(j.plats || "") + '" placeholder="T.ex. Del 1:3"></div></div>' +
-        (p.tavlor.length > 1 ? '<div class="falt"><label for="buTavla">Tavla</label><select class="f" id="buTavla"><option value="">Hela projektet</option>' +
-            p.tavlor.map(t => '<option value="' + t.id + '"' + (t.id === j.tavlaId ? " selected" : "") + ">" + esc(t.namn) + "</option>").join("") + "</select></div>" : "") +
+        tavelValHtml("bu", ny ? (buVisadTavla() ? [buVisadTavla()] : []) : buTavlor(j), "Gäller tavlor", "Jobbet syns bara i Back up för de valda tavlorna.") +
         '<div class="falt"><label for="buMat">Material / verktyg <span class="hjalp" style="display:inline">(frivilligt)</span></label>' +
         '<input class="f" id="buMat" value="' + esc(j.material || "") + '" placeholder="Det som behövs och om det finns på plats"></div>' +
         '<div class="notis rod dold" id="buFel"></div>';
@@ -216,7 +226,9 @@ function buDialog(j) {
                 const varText = v("buVar").trim();
                 const falt = { titel, beskrivning: v("buBeskr").trim(), var: varText, vader: buVaderAv(varText), prio: v("buPrio") || "normal",
                     tid: v("buTid").trim(), personer: parseInt(v("buPers"), 10) || "", kompetens: v("buKomp").trim(),
-                    plats: v("buPlats").trim(), tavlaId: v("buTavla") || null, material: v("buMat").trim() };
+                    plats: v("buPlats").trim(), material: v("buMat").trim() };
+                falt.tavlor = tavelValLas("bu");
+                falt.tavlaId = falt.tavlor.length === 1 ? falt.tavlor[0] : null;
                 if (ny)
                     buLista(p).push(Object.assign({ id: uid(), status: "redo", skapad: new Date().toISOString() }, falt));
                 else
@@ -227,19 +239,21 @@ function buDialog(j) {
                 status(ny ? "Back-up jobbet är tillagt" : "Back-up jobbet är sparat");
             } },
     ]);
+    tavelValKoppla("bu");
     setTimeout(() => { const t = document.getElementById("buTitel"); if (t) t.focus(); }, 30);
 }
 
 // Planera in: lägger jobbet som en post på tavlan en viss dag.
 function buPlaneraDialog(j) {
     const p = state;
-    const forslag = p.tavlor.some(t => t.id === j.tavlaId) ? j.tavlaId : T().id;
+    const mojliga = p.tavlor.filter(t => buPaTavla(p, j, t.id));
+    const forslag = mojliga.some(t => t.id === T().id) ? T().id : (mojliga[0] || T()).id;
     const kropp =
         '<p class="hjalp" style="margin-top:0">Jobbet läggs som en produktionspost på tavlan. När posten bockas av räknas jobbet som klart.</p>' +
         '<div class="tva"><div class="falt"><label for="bpDag">Dag</label><input class="f" id="bpDag" type="date" value="' + IDAG + '"></div>' +
         '<div class="falt"><label for="bpTid">Tid <span class="hjalp" style="display:inline">(frivilligt)</span></label><input class="f" id="bpTid" placeholder="T.ex. 07:00"></div></div>' +
-        (p.tavlor.length > 1 ? '<div class="falt"><label for="bpTavla">Tavla</label><select class="f" id="bpTavla">' +
-            p.tavlor.map(t => '<option value="' + t.id + '"' + (t.id === forslag ? " selected" : "") + ">" + esc(t.namn) + "</option>").join("") + "</select></div>" : "") +
+        (mojliga.length > 1 ? '<div class="falt"><label for="bpTavla">Tavla</label><select class="f" id="bpTavla">' +
+            mojliga.map(t => '<option value="' + t.id + '"' + (t.id === forslag ? " selected" : "") + ">" + esc(t.namn) + "</option>").join("") + "</select></div>" : "") +
         '<div class="falt"><label for="bpVem">Vem</label><input class="f" id="bpVem" value="' + esc(j.kompetens || "") + '"></div>';
     modal("Planera in: " + j.titel, "Back up", kropp, [
         { txt: "Avbryt", fn: stangModal },
@@ -247,7 +261,7 @@ function buPlaneraDialog(j) {
                 const dag = document.getElementById("bpDag").value || IDAG;
                 const tid = document.getElementById("bpTid").value.trim();
                 const vem = document.getElementById("bpVem").value.trim();
-                const tavlaId = (document.getElementById("bpTavla") || {}).value || T().id;
+                const tavlaId = (document.getElementById("bpTavla") || {}).value || forslag;
                 const t = p.tavlor.find(x => x.id === tavlaId) || T();
                 const not = [j.beskrivning, j.material ? "Material / verktyg: " + j.material : "", j.tid ? "Tidsåtgång: " + j.tid : "",
                     j.personer ? "Personer: " + j.personer : ""].filter(Boolean).join("\n");

@@ -228,7 +228,8 @@
         }
         catch (e) { }
         try {
-            var oppna = fAktiviteter(state).filter(function (a) { return !fKlar(a); }).length;
+            var tid = state.tavlor.length > 1 && T() ? T().id : "";
+            var oppna = fAktiviteter(state).filter(function (a) { return !fKlar(a) && fPaTavla(state, a, tid); }).length;
             var a = $("p4AgBadge");
             a.textContent = String(oppna);
             a.classList.toggle("dold", !oppna);

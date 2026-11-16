@@ -9,12 +9,15 @@ function vaderForAtgard(p) { return p === state ? vaderVarningarPeriod(IDAG, 10)
 /* ---------- projektstart: vyn ---------- */
 
 let startSort = "deadline";
+let startTavla = null;   // null = följ aktiv tavla, "" = alla tavlor
+function startVisadTavla() { return startTavla === null ? (state.tavlor.length > 1 ? T().id : "") : startTavla; }
 
 function oppnaStart(markera) {
     stangDash();
     try { if (ganttOppen()) stangGantt(); } catch (e) { }
     document.body.classList.add("dashlage");
     document.getElementById("pstart").classList.remove("dold");
+    startTavla = null;
     ritaStart(markera);
 }
 
@@ -36,8 +39,9 @@ function aktivitetRad(p, a, markera) {
         '<td><b>' + esc(a.titel) + '</b>' + (a.kommentar ? '<span class="fkom">' + esc(a.kommentar) + '</span>' : "") +
         (h ? '<span class="fkopp">↳ hinder' + (h.hinder.status === "lost" ? " (löst)" : "") + " · " + esc(h.tavla.namn) + '</span>' : "") +
         (ov ? '<span class="fkopp">↳ överförd till ' + esc(ov.tavla.namn) + " " + kortDatum(ov.kort.dag) + '</span>' : "") +
-        (fKalender(p, a) ? '<span class="fkopp">📅 visas i kalendern · ' + esc(fKalender(p, a).tavla.namn) + " " + kortDatum(a.kalender.dag) + '</span>' : "") + '</td>' +
-        '<td>' + esc(a.kategori || "Övrigt") + '</td><td>' + esc(a.ansvarig || "–") + '</td>' +
+        (a.kalender && a.kalender.dag && (Array.isArray(a.tavlor) || fKalender(p, a)) ? '<span class="fkopp">📅 visas i kalendern · ' +
+            esc(Array.isArray(a.tavlor) ? resTavlorText(p, a) : fKalender(p, a).tavla.namn) + " " + kortDatum(a.kalender.dag) + '</span>' : "") + '</td>' +
+        '<td>' + esc(a.kategori || "Övrigt") + '</td>' + (p.tavlor.length > 1 ? '<td>' + esc(resTavlorText(p, a)) + '</td>' : "") + '<td>' + esc(a.ansvarig || "–") + '</td>' +
         '<td class="dat">' + nar + (sen ? ' <span class="rodtal">förfallen</span>' : "") + '</td></tr>';
 }
 
@@ -51,7 +55,8 @@ function ritaStart(markera) {
         const da = a.fas === "fore" ? (a.deadline || "9999") : String(a.vecka || 9), db = b.fas === "fore" ? (b.deadline || "9999") : String(b.vecka || 9);
         return da < db ? -1 : da > db ? 1 : 0;
     });
-    const fore = sortera(fAktiviteter(p).filter(a => a.fas === "fore"));
+    const vt = startVisadTavla();
+    const fore = sortera(fAktiviteter(p).filter(a => a.fas === "fore" && fPaTavla(p, a, vt)));
     const start = fAktiviteter(p).filter(a => a.fas === "start");
     let html = '<div class="dashtopp">' +
         (p.logotyp ? '<img class="logga" src="' + p.logotyp + '" alt="">' : "") +
@@ -70,9 +75,10 @@ function ritaStart(markera) {
     html += '<div class="dashblock"><h3>Att göra' +
         '<span class="antal">Sortera <select class="f dashval" id="psSort">' +
         '<option value="deadline"' + (startSort === "deadline" ? " selected" : "") + '>Efter deadline</option>' +
-        '<option value="kategori"' + (startSort === "kategori" ? " selected" : "") + '>Efter kategori</option></select></span></h3>' +
+        '<option value="kategori"' + (startSort === "kategori" ? " selected" : "") + '>Efter kategori</option></select>' +
+        (p.tavlor.length > 1 ? ' Visa ' + tavelFilterHtml("psTavla", vt) : "") + '</span></h3>' +
         (fore.length ? '<table class="lista fatabell"><thead><tr><th>Status</th><th>Att göra</th><th>Kategori</th>' +
-            '<th>Ansvarig</th><th>Deadline</th></tr></thead><tbody>' + fore.map(a => aktivitetRad(p, a, markera)).join("") + '</tbody></table>'
+            (p.tavlor.length > 1 ? '<th>Tavlor</th>' : '') + '<th>Ansvarig</th><th>Deadline</th></tr></thead><tbody>' + fore.map(a => aktivitetRad(p, a, markera)).join("") + '</tbody></table>'
             : '<p class="hjalp">Inget att göra ännu. Exempel: Beställ etableringsskylt, Boka mobilkran, Få besked om kulör, ' +
                 'Följ upp ÄTA, Boka besiktning.</p>') + '</div>';
     if (start.length) {
@@ -89,6 +95,8 @@ function ritaStart(markera) {
     document.getElementById("psNy").addEventListener("click", () => aktivitetDialog(null));
     document.getElementById("psSkrivUt").addEventListener("click", () => skrivUtProjektstart(p));
     document.getElementById("psSort").addEventListener("change", e => { startSort = e.target.value; ritaStart(); });
+    const pst = document.getElementById("psTavla");
+    if (pst) pst.addEventListener("change", e => { startTavla = e.target.value; ritaStart(); });
     box.querySelectorAll("[data-stat]").forEach(b => b.addEventListener("click", e => {
         e.stopPropagation();
         const a = fAktiviteter(p).find(x => x.id === b.dataset.stat);
@@ -127,11 +135,10 @@ function aktivitetDialog(a, forval) {
         '<div class="falt" id="faVeckaF"><label for="faVecka">Vecka efter byggstart</label><select class="f" id="faVecka">' +
         [1, 2, 3, 4].map(v => '<option value="' + v + '"' + (v === (b.vecka || 1) ? " selected" : "") + '>Vecka ' + v + '</option>').join("") + '</select></div></div>' +
         '<div class="falt"><label for="faKom">Kommentar</label><input class="f" id="faKom" value="' + esc(b.kommentar || "") + '"></div>' +
+        tavelValHtml("fa", Array.isArray(b.tavlor) ? b.tavlor : (kal && kal.tavlaId ? [kal.tavlaId] : (ny && startVisadTavla() ? [startVisadTavla()] : [])),
+            "Gäller tavlor", "Punkten syns i Att göra för de valda tavlorna, och i kalendern på dem om du kryssar i det nedan.") +
         '<div class="falt"><label class="kryssrad"><input type="checkbox" id="faKal"' + (kal ? " checked" : "") + '> Visa även i kalendern</label>' +
         '<div class="tva' + (kal ? "" : " dold") + '" id="faKalF" style="margin-top:6px">' +
-        '<div class="falt"><label for="faKalTavla">Tavla</label><select class="f" id="faKalTavla">' +
-        p.tavlor.map(t => '<option value="' + t.id + '"' + ((kal ? kal.tavlaId : p.aktiv) === t.id ? " selected" : "") + '>' + esc(t.namn) + '</option>').join("") +
-        '</select></div>' +
         '<div class="falt"><label for="faKalDag">Datum</label><input class="f" id="faKalDag" type="date" value="' +
         esc(kal ? kal.dag : (b.deadline || IDAG)) + '"></div></div>' +
         '<p class="hjalp" style="margin:4px 0 0">Punkten visas som en påminnelse på tavlan. Den räknas inte som produktion.</p></div>' +
@@ -177,13 +184,14 @@ function aktivitetDialog(a, forval) {
         mal.kommentar = document.getElementById("faKom").value.trim();
         mal.deadline = fas === "fore" ? document.getElementById("faDead").value : "";
         mal.vecka = fas === "start" ? (+document.getElementById("faVecka").value || 1) : null;
+        mal.tavlor = tavelValLas("fa");
         if (document.getElementById("faKal").checked) {
             const dag = document.getElementById("faKalDag").value;
             if (!dag) {
                 document.getElementById("faFel").innerHTML = '<div class="notis rod">Välj datum för kalendern.</div>';
                 return;
             }
-            mal.kalender = { tavlaId: document.getElementById("faKalTavla").value, dag: dag };
+            mal.kalender = { tavlaId: (mal.tavlor[0] || (p.tavlor.some(t => t.id === p.aktiv) ? p.aktiv : p.tavlor[0].id)), dag: dag };
         }
         else
             mal.kalender = null;
@@ -195,6 +203,7 @@ function aktivitetDialog(a, forval) {
         ritaStart(mal.id);
         rita();
     }
+    tavelValKoppla("fa");
     document.getElementById("faKal").addEventListener("change", e => {
         document.getElementById("faKalF").classList.toggle("dold", !e.target.checked);
     });

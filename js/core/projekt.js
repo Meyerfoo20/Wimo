@@ -39,6 +39,16 @@ function fOverford(p, a) {
     return k ? { tavla: t, kort: k } : null;
 }
 
+// Vilka tavlor en att göra-punkt gäller. Äldre punkter gäller alla, men visas i kalendern bara på kalender.tavlaId.
+function fTavlor(a) { return Array.isArray(a.tavlor) ? a.tavlor : []; }
+function fPaTavla(p, a, tid) {
+    const l = fTavlor(a).filter(id => p.tavlor.some(t => t.id === id));
+    return !l.length || !tid || l.indexOf(tid) >= 0;
+}
+function fKalenderPa(p, a, tid) {
+    if (!a.kalender || !a.kalender.dag) return false;
+    return Array.isArray(a.tavlor) ? fPaTavla(p, a, tid) : a.kalender.tavlaId === tid;
+}
 function fKalender(p, a) {
     if (!a.kalender || !a.kalender.tavlaId || !a.kalender.dag)
         return null;
