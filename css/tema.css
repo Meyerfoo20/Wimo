@@ -110,6 +110,7 @@ html[data-tema="mork"] .p4-tema .ik-mane { display: none; }
   html[data-tema="mork"] .db-juridik,
   html[data-tema="mork"] .db-tagg.gul { background: var(--varning-fyll); color: var(--varning); }
   html[data-tema="mork"] .fatabell tr.markerad td { background: var(--avrop-fyll); }
+  html[data-tema="mork"] .abmark.saknas { background: #f2f2f2; color: #111; }
   html[data-tema="mork"] .dvrad { border-bottom-color: var(--border-light); }
   html[data-tema="mork"] .db-kd.har i { background: var(--bg-card); }
   html[data-tema="mork"] .g-bubbla { background: var(--accent-main); color: var(--btn-text); }

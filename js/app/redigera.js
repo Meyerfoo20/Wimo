@@ -538,7 +538,9 @@ function hanteraSerie(k) {
         '<div class="falt"><label for="sTom">Till och med (valfritt)</label>' +
         '<input class="f" id="sTom" type="date" value="' + esc(s.tom || "") + '"></div></div>' +
         '<p class="hjalp">Ändringar gäller alla förekomster. Vill du bara ändra eller ta bort den här dagen ' +
-        'använder du knapparna nedan — serien påverkas inte.</p><div id="sFel"></div>';
+        'använder du knapparna nedan — serien påverkas inte.</p>' +
+        (mote ? moteTavlorHtml(serieSyskon(s).map(x => x.t.id), T().id) : "") +
+        '<div id="sFel"></div>';
     modal("Återkommande post", s.text, kropp, [
         { txt: serieSyskon(s).length ? "Ta bort serien på alla tavlor" : "Ta bort hela serien", vanster: true, fara: true, fn: () => {
                 const t = T();
@@ -594,6 +596,7 @@ function hanteraSerie(k) {
                 delete s.vdag;
                 s.vem = document.getElementById("sVem").value.trim();
                 s.tom = document.getElementById("sTom").value || "";
+                if (mote) uppdateraSerieTavlor(s, T());
                 synkaSerie(s);
                 stangModal();
                 spara();
@@ -963,5 +966,23 @@ function taBortSerieSyskon(s) {
         t2.aterkom = t2.aterkom.filter(y => y !== x);
         t2.kort = t2.kort.filter(y => y.fran !== x.id || y.klar);
         t2.skippa = t2.skippa.filter(y => y.split("|")[0] !== x.id);
+    });
+}
+
+// Efter att serien sparats: lägg till eller ta bort seriens kopior så att de valda tavlorna stämmer.
+function uppdateraSerieTavlor(s, egen) {
+    if (!document.querySelector(".moteTavla")) return;
+    const valda = valdaMoteTavlor().map(t => t.id);
+    const finns = serieSyskon(s);
+    finns.forEach(({ t, s: x }) => {
+        if (valda.indexOf(t.id) >= 0 || !kanTavla(t)) return;
+        t.aterkom = t.aterkom.filter(y => y !== x);
+        t.kort = t.kort.filter(y => y.fran !== x.id || y.klar);
+        t.skippa = t.skippa.filter(y => y.split("|")[0] !== x.id);
+    });
+    valda.forEach(id => {
+        if (id === egen.id || finns.some(f => f.t.id === id)) return;
+        if (!s.lank) s.lank = uid();
+        kopieraSerieTill(s, state.tavlor.find(t => t.id === id));
     });
 }

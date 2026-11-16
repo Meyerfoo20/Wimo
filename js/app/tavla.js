@@ -972,7 +972,12 @@ function kortEl(k) {
         ab.className = "abmark " + (st === "utford" ? "utford" : st === "planerad" ? "planerad" : "saknas");
         ab.textContent = st === "utford" ? "✓ AB" : st === "planerad" ? "AB planerad" : "AB saknas";
         ab.title = "Arbetsberedning: " + ABTEXT[st];
-        el.appendChild(ab);
+        // under etiketten (START, MÖTE …) och ovanför texten, så att den syns
+        const etikett = txt.querySelector(".kortetikett");
+        if (etikett)
+            etikett.insertAdjacentElement("afterend", ab);
+        else
+            txt.insertBefore(ab, txt.firstChild);
     }
     if (!k.virtuell && k.flyttar && k.flyttar.length) {
         const fl = document.createElement("span");
