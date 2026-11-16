@@ -17,7 +17,8 @@ function nyttForetag(p, namn, roller) {
 }
 
 function foretagValjare(p, roll, valtId, falt, manuellText, utanManuell) {
-    const lista = (p.foretag || []).filter(f => f.id === valtId || (f.aktiv && (!roll || f.roller.indexOf(roll) >= 0)))
+    const tid = p === state && typeof T === "function" && T() ? T().id : null;
+    const lista = (p.foretag || []).filter(f => f.id === valtId || (f.aktiv && (!roll || f.roller.indexOf(roll) >= 0) && resPaTavla(f, tid)))
         .sort((a, b) => a.namn.localeCompare(b.namn, "sv"));
     const man = !utanManuell && !valtId && !!manuellText;
     return '<span class="ftgvaljare"><select class="f ftgval" data-f="' + falt + '" data-roll="' + (roll || "") + '">' +

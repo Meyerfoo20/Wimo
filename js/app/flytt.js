@@ -82,6 +82,8 @@ function utforPatch(k, nyDag, orsak, foreKort) {
         return;
     if (k.fran && t.skippa.indexOf(k.fran + "|" + fran) < 0)
         t.skippa.push(k.fran + "|" + fran);
+    if (k.lank && typeof synkaMote === "function" && synkaMote(k))
+        status("Mötet flyttades på alla tavlor");
     patch.historik.forEach(h => logg(h));
     stangModal();
     spara();

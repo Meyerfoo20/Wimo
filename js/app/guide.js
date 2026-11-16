@@ -42,6 +42,7 @@ function snabbPost(dag) {
         '<div class="falt"><label for="sbStart">Börjar</label><input class="f" id="sbStart" type="time"></div>' +
         '<div class="falt"><label for="sbSlut">Slutar</label><input class="f" id="sbSlut" type="time"></div></div>' +
         '<div class="falt"><label for="sbPlats">Plats</label><input class="f" id="sbPlats" placeholder="Platskontoret"></div>' +
+        moteTavlorHtml([], T().id) +
         '<div id="sbMoteFel"></div></div>' +
         '<div id="sbFranvaro" class="dold"><div class="falt"><label>Orsak</label>' +
         '<div class="lage" id="sbFOrsak">' + FRANVARO.map((o, i) => '<button type="button" data-o="' + o + '"' +
@@ -97,10 +98,16 @@ function snabbPost(dag) {
                 document.getElementById("sbDagar").insertAdjacentHTML("beforeend", '<div class="notis rod">Välj minst en veckodag.</div>');
                 return;
             }
-            T().aterkom.push({ id: uid(), vdagar: vdagar, typ: typ, text: txt, tid: tid, slutTid: slutTid, plats: plats,
+            const serie = { id: uid(), vdagar: vdagar, typ: typ, text: txt, tid: tid, slutTid: slutTid, plats: plats,
                 vem: vem, not: "", tom: document.getElementById("sbTom").value || "",
-                franvaroOrsak: typ === "franvaro" ? fOrsak : "" });
-            logg("Återkommande post upplagd: " + txt);
+                franvaroOrsak: typ === "franvaro" ? fOrsak : "" };
+            T().aterkom.push(serie);
+            const andra = typ === "mote" ? valdaMoteTavlor() : [];
+            if (andra.length) {
+                serie.lank = uid();
+                andra.forEach(t2 => kopieraSerieTill(serie, t2));
+            }
+            logg("Återkommande post upplagd: " + txt + (andra.length ? " (även på " + andra.map(x => x.namn).join(", ") + ")" : ""));
         }
         else if (typ === "avrop") {
             skapaSnabbAvrop({ dag: dagVal, text: txt, tid: tid, vem: vem, slag: slag,
@@ -116,6 +123,17 @@ function snabbPost(dag) {
                     milstolpe: typ === "produktion" && document.getElementById("sbMil").checked }, t.id, null, null);
                 if (!patch.ok || !appliceraPatch(patch, { tavla: t, projekt: state }))
                     return;
+                const andra = typ === "mote" ? valdaMoteTavlor() : [];
+                const nytt = andra.length ? t.kort.find(x => x.id === patch.andringar[0].id) : null;
+                if (nytt) {
+                    nytt.lank = uid();
+                    andra.forEach(t2 => kopieraMoteTill(nytt, t2));
+                }
+            }
+            const ocksa = typ === "mote" ? valdaMoteTavlor() : [];
+            if (ocksa.length) {
+                logg("Mötet " + txt + " lades även på " + ocksa.map(x => x.namn).join(", "));
+                status("Mötet lades in på " + (ocksa.length + 1) + " tavlor");
             }
             if (dagarna.length > 1) {
                 logg(txt + " upplagd " + dagarna.length + " dagar, " + kortDatum(dagarna[0]) + "–" + kortDatum(dagarna[dagarna.length - 1]));

@@ -504,6 +504,7 @@ function seriensVal(k) {
     document.getElementById("svAndraAlla").addEventListener("click", () => { stangModal(); hanteraSerie(k); });
     document.getElementById("svTaBortAlla").addEventListener("click", () => {
         const t = T();
+        taBortSerieSyskon(s);
         t.aterkom = t.aterkom.filter(x => x.id !== s.id);
         const bortS = t.kort.filter(x => x.fran === s.id && !x.klar).map(x => x.id);
         t.kort = t.kort.filter(x => x.fran !== s.id || x.klar);
@@ -539,8 +540,9 @@ function hanteraSerie(k) {
         '<p class="hjalp">Ändringar gäller alla förekomster. Vill du bara ändra eller ta bort den här dagen ' +
         'använder du knapparna nedan — serien påverkas inte.</p><div id="sFel"></div>';
     modal("Återkommande post", s.text, kropp, [
-        { txt: "Ta bort hela serien", vanster: true, fara: true, fn: () => {
+        { txt: serieSyskon(s).length ? "Ta bort serien på alla tavlor" : "Ta bort hela serien", vanster: true, fara: true, fn: () => {
                 const t = T();
+                taBortSerieSyskon(s);
                 t.aterkom = t.aterkom.filter(x => x.id !== s.id);
                 const bortH = t.kort.filter(x => x.fran === s.id).map(x => x.id);
                 t.kort = t.kort.filter(x => x.fran !== s.id);
@@ -592,6 +594,7 @@ function hanteraSerie(k) {
                 delete s.vdag;
                 s.vem = document.getElementById("sVem").value.trim();
                 s.tom = document.getElementById("sTom").value || "";
+                synkaSerie(s);
                 stangModal();
                 spara();
                 rita();
@@ -709,6 +712,7 @@ function redigeraKort(k) {
         (k.typ === "franvaro" ? '<div class="falt"><label for="rFOrsak">Orsak</label><select class="f" id="rFOrsak">' +
             FRANVARO.map(o => '<option' + (o === (k.franvaroOrsak || "Annat") ? " selected" : "") + '>' + o + '</option>').join("") +
             '</select></div>' : "") +
+        (k.typ === "mote" && !k.fran && !k.virtuell ? moteTavlorHtml(moteSyskon(k).map(x => x.t.id), T().id) : "") +
         '<div id="rFel"></div>' +
         '<div class="falt"><label for="rNot">Anteckningar</label><textarea class="f" id="rNot" rows="3">' + esc(k.not || "") + '</textarea></div>' +
         (k.orsak ? '<div class="notis">Flyttad tidigare — orsaksord: ' + esc(k.orsak) + '</div>' : "");
@@ -716,6 +720,8 @@ function redigeraKort(k) {
         { txt: "Ta bort", vanster: true, fara: true, fn: () => {
                 if (k.typ === "produktion" && k.roll !== "K")
                     return raderaMoment(k);
+                if (k.lank)
+                    return raderaMoteDialog(k);
                 raderaKort(k);
             } },
         { txt: "Avbryt", fn: stangModal },
@@ -766,6 +772,10 @@ function redigeraKort(k) {
                     const pp = opRedigeraKort(momentBar, { plats: momentPlats }, t.id);
                     if (pp.ok)
                         appliceraPatch(pp, { tavla: t, projekt: state });
+                }
+                if (k.typ === "mote" || k.lank) {
+                    uppdateraMoteTavlor(k, t);
+                    synkaMote(k);
                 }
                 if (kravOrsak)
                     return fragaOrsak(k, nyDag, foreKort);
@@ -836,4 +846,122 @@ function mailaAnteckning(k, t, text) {
     document.body.appendChild(a);
     a.click();
     a.remove();
+}
+
+/* ---------- möten på flera tavlor ----------
+   Ett möte kan visas på flera tavlor i projektet. Kopiorna hänger ihop via k.lank (samma id på alla),
+   så att en ändring av text, dag, tid eller plats slår igenom på alla. Avbockning och anteckningar
+   är per tavla. Återkommande möten länkas på samma sätt via serien (aterkom.lank). */
+const MOTE_SYNK = ["text", "dag", "tid", "slutTid", "plats", "vem", "typ"];
+const SERIE_SYNK = ["text", "vdagar", "tid", "slutTid", "plats", "vem", "tom", "typ"];
+
+function kanTavla(t) { return typeof window.p4KanRedigera !== "function" || window.p4KanRedigera(state.id, t.id); }
+
+function moteSyskon(k) {
+    const ut = [];
+    if (!k || !k.lank) return ut;
+    state.tavlor.forEach(t => (t.kort || []).forEach(x => { if (x !== k && x.lank === k.lank) ut.push({ t: t, k: x }); }));
+    return ut;
+}
+function serieSyskon(s) {
+    const ut = [];
+    if (!s || !s.lank) return ut;
+    state.tavlor.forEach(t => (t.aterkom || []).forEach(x => { if (x !== s && x.lank === s.lank) ut.push({ t: t, s: x }); }));
+    return ut;
+}
+
+// Kopierar mötets uppgifter till kopiorna på de andra tavlorna. Returnerar antalet uppdaterade.
+function synkaMote(k) {
+    let n = 0;
+    moteSyskon(k).forEach(({ t, k: x }) => {
+        if (!kanTavla(t)) return;
+        MOTE_SYNK.forEach(f => { if (k[f] === undefined) delete x[f]; else x[f] = k[f]; });
+        n++;
+    });
+    return n;
+}
+function synkaSerie(s) {
+    serieSyskon(s).forEach(({ t, s: x }) => {
+        if (!kanTavla(t)) return;
+        SERIE_SYNK.forEach(f => { if (s[f] === undefined) delete x[f]; else x[f] = Array.isArray(s[f]) ? s[f].slice() : s[f]; });
+        delete x.vdag;
+    });
+}
+
+// Kryssrutor "Visa även på" för de andra tavlorna. valda: tavel-id som redan har mötet.
+function moteTavlorHtml(valda, egenId) {
+    const andra = state.tavlor.filter(t => t.id !== egenId);
+    if (!andra.length) return "";
+    return '<div class="falt mote-tavlor"><label>Visa även på</label><div class="krysslista">' +
+        andra.map(t => {
+            const kan = kanTavla(t);
+            return '<label' + (kan ? "" : ' title="Du kan inte ändra på den tavlan"') + '><input type="checkbox" class="moteTavla" value="' + esc(t.id) + '"' +
+                (valda.indexOf(t.id) >= 0 ? " checked" : "") + (kan ? "" : " disabled") + '> ' + esc(t.namn) + '</label>';
+        }).join("") +
+        '</div><p class="hjalp" style="margin:4px 0 0">Mötet läggs in på de valda tavlorna också. Ändrar du tid, dag eller text slår det igenom på alla.</p></div>';
+}
+function valdaMoteTavlor() {
+    return [...document.querySelectorAll(".moteTavla:checked")].map(e => e.value)
+        .map(id => state.tavlor.find(t => t.id === id)).filter(t => t && kanTavla(t));
+}
+
+// Lägger in en kopia av mötet k på tavlan t.
+function kopieraMoteTill(k, t) {
+    const x = JSON.parse(JSON.stringify(k));
+    x.id = uid();
+    x.klar = false; x.klarTid = null; x.not = ""; x.flyttar = []; x.orsak = null;
+    delete x.fran; delete x.kedja; delete x.roll;
+    t.kort.push(x);
+    return x;
+}
+function kopieraSerieTill(s, t) {
+    const x = JSON.parse(JSON.stringify(s));
+    x.id = uid();
+    t.aterkom.push(x);
+    return x;
+}
+
+// Efter att mötet sparats: lägg till eller ta bort kopior så att de valda tavlorna stämmer.
+function uppdateraMoteTavlor(k, egen) {
+    if (!document.querySelector(".moteTavla")) return;
+    const valda = valdaMoteTavlor().map(t => t.id);
+    const finns = moteSyskon(k);
+    let la = 0, bort = 0;
+    finns.forEach(({ t, k: x }) => {
+        if (valda.indexOf(t.id) >= 0 || !kanTavla(t)) return;
+        t.kort = t.kort.filter(y => y !== x);
+        bort++;
+    });
+    valda.forEach(id => {
+        if (id === egen.id || finns.some(f => f.t.id === id)) return;
+        if (!k.lank) k.lank = uid();
+        kopieraMoteTill(k, state.tavlor.find(t => t.id === id));
+        la++;
+    });
+    if (la || bort) logg("Mötet " + k.text + (la ? " lades till på " + la + (la === 1 ? " tavla" : " tavlor") : "") +
+        (la && bort ? " och" : "") + (bort ? " togs bort från " + bort + (bort === 1 ? " tavla" : " tavlor") : ""));
+}
+
+// Ta bort ett möte som finns på flera tavlor: fråga om det gäller alla.
+function raderaMoteDialog(k) {
+    const syskon = moteSyskon(k).filter(x => kanTavla(x.t));
+    if (!syskon.length) return raderaKort(k);
+    const kropp = '<p class="fraga">' + esc(k.text) + ' · ' + dagEtikett(k.dag) + '</p>' +
+        '<p class="hjalp">Mötet finns också på ' + syskon.map(x => esc(x.t.namn)).join(", ") + '.</p>';
+    modal("Ta bort möte", "", kropp, [
+        { txt: "Avbryt", fn: stangModal },
+        { txt: "Bara på den här tavlan", fn: () => raderaKort(k) },
+        { txt: "På alla tavlor", primar: true, fara: true, fn: () => {
+                syskon.forEach(({ t, k: x }) => { t.kort = t.kort.filter(y => y !== x); });
+                raderaKort(k, " (även på " + syskon.length + (syskon.length === 1 ? " annan tavla)" : " andra tavlor)"));
+            } }
+    ]);
+}
+
+function taBortSerieSyskon(s) {
+    serieSyskon(s).filter(x => kanTavla(x.t)).forEach(({ t: t2, s: x }) => {
+        t2.aterkom = t2.aterkom.filter(y => y !== x);
+        t2.kort = t2.kort.filter(y => y.fran !== x.id || y.klar);
+        t2.skippa = t2.skippa.filter(y => y.split("|")[0] !== x.id);
+    });
 }

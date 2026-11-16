@@ -273,11 +273,15 @@ function resursbankDialog() {
         });
 }
 
-// Liten ruta för att välja vilka tavlor en person hör till. Inget valt = alla tavlor.
-function rbTavlorVal(p, knapp) {
+// Liten ruta för att välja vilka tavlor något i projektet hör till (en person, ett företag). Inget valt = alla tavlor.
+function rbTavlorVal(p, knapp, x, sparaLista, hjalpTxt) {
     const gammal = document.getElementById("rbTavlorRuta");
-    if (gammal) { const samma = gammal.dataset.pid === knapp.dataset.pt; gammal.remove(); if (samma) return; }
-    const x = resPers(p, knapp.dataset.pt);
+    if (gammal) { const samma = gammal.dataset.pid === (x && x.id); gammal.remove(); if (samma) return; }
+    if (!x) {
+        x = resPers(p, knapp.dataset.pt);
+        sparaLista = (lista) => opAndraPerson(x, { tavlor: lista }, null, null);
+        hjalpTxt = "Personen syns bara på de valda tavlorna när man bemannar ett moment.";
+    }
     if (!x)
         return;
     const valda = Array.isArray(x.tavlor) ? x.tavlor.filter(id => p.tavlor.some(t => t.id === id)) : [];
@@ -288,11 +292,11 @@ function rbTavlorVal(p, knapp) {
     ruta.dataset.pid = x.id;
     ruta.innerHTML = '<label class="rb-alla"><input type="checkbox" value=""' + (alla ? " checked" : "") + '> Alla tavlor</label>' +
         p.tavlor.map(t => '<label><input type="checkbox" value="' + esc(t.id) + '"' + (!alla && valda.indexOf(t.id) >= 0 ? " checked" : "") + "> " + esc(t.namn) + "</label>").join("") +
-        '<p class="hjalp">Personen syns bara på de valda tavlorna när man bemannar ett moment.</p>';
+        '<p class="hjalp">' + esc(hjalpTxt || "") + '</p>';
     knapp.parentElement.style.position = "relative";
     knapp.parentElement.appendChild(ruta);
     const spara1 = (lista) => {
-        const patch = opAndraPerson(x, { tavlor: lista }, null, null);
+        const patch = sparaLista(lista);
         if (patch.ok && appliceraPatch(patch, { tavla: T(), projekt: p })) {
             spara();
             knapp.textContent = resTavlorText(p, x);
@@ -355,13 +359,14 @@ function foretagDialog() {
     const kropp = '<p class="hjalp" style="margin-top:0">Projektets leverantörer och underentreprenörer. ' +
         'Poster kopplas till företaget, så att ett namnbyte slår igenom överallt. Skilt från resursbanken, som gäller egen personal.</p>' +
         (reg.length ? '<table class="lista ftgtabell"><thead><tr><th>Företag</th><th>Roll</th><th>Område</th>' +
-            '<th>Kontakt</th><th>Telefon</th><th>E-post</th><th>Aktiv</th><th>Används</th><th></th></tr></thead><tbody>' +
+            '<th>Kontakt</th><th>Telefon</th><th>E-post</th>' + (p.tavlor.length > 1 ? '<th>Tavlor</th>' : '') + '<th>Aktiv</th><th>Används</th><th></th></tr></thead><tbody>' +
             reg.slice().sort((a, b) => a.namn.localeCompare(b.namn, "sv")).map(f => '<tr' + (f.aktiv ? "" : ' class="utford"') + '>' +
                 '<td><input class="f" data-fn="' + f.id + '" value="' + esc(f.namn) + '"></td>' +
                 '<td class="rollval">' + FROLLER.map(r => '<label><input type="checkbox" data-fr="' + f.id + '" value="' + r[0] + '"' +
                 (f.roller.indexOf(r[0]) >= 0 ? " checked" : "") + '> ' + r[1] + '</label>').join("") + '</td>' +
                 ["omrade", "kontakt", "telefon", "epost"].map(n => '<td><input class="f" data-fx="' + f.id + '" data-n="' + n + '" value="' + esc(f[n] || "") + '"></td>').join("") +
-                '<td><input type="checkbox" data-fa="' + f.id + '"' + (f.aktiv ? " checked" : "") + '></td>' +
+                (p.tavlor.length > 1 ? '<td style="position:relative"><button type="button" class="rb-tavlor" data-ft="' + f.id + '" aria-haspopup="true">' + esc(resTavlorText(p, f)) + '</button></td>' : "") +
+                '<td><input type="checkbox" data-fa=""' + f.id + '"' + (f.aktiv ? " checked" : "") + '></td>' +
                 '<td>' + ftgAnvandning(p, f.id).length + '</td>' +
                 '<td><button type="button" class="parkiv" data-fd="' + f.id + '">Ta bort</button></td></tr>').join("") +
             '</tbody></table>' : '<p class="hjalp">Inga företag registrerade ännu.</p>') +
@@ -454,6 +459,12 @@ function foretagDialog() {
         om();
     }));
     document.querySelectorAll("[data-fd]").forEach(e => e.addEventListener("click", () => raderaForetagDialog(e.dataset.fd)));
+    document.querySelectorAll("[data-ft]").forEach(e => e.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const f = ftgPost(p, e.dataset.ft);
+        if (f) rbTavlorVal(p, e, f, (lista) => opAndraForetag(f, { tavlor: lista }, null, null),
+            "Företaget går bara att välja på de valda tavlorna. Poster som redan är kopplade behåller företaget.");
+    }));
 }
 
 function raderaForetagDialog(id) {
@@ -656,6 +667,12 @@ function tavlaInstallningar(t) {
                 state.tavlor = state.tavlor.filter(x => x.id !== t.id);
                 // markera att tavlan togs bort med flit, så synken får ta bort den i molnet
                 if (typeof window.p4TavlaBorttagen === "function") window.p4TavlaBorttagen(state.id, t.id);
+                // personer och företag som bara hörde till den här tavlan hör nu till alla
+                (state.resurser.personer || []).concat(state.foretag || []).forEach(x => {
+                    if (Array.isArray(x.tavlor) && x.tavlor.indexOf(t.id) >= 0) {
+                        x.tavlor = x.tavlor.filter(id => id !== t.id);
+                    }
+                });
                 state.aktiv = state.tavlor[0].id;
                 stangModal();
                 spara();
