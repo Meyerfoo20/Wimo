@@ -716,6 +716,7 @@ function redigeraKort(k) {
             FRANVARO.map(o => '<option' + (o === (k.franvaroOrsak || "Annat") ? " selected" : "") + '>' + o + '</option>').join("") +
             '</select></div>' : "") +
         (k.typ === "mote" && !k.fran && !k.virtuell ? moteTavlorHtml(moteSyskon(k).map(x => x.t.id), T().id) : "") +
+        (k.typ === "ue" && !k.fran && !k.virtuell && !k.kedja && !k.roll ? ueSerieFaltHtml(T(), k) : "") +
         '<div id="rFel"></div>' +
         '<div class="falt"><label for="rNot">Anteckningar</label><textarea class="f" id="rNot" rows="3">' + esc(k.not || "") + '</textarea></div>' +
         (k.orsak ? '<div class="notis">Flyttad tidigare — orsaksord: ' + esc(k.orsak) + '</div>' : "");
@@ -725,6 +726,8 @@ function redigeraKort(k) {
                     return raderaMoment(k);
                 if (k.lank)
                     return raderaMoteDialog(k);
+                if (k.ueSerie)
+                    return raderaUeDialog(k);
                 raderaKort(k);
             } },
         { txt: "Avbryt", fn: stangModal },
@@ -779,6 +782,20 @@ function redigeraKort(k) {
                 if (k.typ === "mote" || k.lank) {
                     uppdateraMoteTavlor(k, t);
                     synkaMote(k);
+                }
+                if (k.typ === "ue" && document.getElementById("rUeKal")) {
+                    const vis = document.querySelector("#rUeVis button.vald");
+                    const nyaDatum = rUeDatum;
+                    if (nyaDatum) sattUeDatum(t, k, nyaDatum);
+                    if (vis && k.ueSerie) k.ueVisning = vis.dataset.v;
+                    if (k.ueSerie) synkaUeSerie(t, k);
+                    if (nyaDatum) {
+                        // datumen styrs av kalendern, inte av Dag-fältet
+                        stangModal();
+                        spara();
+                        rita();
+                        return;
+                    }
                 }
                 if (kravOrsak)
                     return fragaOrsak(k, nyDag, foreKort);
@@ -985,4 +1002,184 @@ function uppdateraSerieTavlor(s, egen) {
         if (!s.lank) s.lank = uid();
         kopieraSerieTill(s, state.tavlor.find(t => t.id === id));
     });
+}
+
+/* ---------- kalender-popup där man klickar i flera datum ----------
+   Samma utseende som datumväljaren (p4d-*). valda: ISO-datum. klar(lista) anropas vid Klar.
+   ankare: knappen popupen ska ligga vid. Bara vardagar går att välja. */
+function datumKalender(valda, klar, rubrik, ankare) {
+    const gammal = document.getElementById("datumKal");
+    if (gammal) { gammal._stang(); }
+    const set = new Set(valda || []);
+    const start = (valda && valda.length ? valda.slice().sort()[0] : IDAG);
+    const manad = iso2d(start); manad.setDate(1);
+    const ruta = document.createElement("div");
+    ruta.id = "datumKal";
+    ruta.className = "p4d-pop p4d-flera";
+    ruta.setAttribute("role", "dialog");
+    ruta.setAttribute("aria-label", rubrik || "Välj datum");
+    document.body.appendChild(ruta);
+    let dragVal = null;
+    const antalText = () => set.size + (set.size === 1 ? " dag vald" : " dagar valda");
+    function rita() {
+        const ar = manad.getFullYear(), m = manad.getMonth();
+        const forsta = new Date(ar, m, 1);
+        const d = new Date(forsta); d.setDate(1 - ((forsta.getDay() + 6) % 7));
+        let html = '<div class="p4d-topp">' +
+            '<button type="button" class="p4d-pil" data-n="-1" aria-label="Föregående månad"><span></span></button>' +
+            '<div class="p4d-rubrik"><b>' + MANAD[m].replace(/^./, c => c.toUpperCase()) + "</b> " + ar + '</div>' +
+            '<button type="button" class="p4d-pil nasta" data-n="1" aria-label="Nästa månad"><span></span></button></div>' +
+            '<div class="p4d-rutnat" role="grid"><span class="p4d-vh">v</span>' +
+            ["Må", "Ti", "On", "To", "Fr"].map(x => '<span class="p4d-vd">' + x + '</span>').join("");
+        for (let rad = 0; rad < 6; rad++) {
+            const mon = d2iso(d);
+            if (rad > 3 && iso2d(mon).getMonth() !== m) break;
+            html += '<button type="button" class="p4d-vnr" data-vecka="' + mon + '" title="Välj eller avmarkera hela veckan">' + veckonr(mon) + '</button>';
+            for (let i = 0; i < 5; i++) {
+                const iso = plus(mon, i), dd = iso2d(iso);
+                html += '<button type="button" class="p4d-dag' + (dd.getMonth() !== m ? " annan" : "") + (iso === IDAG ? " idag" : "") +
+                    (set.has(iso) ? " vald" : "") + '" data-d="' + iso + '"' + (set.has(iso) ? ' aria-pressed="true"' : "") + '>' + dd.getDate() + '</button>';
+            }
+            d.setDate(d.getDate() + 7);
+        }
+        html += '</div><div class="p4d-fot">' +
+            '<button type="button" class="p4d-lank" data-a="rensa">Rensa</button>' +
+            '<span class="p4d-antal">' + antalText() + '</span>' +
+            '<button type="button" class="p4d-lank stark" data-a="klar">Klar</button></div>';
+        ruta.innerHTML = html;
+    }
+    function placera() {
+        const m = 8, b = ruta.offsetWidth, h = ruta.offsetHeight;
+        const r = ankare ? ankare.getBoundingClientRect() : { left: (innerWidth - b) / 2, bottom: (innerHeight - h) / 2 - 6, top: 0 };
+        let topp = r.bottom + 6;
+        if (topp + h > innerHeight - m && r.top - h - 6 > m) topp = r.top - h - 6;
+        ruta.style.left = Math.min(Math.max(m, r.left), innerWidth - b - m) + "px";
+        ruta.style.top = Math.max(m, topp) + "px";
+    }
+    function stang() {
+        ruta.remove();
+        document.removeEventListener("pointerdown", utanfor, true);
+        document.removeEventListener("keydown", tangent, true);
+        document.removeEventListener("pointerup", slapp);
+        if (ankare) ankare.focus();
+    }
+    ruta._stang = stang;
+    const utanfor = e => { if (!ruta.contains(e.target) && e.target !== ankare) stang(); };
+    const tangent = e => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); stang(); } };
+    const slapp = () => { dragVal = null; };
+    const uppdatera = (b, pa) => {
+        pa ? set.add(b.dataset.d) : set.delete(b.dataset.d);
+        b.classList.toggle("vald", pa);
+        ruta.querySelector(".p4d-antal").textContent = antalText();
+    };
+    rita();
+    placera();
+    ruta.addEventListener("click", e => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        if (b.dataset.n) { manad.setMonth(manad.getMonth() + +b.dataset.n); rita(); }
+        else if (b.dataset.vecka) {
+            const v = [0, 1, 2, 3, 4].map(i => plus(b.dataset.vecka, i));
+            const alla = v.every(x => set.has(x));
+            v.forEach(x => alla ? set.delete(x) : set.add(x)); rita();
+        }
+        else if (b.dataset.a === "rensa") { set.clear(); rita(); }
+        else if (b.dataset.a === "klar") { stang(); klar([...set].sort()); }
+    });
+    // klicka eller dra över dagarna
+    ruta.addEventListener("pointerdown", e => {
+        const b = e.target.closest(".p4d-dag");
+        if (!b) return;
+        e.preventDefault();
+        dragVal = !set.has(b.dataset.d);
+        uppdatera(b, dragVal);
+    });
+    ruta.addEventListener("pointerover", e => {
+        if (dragVal === null) return;
+        const b = e.target.closest(".p4d-dag");
+        if (b) uppdatera(b, dragVal);
+    });
+    setTimeout(() => {
+        document.addEventListener("pointerdown", utanfor, true);
+        document.addEventListener("keydown", tangent, true);
+        document.addEventListener("pointerup", slapp);
+        const f = ruta.querySelector(".p4d-dag.vald, .p4d-dag.idag, .p4d-dag"); if (f) f.focus();
+    }, 0);
+}
+
+/* ---------- UE-serier: ändra datum, synka uppgifter, ta bort ---------- */
+const UE_SYNK = ["text", "vem", "tid", "ueVisning"];
+function synkaUeSerie(t, k) {
+    ueSerieKort(t, k.ueSerie).forEach(x => {
+        if (x === k) return;
+        UE_SYNK.forEach(f => { if (k[f] === undefined) delete x[f]; else x[f] = k[f]; });
+    });
+}
+// Gör om seriens datum till listan nya: lägger till kort på nya datum och tar bort på bortvalda (avbockade behålls).
+function sattUeDatum(t, k, nya) {
+    if (!k.ueSerie) k.ueSerie = uid();
+    if (!k.ueVisning) k.ueVisning = "kort";
+    let fore = ueSerieKort(t, k.ueSerie);
+    if (!fore.length) fore = [k];
+    // kortet man redigerar ligger kvar: flyttas till ett valt datum om dess dag valdes bort
+    if (nya.indexOf(k.dag) < 0 && !k.klar) {
+        const ledig = nya.find(d => !fore.some(x => x.dag === d));
+        if (ledig) k.dag = ledig;
+    }
+    const har = new Set(fore.map(x => x.dag));
+    let la = 0, bort = 0;
+    nya.forEach(d => {
+        if (har.has(d)) return;
+        const x = JSON.parse(JSON.stringify(k));
+        x.id = uid(); x.dag = d; x.klar = false; x.klarTid = null; x.not = ""; x.flyttar = []; x.orsak = null;
+        t.kort.push(x); la++;
+    });
+    fore.forEach(x => {
+        if (nya.indexOf(x.dag) >= 0 || x.klar || x === k) return;
+        t.kort = t.kort.filter(y => y !== x); bort++;
+    });
+    if (ueSerieKort(t, k.ueSerie).length < 2)
+        ueSerieKort(t, k.ueSerie).forEach(x => { delete x.ueSerie; delete x.ueVisning; });
+    if (la || bort) logg("UE " + k.text + ": " + (la ? la + " dagar tillagda" : "") + (la && bort ? ", " : "") + (bort ? bort + " dagar borttagna/pausade" : ""));
+}
+function raderaUeDialog(k) {
+    const t = T(), l = ueSerieKort(t, k.ueSerie);
+    if (l.length < 2) return raderaKort(k);
+    modal("Ta bort UE", "", '<p class="fraga">' + esc(k.text) + ' · ' + dagEtikett(k.dag) + '</p>' +
+        '<p class="hjalp">Posten är en del av en serie på ' + l.length + ' dagar (' + kortDatum(l[0].dag) + '–' + kortDatum(l[l.length - 1].dag) + ').</p>', [
+        { txt: "Avbryt", fn: stangModal },
+        { txt: "Bara den här dagen (pausa)", fn: () => raderaKort(k, " (dagen pausad i serien)") },
+        { txt: "Hela serien", primar: true, fara: true, fn: () => {
+                l.forEach(x => { if (x !== k && !x.klar) t.kort = t.kort.filter(y => y !== x); });
+                raderaKort(k, " (hela serien, " + l.length + " dagar)");
+            } }
+    ]);
+}
+
+// Fältet i Ändra post för en UE: datum (kalender) och hur serien visas.
+let rUeDatum = null;
+function ueSerieFaltHtml(t, k) {
+    rUeDatum = null;
+    const l = k.ueSerie ? ueSerieKort(t, k.ueSerie) : [k];
+    const info = l.length > 1 ? "Serie: " + l.length + " dagar, " + kortDatum(l[0].dag) + "–" + kortDatum(l[l.length - 1].dag) : "En dag";
+    setTimeout(() => {
+        const knapp = document.getElementById("rUeKal");
+        if (!knapp) return;
+        knapp.addEventListener("click", () => datumKalender(rUeDatum || l.map(x => x.dag), lista => {
+            if (!lista.length) return;
+            rUeDatum = lista;
+            document.getElementById("rUeInfo").textContent = "Ändras till " + lista.length + (lista.length === 1 ? " dag" : " dagar") + ", " +
+                kortDatum(lista[0]) + "–" + kortDatum(lista[lista.length - 1]) + " när du sparar";
+            document.getElementById("rUeVisFalt").classList.toggle("dold", lista.length < 2);
+        }, "Dagar för UE", knapp));
+        document.querySelectorAll("#rUeVis button").forEach(b => b.addEventListener("click", () =>
+            document.querySelectorAll("#rUeVis button").forEach(x => x.classList.toggle("vald", x === b))));
+    }, 0);
+    const vis = k.ueVisning || "kort";
+    return '<div class="falt ueblock"><label>Datum</label><div class="ue-datumrad">' +
+        '<button type="button" class="mknapp" id="rUeKal">📅 Ändra datum i kalendern…</button>' +
+        '<span id="rUeInfo" class="hjalp">' + esc(info) + '</span></div>' +
+        '<div class="falt' + (l.length > 1 ? "" : " dold") + '" id="rUeVisFalt" style="margin:8px 0 0"><label>Visa på tavlan som</label>' +
+        '<div class="lage" id="rUeVis"><button type="button" data-v="kort"' + (vis === "kort" ? ' class="vald"' : "") + '>Kort varje dag</button>' +
+        '<button type="button" data-v="pagaende"' + (vis === "pagaende" ? ' class="vald"' : "") + '>Pågående (text)</button></div></div></div>';
 }

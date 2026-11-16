@@ -47,7 +47,15 @@ function snabbPost(dag) {
         '<div id="sbFranvaro" class="dold"><div class="falt"><label>Orsak</label>' +
         '<div class="lage" id="sbFOrsak">' + FRANVARO.map((o, i) => '<button type="button" data-o="' + o + '"' +
         (i === 0 ? ' class="vald"' : "") + '>' + o + '</button>').join("") + '</div></div></div>' +
-        '<div class="falt" style="margin-bottom:0"><label for="sbRepet">Återkommer</label>' +
+        '<div id="sbUe" class="dold ueblock">' +
+        '<div class="falt"><label>Datum</label><div class="ue-datumrad">' +
+        '<button type="button" class="mknapp" id="sbUeKal">📅 Välj datum i kalendern…</button>' +
+        '<span id="sbUeInfo" class="hjalp"></span></div></div>' +
+        '<div class="falt" id="sbUeVisFalt"><label>Visa på tavlan som</label>' +
+        '<div class="lage" id="sbUeVis"><button type="button" data-v="kort" class="vald">Kort varje dag</button>' +
+        '<button type="button" data-v="pagaende">Pågående (text)</button></div>' +
+        '<p class="hjalp" style="margin:4px 0 0">Pågående: kort första och sista dagen, däremellan en textrad under Pågående.</p></div></div>' +
+        '<div class="falt" id="sbRepetFalt" style="margin-bottom:0"><label for="sbRepet">Återkommer</label>' +
         '<select class="f" id="sbRepet"><option value="nej">Nej</option>' +
         '<option value="vecka">Varje vecka</option><option value="dagar">Valda veckodagar</option></select></div>' +
         '<div id="sbDagar" class="dold" style="margin-top:9px">' +
@@ -71,6 +79,7 @@ function snabbPost(dag) {
         'få material- och leveransuppgifter, eftersom det inte finns som en enskild post förrän det bockas av. ' +
         'Avmarkera Återkommer om du vill fylla i det.</div></div>';
     let slag = null, fOrsak = FRANVARO[0], valtForetag = null, manuelltForetag = "";
+    let ueDatum = null, ueVisning = "kort";   // ueDatum: datum valda i kalendern (null = Dag till Till och med)
     function laggUpp() {
         const txt = document.getElementById("sbText").value.trim();
         if (!txt)
@@ -117,10 +126,15 @@ function snabbPost(dag) {
         else {
             // en post per vardag från Dag till och med Till och med
             const t = T(), dagarna = valdaDagar();
+            const ueSerie = typ === "ue" && dagarna.length > 1 ? uid() : null;
             for (const dg of dagarna) {
                 const patch = opSkapaSnabbPost({ dag: dg, typ: typ, text: txt, tid: tid, vem: vem,
                     slutTid: slutTid, plats: plats, franvaroOrsak: fOrsak,
                     milstolpe: typ === "produktion" && document.getElementById("sbMil").checked }, t.id, null, null);
+                if (ueSerie) {
+                    patch.andringar[0].varde.ueSerie = ueSerie;
+                    patch.andringar[0].varde.ueVisning = ueVisning;
+                }
                 if (!patch.ok || !appliceraPatch(patch, { tavla: t, projekt: state }))
                     return;
                 const andra = typ === "mote" ? valdaMoteTavlor() : [];
@@ -156,6 +170,8 @@ function snabbPost(dag) {
     // dagarna från Dag till och med Till och med (bara vardagar, tavlan har inga helger)
     function valdaDagar() {
         const fran = document.getElementById("sbDag").value, till = document.getElementById("sbTill").value;
+        if (typ === "ue" && ueDatum && ueDatum.length)
+            return ueDatum.slice();
         if (!till || till <= fran || typ === "avrop" || document.getElementById("sbRepet").value !== "nej")
             return [fran];
         return dagar().filter(x => x >= fran && x <= till);
@@ -164,13 +180,37 @@ function snabbPost(dag) {
         const n = valdaDagar().length, el = document.getElementById("sbFlera");
         el.classList.toggle("dold", n < 2);
         el.textContent = n > 1 ? "Blir " + n + " poster, en per dag " + kortDatum(valdaDagar()[0]) + "–" + kortDatum(valdaDagar()[n - 1]) + "." : "";
+        if (typ === "ue" && n > 1) {
+            const vd = valdaDagar(), span = dagarMellan(vd[0], vd[n - 1]);
+            const paus = span - n;
+            el.textContent = "Blir en UE-serie på " + n + " dagar, " + kortDatum(vd[0]) + "–" + kortDatum(vd[n - 1]) + (paus > 0 ? ", " + paus + (paus === 1 ? " dag pausad" : " dagar pausade") : "") + ".";
+        }
+        const info = document.getElementById("sbUeInfo");
+        if (info) info.textContent = ueDatum && ueDatum.length ? ueDatum.length + (ueDatum.length === 1 ? " dag vald" : " dagar valda") + " i kalendern" : "eller välj Dag och Till och med ovan";
+        const vf = document.getElementById("sbUeVisFalt");
+        if (vf) vf.classList.toggle("dold", n < 2);
     }
+    // antal vardagar från a till och med b
+    function dagarMellan(a, b) { let n = 0; for (let d = a; d <= b; d = plus(d, 1)) { const w = iso2d(d).getDay(); if (w && w !== 6) n++; } return n; }
     document.getElementById("sbDag").addEventListener("change", () => {
         const s = document.getElementById("sbTill"), v = s.value;
         s.innerHTML = tillOptioner(document.getElementById("sbDag").value, v);
+        ueDatum = null;
         visaFlera();
     });
-    document.getElementById("sbTill").addEventListener("change", visaFlera);
+    document.getElementById("sbTill").addEventListener("change", () => { ueDatum = null; visaFlera(); });
+    document.getElementById("sbUeKal").addEventListener("click", () => {
+        datumKalender(valdaDagar(), lista => {
+            ueDatum = lista.length ? lista : null;
+            const sd = document.getElementById("sbDag");
+            if (ueDatum && [...sd.options].some(o => o.value === ueDatum[0])) sd.value = ueDatum[0];
+            visaFlera();
+        }, "Dagar för UE", document.getElementById("sbUeKal"));
+    });
+    document.querySelectorAll("#sbUeVis button").forEach(b => b.addEventListener("click", () => {
+        ueVisning = b.dataset.v;
+        document.querySelectorAll("#sbUeVis button").forEach(x => x.classList.toggle("vald", x === b));
+    }));
     function visaAvrop() {
         const repet = document.getElementById("sbRepet").value !== "nej";
         document.getElementById("sbTillFalt").classList.toggle("dold", typ === "avrop" || repet);
@@ -181,7 +221,11 @@ function snabbPost(dag) {
         document.getElementById("sbFranvaro").classList.toggle("dold", typ !== "franvaro");
         document.getElementById("sbTidFalt").classList.toggle("dold", typ === "mote");
         document.getElementById("sbMilFalt").classList.toggle("dold", typ !== "produktion" || repet);
-        document.getElementById("sbDagar").classList.toggle("dold", document.getElementById("sbRepet").value !== "dagar");
+        document.getElementById("sbDagar").classList.toggle("dold", document.getElementById("sbRepet").value !== "dagar" || typ === "ue");
+        document.getElementById("sbUe").classList.toggle("dold", typ !== "ue");
+        document.getElementById("sbRepetFalt").classList.toggle("dold", typ === "ue");
+        if (typ === "ue") document.getElementById("sbRepet").value = "nej";
+        document.getElementById("sbTillFalt").classList.toggle("dold", typ === "avrop" || (repet && typ !== "ue"));
     }
     document.querySelectorAll("#sbTyp button").forEach(b => b.addEventListener("click", () => {
         if (b.dataset.t === "franvaro") {

@@ -1505,3 +1505,16 @@ body.visning #pstart {
 .tavelval .krysslista { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .tavelval .krysslista label { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .tavelfilter { width: auto; min-width: 140px; }
+
+/* UE-serie: datum och visning */
+.ueblock .ue-datumrad { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pagaende .prad.paus { font-style: italic; opacity: .75; }
+.pagaende .prad.klar { text-decoration: line-through; opacity: .7; }
+
+/* kalender-popup för att välja flera datum: bygger på datumväljaren (p4d-*) */
+.p4d-flera { z-index: 1200; }
+.p4d-flera .p4d-rutnat { grid-template-columns: 24px repeat(5, 1fr); user-select: none; }
+.p4d-flera .p4d-dag { aspect-ratio: auto; min-height: 34px; touch-action: none; }
+.p4d-flera .p4d-vnr { border: 0; background: transparent; padding: 0; height: 100%; cursor: pointer; border-radius: var(--r-s); font-family: inherit; }
+.p4d-flera .p4d-vnr:hover { background: var(--bg-main); color: var(--text-main); }
+.p4d-antal { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }

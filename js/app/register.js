@@ -122,7 +122,7 @@ function pagaendeHtml(lista) {
     if (!lista.length)
         return "";
     return '<div class="pagaende"><span class="prub">Pågående</span>' +
-        lista.map(x => '<div class="prad" data-pk="' + x.kort.id + '">› ' + esc(x.text) + '</div>').join("") + '</div>';
+        lista.map(x => '<div class="prad' + (x.paus ? " paus" : "") + (x.klar ? " klar" : "") + '" data-pk="' + x.kort.id + '">› ' + esc(x.text) + '</div>').join("") + '</div>';
 }
 
 /* ---------- frånvaro: logik ---------- */

@@ -68,9 +68,9 @@ function rita() {
             dnr.textContent = kortDatum(iso);
             nr.appendChild(dnr);
             ruta.appendChild(nr);
-            sorteraDag(virtuella(iso, T()).concat(kortForDag(t, iso), attGoraForDag(t, iso, projektForTavla(t))))
+            sorteraDag(virtuella(iso, T()).concat(kortForDag(t, iso).filter(k => !ueDoldSomKort(t, k)), attGoraForDag(t, iso, projektForTavla(t))))
                 .forEach(k => ruta.appendChild(kortEl(k)));
-            const pag = pagaendeForDag(t, iso);
+            const pag = pagaendeForDag(t, iso).concat(ueSerieForDag(t, iso));
             if (pag.length) {
                 const pd = document.createElement("div");
                 pd.innerHTML = pagaendeHtml(pag);

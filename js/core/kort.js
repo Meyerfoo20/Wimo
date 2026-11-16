@@ -300,3 +300,39 @@ function attGoraForDag(t, iso, p) {
         tid: "", slutTid: "", plats: "", vem: a.ansvarig || "", not: a.kommentar || "", klar: fKlar(a), kedja: null, roll: null,
         orsak: null, flyttar: [], skapad: a.skapad || "" }));
 }
+
+/* ---------- UE-serier ----------
+   En UE-post kan gå över flera valda datum (k.ueSerie = samma id på alla dagens kort).
+   Datum som inte är valda mellan första och sista dagen är pausade.
+   k.ueVisning: "kort" = ett kort varje dag, "pagaende" = kort första och sista dagen, text däremellan. */
+function ueSerieKort(t, sid) {
+    return sid ? t.kort.filter(k => k.ueSerie === sid).sort((a, b) => (a.dag < b.dag ? -1 : a.dag > b.dag ? 1 : 0)) : [];
+}
+function ueDoldSomKort(t, k) {
+    if (!k || !k.ueSerie || k.ueVisning !== "pagaende")
+        return false;
+    const l = ueSerieKort(t, k.ueSerie);
+    return l.length > 2 && k !== l[0] && k !== l[l.length - 1];
+}
+// Textrader under Pågående för UE-serier: dagar som visas som text, och pausade dagar.
+function ueSerieForDag(t, iso) {
+    const ut = [], sedda = {};
+    const vd = iso2d(iso).getDay();
+    if (vd === 0 || vd === 6)
+        return ut;
+    t.kort.forEach(k => {
+        if (!k.ueSerie || sedda[k.ueSerie])
+            return;
+        sedda[k.ueSerie] = true;
+        const l = ueSerieKort(t, k.ueSerie);
+        if (l.length < 2 || !(l[0].dag < iso && iso < l[l.length - 1].dag))
+            return;
+        const pa = l.find(x => x.dag === iso);
+        const namn = "UE · " + (l[0].text || "") + (l[0].vem ? " · " + l[0].vem : "");
+        if (!pa)
+            ut.push({ kort: l[0], text: "Pausad · " + namn, paus: true });
+        else if (ueDoldSomKort(t, pa))
+            ut.push({ kort: pa, text: namn, klar: !!pa.klar });
+    });
+    return ut;
+}
