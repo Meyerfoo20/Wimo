@@ -340,3 +340,33 @@ label.db-lbl[for] { margin-bottom: 5px; display: block; }
 .db-rad.db-rad-enkel { display: flex; align-items: center; justify-content: space-between; gap: 12px;
   font-size: 15px; font-weight: 600; color: var(--text-main); text-align: left; padding: 14px 16px; }
 .db-rad-enkel .db-pil { color: var(--text-faint); font-size: 20px; line-height: 1; }
+
+/* ---------- Anteckningar ---------- */
+.ik-anteckning {
+  --ik: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z'/%3E%3Cpath d='M14 3v5h5'/%3E%3Cpath d='M9 13h6M9 17h4'/%3E%3C/svg%3E");
+}
+.an-rad { grid-template-columns: 96px minmax(0, 1fr) auto; }
+.an-typ {
+  justify-self: start;
+  padding: 3px 9px;
+  border-radius: 6px 6px 6px 0;
+  border: 2px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.an-typ.t-mote { border-color: var(--mote, var(--text-main)); }
+.an-typ.t-produktion { border-color: var(--produktion); }
+.an-typ.t-avrop { border-color: var(--avrop); }
+.an-typ.t-leverans { border-color: var(--leverans); }
+.an-typ.t-ue { border-color: var(--ue); }
+.an-hoger { display: flex; align-items: center; gap: 10px; }
+.an-hoger .db-pil { color: var(--text-faint); font-size: 20px; line-height: 1; }
+.an-kort { max-width: 860px; }
+.an-info { display: grid; grid-template-columns: 110px 1fr; gap: 6px 14px; margin: 0 0 16px; font-size: 14px; }
+.an-info dt { color: var(--text-muted); }
+.an-info dd { margin: 0; font-weight: 500; }
+.an-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.6; padding: 14px 16px; border-radius: var(--r-s); background: var(--bg-main); }
+@media (max-width: 640px) { .an-rad { grid-template-columns: minmax(0, 1fr) auto; } .an-typ { display: none; } }
