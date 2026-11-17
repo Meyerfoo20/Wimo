@@ -1765,3 +1765,34 @@ body.p4-skarm .sk-proj {
 .tm-rad.aktiv .tm-bock::before { content: "✓"; color: var(--accent-pop); font-weight: 800; }
 .tm-fot { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border-light); }
 .tm-fot .p4d-lank { width: 100%; text-align: left; }
+
+/* ==== Knappar: samma grund överallt, texten alltid centrerad ==================== */
+.mknapp, .navknapp, .p4-btn, .p4d-lank, .parkiv, .flik, .lage button, a.mknapp, label.mknapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.15;
+  text-decoration: none;
+  vertical-align: middle;
+  font-family: var(--brod);
+}
+/* små sekundära knappar (Ta bort, Hantera företag …) – tidigare webbläsarens grå standardknapp */
+.parkiv {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.parkiv:hover { border-color: var(--accent-main); }
+.parkiv[data-pr]:hover, .parkiv[data-fd]:hover, .parkiv[data-rad]:hover { border-color: var(--leverans); color: var(--leverans); }
+.hjalp .parkiv { height: 26px; margin-left: 4px; }
+/* projektlistan behåller sina diskreta textlänkar */
+.projektrad .parkiv { height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; font-weight: 400; }

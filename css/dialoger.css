@@ -1518,3 +1518,17 @@ body.visning #pstart {
 .p4d-flera .p4d-vnr { border: 0; background: transparent; padding: 0; height: 100%; cursor: pointer; border-radius: var(--r-s); font-family: inherit; }
 .p4d-flera .p4d-vnr:hover { background: var(--bg-main); color: var(--text-main); }
 .p4d-antal { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* välj mottagare för mejl */
+.mailmottagare { width: 320px; z-index: 1200; }
+.mm-rubrik { font-weight: 700; font-size: 14px; margin: 2px 2px 8px; }
+.mm-lista { max-height: min(300px, calc(100vh - 260px)); overflow-y: auto; margin: 0 -4px 8px; }
+.mm-grupp { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 8px 6px 4px; }
+.mm-rad { display: flex; align-items: flex-start; gap: 10px; padding: 7px 6px; border-radius: var(--r-s); cursor: pointer; }
+.mm-rad:hover { background: var(--bg-main); }
+.mm-rad input { margin-top: 3px; flex: none; }
+.mm-rad span { display: flex; flex-direction: column; min-width: 0; }
+.mm-rad b { font-weight: 600; font-size: 14px; }
+.mm-rad small { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-annan { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.mm-annan .f { font-weight: 400; }

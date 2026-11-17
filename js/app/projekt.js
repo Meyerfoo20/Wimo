@@ -171,7 +171,7 @@ function raderaProjektDialog(id) {
 function resursbankDialog() {
     const p = state, r = p.resurser;
     const kropp = '<p class="hjalp" style="margin-top:0">Projektets egna yrkesarbetare. ' + (p.tavlor.length > 1 ? 'Under Tavlor väljer du om en person finns på alla tavlor eller bara på några. ' : "") +
-        'Bara det som behövs för produktionsplaneringen — namn, yrkesgrupp och om personen är aktiv.</p>' +
+        'Bara det som behövs för produktionsplaneringen — namn, yrkesgrupp, e-post (för att kunna mejla avrop) och om personen är aktiv.</p>' +
         '<div class="rubrik2">Yrkesgrupper</div>' +
         (r.kategorier.length ? '<div class="katlista">' + r.kategorier.map(c => '<span class="katchip"><input class="f" data-kat="' + c.id + '" value="' + esc(c.namn) + '">' +
             '<em>' + r.personer.filter(x => x.kategoriId === c.id && x.aktiv).length + ' aktiva</em></span>').join("") + '</div>'
@@ -179,11 +179,12 @@ function resursbankDialog() {
                 'Träarbetare, Betongarbetare, Maskinförare, Övrigt</button></p>') +
         '<div class="bemrad"><input class="f" id="rbNyKat" placeholder="Ny yrkesgrupp"><button type="button" class="mknapp" id="rbLaggKat">Lägg till</button></div>' +
         (r.kategorier.length ? '<div class="rubrik2" style="margin-top:14px">Personer</div>' +
-            '<table class="lista"><thead><tr><th>Namn</th><th>Yrkesgrupp</th>' + (p.tavlor.length > 1 ? "<th>Tavlor</th>" : "") + '<th>Aktiv</th><th></th></tr></thead><tbody>' +
+            '<table class="lista"><thead><tr><th>Namn</th><th>Yrkesgrupp</th><th>E-post</th>' + (p.tavlor.length > 1 ? "<th>Tavlor</th>" : "") + '<th>Aktiv</th><th></th></tr></thead><tbody>' +
             r.personer.slice().sort((a, b) => a.namn.localeCompare(b.namn, "sv")).map(x => '<tr' + (x.aktiv ? "" : ' class="utford"') + '>' +
                 '<td><input class="f" data-pn="' + x.id + '" value="' + esc(x.namn) + '"></td>' +
                 '<td><select class="f" data-pk="' + x.id + '">' + r.kategorier.map(c => '<option value="' + c.id + '"' +
                 (c.id === x.kategoriId ? " selected" : "") + '>' + esc(c.namn) + '</option>').join("") + '</select></td>' +
+                '<td><input class="f" type="email" data-pe="' + x.id + '" value="' + esc(x.epost || "") + '" placeholder="namn@foretag.se" aria-label="E-post för ' + esc(x.namn) + '"></td>' +
                 (p.tavlor.length > 1 ? '<td><button type="button" class="rb-tavlor" data-pt="' + x.id + '" aria-haspopup="true">' + esc(resTavlorText(p, x)) + '</button></td>' : "") +
                 '<td><input type="checkbox" data-pa="' + x.id + '"' + (x.aktiv ? " checked" : "") + '></td>' +
                 '<td><button type="button" class="parkiv" data-pr="' + x.id + '">Ta bort</button></td></tr>').join("") +
@@ -195,7 +196,7 @@ function resursbankDialog() {
     modal("Resurser", p.projekt, kropp, [{ txt: "Klar", primar: true, fn: () => { stangModal(); spara(); rita(); } }]);
     const m = document.querySelector("#overlay .modal");
     if (m)
-        m.style.maxWidth = "720px";
+        m.style.maxWidth = "860px";
     const om = () => { spara(); resursbankDialog(); };
     const f = document.getElementById("rbForslag");
     if (f)
@@ -224,6 +225,15 @@ function resursbankDialog() {
         const c = resKat(p, e.dataset.kat);
         if (c && e.value.trim()) {
             const patch = opAndraKategori(c, { namn: e.value.trim() }, null, null);
+            if (patch.ok)
+                appliceraPatch(patch, { tavla: T(), projekt: p });
+        }
+        spara();
+    }));
+    document.querySelectorAll("[data-pe]").forEach(e => e.addEventListener("change", () => {
+        const x = resPers(p, e.dataset.pe);
+        if (x) {
+            const patch = opAndraPerson(x, { epost: e.value.trim() }, null, null);
             if (patch.ok)
                 appliceraPatch(patch, { tavla: T(), projekt: p });
         }

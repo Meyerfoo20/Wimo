@@ -169,7 +169,7 @@ function visaKort(k) {
             mail.disabled = !not.value.trim();
             document.getElementById("dMailaHjalp").textContent = mail.disabled ? "Skriv en anteckning först" : "";
         });
-        mail.addEventListener("click", () => { sparaNot(k); mailaAnteckning(k, t, not.value.trim()); });
+        mail.addEventListener("click", () => { sparaNot(k); valjMottagare(k, t, mail, till => mailaAnteckning(k, t, not.value.trim(), till)); });
     }
     const oU = document.getElementById("ordUpp"), oN = document.getElementById("ordNer");
     if (oU)
@@ -832,7 +832,7 @@ function mailDag(dag, tid) {
     return mailDagNamn(dag) + (tid ? " kl " + tid.replace(/:/g, ".") : "") + " · v" + veckonr(dag);
 }
 
-function mailaAnteckning(k, t, text) {
+function mailaAnteckning(k, t, text, till) {
     if (!text)
         return;
     const p = projektForTavla(t) || state;
@@ -862,7 +862,7 @@ function mailaAnteckning(k, t, text) {
         status("Anteckningen är lång och kortades i mejlet");
     }
     const a = document.createElement("a");
-    a.href = "mailto:?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(kropp);
+    a.href = "mailto:" + (till || []).join(",") + "?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(kropp);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1182,4 +1182,95 @@ function ueSerieFaltHtml(t, k) {
         '<div class="falt' + (l.length > 1 ? "" : " dold") + '" id="rUeVisFalt" style="margin:8px 0 0"><label>Visa på tavlan som</label>' +
         '<div class="lage" id="rUeVis"><button type="button" data-v="kort"' + (vis === "kort" ? ' class="vald"' : "") + '>Kort varje dag</button>' +
         '<button type="button" data-v="pagaende"' + (vis === "pagaende" ? ' class="vald"' : "") + '>Pågående (text)</button></div></div></div>';
+}
+
+/* ---------- välj vem mejlet ska till ----------
+   Företag och resurser som har e-post (och gäller den här tavlan) visas som kryssrutor.
+   Kortets eget företag är förvalt. klar(lista med adresser) skapar mejlet. */
+const EPOST_OK = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+function kortetsForetag(k, t) {
+    const ids = [];
+    if (k.avrop && k.avrop.foretagId) ids.push(k.avrop.foretagId);
+    if (k.foretagId) ids.push(k.foretagId);
+    // materialrader: kortets egna, och rader på momentet som pekar på just det här avropet eller leveransen
+    (k.material || []).forEach(m => { if (m.foretagId) ids.push(m.foretagId); });
+    t.kort.forEach(x => (x.material || []).forEach(m => {
+        if (m.foretagId && (m.avropKortId === k.id || m.levKortId === k.id)) ids.push(m.foretagId);
+    }));
+    return ids;
+}
+function valjMottagare(k, t, ankare, klar) {
+    const gammal = document.getElementById("mailMottagare");
+    if (gammal) { gammal._stang(); return; }
+    const p = projektForTavla(t) || state;
+    const ftg = (p.foretag || []).filter(f => f.aktiv !== false && EPOST_OK.test((f.epost || "").trim()) && resPaTavla(f, t.id))
+        .sort((a, b) => a.namn.localeCompare(b.namn, "sv"));
+    const pers = ((p.resurser || {}).personer || []).filter(x => x.aktiv !== false && EPOST_OK.test((x.epost || "").trim()) && resPaTavla(x, t.id))
+        .sort((a, b) => a.namn.localeCompare(b.namn, "sv"));
+    const forval = kortetsForetag(k, t);
+    const rad = (typ, x) => '<label class="mm-rad"><input type="checkbox" class="mmVal" value="' + esc(x.epost.trim()) + '"' +
+        (typ === "f" && forval.indexOf(x.id) >= 0 ? " checked" : "") + '><span><b>' + esc(x.namn) + '</b><small>' + esc(x.epost.trim()) + '</small></span></label>';
+    const m = document.createElement("div");
+    m.id = "mailMottagare";
+    m.className = "p4d-pop mailmottagare";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-label", "Välj mottagare");
+    m.innerHTML = '<div class="mm-rubrik">Skicka till</div>' +
+        (ftg.length || pers.length ? '<div class="mm-lista">' +
+            (ftg.length ? '<div class="mm-grupp">Företag</div>' + ftg.map(x => rad("f", x)).join("") : "") +
+            (pers.length ? '<div class="mm-grupp">Resurser</div>' + pers.map(x => rad("p", x)).join("") : "") + '</div>'
+            : '<p class="hjalp" style="margin:0 0 8px">Inga e-postadresser inlagda ännu. Lägg in dem under Företag eller Resurser, så går de att välja här.</p>') +
+        '<label class="mm-annan"><span>Annan adress</span><input class="f" type="email" id="mmAnnan" placeholder="namn@foretag.se"></label>' +
+        '<div id="mmFel"></div>' +
+        '<div class="p4d-fot"><button type="button" class="p4d-lank" data-a="avbryt">Avbryt</button>' +
+        '<span class="p4d-antal" id="mmAntal"></span>' +
+        '<button type="button" class="p4d-lank stark" data-a="skapa">Skapa mejl</button></div>';
+    document.body.appendChild(m);
+    const r = ankare.getBoundingClientRect();
+    const h = m.offsetHeight, b = m.offsetWidth;
+    let topp = r.bottom + 6;
+    if (topp + h > innerHeight - 8 && r.top - h - 6 > 8) topp = r.top - h - 6;
+    m.style.left = Math.min(Math.max(8, r.left), innerWidth - b - 8) + "px";
+    m.style.top = Math.max(8, topp) + "px";
+    const valda = () => {
+        const l = [...m.querySelectorAll(".mmVal:checked")].map(e => e.value);
+        document.getElementById("mmAnnan").value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean).forEach(x => l.push(x));
+        return l.filter((x, i) => l.indexOf(x) === i);
+    };
+    const antal = () => {
+        const n = valda().length;
+        document.getElementById("mmAntal").textContent = n ? n + (n === 1 ? " mottagare" : " mottagare") : "Ingen vald";
+    };
+    function stang(fokus) {
+        m.remove();
+        document.removeEventListener("pointerdown", utanfor, true);
+        document.removeEventListener("keydown", tangent, true);
+        if (fokus) ankare.focus();
+    }
+    m._stang = stang;
+    const utanfor = e => { if (!m.contains(e.target) && !ankare.contains(e.target)) stang(); };
+    const tangent = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); stang(true); } };
+    function skapa() {
+        const l = valda();
+        const fel = l.filter(x => !EPOST_OK.test(x));
+        if (fel.length) {
+            document.getElementById("mmFel").innerHTML = '<div class="notis rod">Kolla adressen: ' + esc(fel.join(", ")) + '</div>';
+            return;
+        }
+        stang();
+        klar(l);
+    }
+    m.addEventListener("change", antal);
+    m.addEventListener("input", e => { if (e.target.id === "mmAnnan") { document.getElementById("mmFel").innerHTML = ""; antal(); } });
+    m.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "mmAnnan") { e.preventDefault(); skapa(); } });
+    m.addEventListener("click", e => {
+        const knapp = e.target.closest("button");
+        if (!knapp) return;
+        if (knapp.dataset.a === "avbryt") stang(true);
+        else if (knapp.dataset.a === "skapa") skapa();
+    });
+    antal();
+    document.addEventListener("keydown", tangent, true);
+    setTimeout(() => document.addEventListener("pointerdown", utanfor, true), 0);
+    (m.querySelector(".mmVal") || document.getElementById("mmAnnan")).focus();
 }
