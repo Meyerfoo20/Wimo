@@ -854,18 +854,73 @@ function mailaAnteckning(k, t, text, till) {
     const skickat = mailDagNamn(d2iso(new Date()));
     let kropp = rader.join("\r\n") + "\r\n" + (avrop ? "Material:" : "\r\nAnteckningar:") + "\r\n" + text.replace(/\r?\n/g, "\r\n") +
         (avrop ? "\r\nSkickat " + skickat.charAt(0).toLowerCase() + skickat.slice(1) : "") + "\r\n";
-    // mejlprogrammen klarar inte hur långa länkar som helst
+    // mejlprogrammen klarar inte hur långa länkar som helst: då blir det ett färdigt mejl som fil,
+    // med hela anteckningen bifogad som textfil
     const MAX = 1800;
-    if (encodeURIComponent(kropp).length > MAX) {
-        while (kropp.length > 50 && encodeURIComponent(kropp + "…\r\n(förkortat)").length > MAX) kropp = kropp.slice(0, -20);
-        kropp += "…\r\n(förkortat – hela anteckningen finns i Wimo)";
-        status("Anteckningen är lång och kortades i mejlet");
-    }
+    if (encodeURIComponent(kropp).length + (till || []).join(",").length > MAX)
+        return mailSomFil(till || [], amne, rader, text, namn, k.dag);
     const a = document.createElement("a");
     a.href = "mailto:" + (till || []).join(",") + "?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(kropp);
     document.body.appendChild(a);
     a.click();
     a.remove();
+}
+
+/* ---------- långa anteckningar: färdigt mejl som .eml-fil ----------
+   Filen öppnas som ett nytt, oskickat mejl i Outlook (och Windows E-post/Apple Mail) med
+   mottagare, ämne och hela anteckningen bifogad som textfil. */
+function b64utf8(s) {
+    const b = new TextEncoder().encode(s);
+    let bin = "";
+    for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(bin).replace(/.{1,76}/g, "$&\r\n");
+}
+function mimeOrd(s) { return /^[\x20-\x7e]*$/.test(s) ? s : "=?UTF-8?B?" + b64utf8(s).replace(/\r\n/g, "") + "?="; }
+function filnamnSakert(s) { return s.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 80) || "Anteckning"; }
+function laddaNer(namn, innehall, typ) {
+    const url = URL.createObjectURL(new Blob([innehall], { type: typ }));
+    const a = document.createElement("a");
+    a.href = url; a.download = namn;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function mailSomFil(till, amne, rader, text, namn, dag) {
+    const d = iso2d(dag);
+    const datum = d.getDate() + "-" + (d.getMonth() + 1);
+    const bilagaNamn = filnamnSakert("Anteckningar " + namn + " " + datum) + ".txt";
+    const bilaga = "\ufeff" + rader.join("\r\n") + "\r\n\r\nAnteckningar:\r\n" + text.replace(/\r?\n/g, "\r\n") + "\r\n";
+    const kropp = rader.join("\r\n") + "\r\n\r\nHela anteckningen finns i den bifogade filen " + bilagaNamn + ".\r\n";
+    const g = "wimo-" + uid();
+    const eml = [
+        "X-Unsent: 1",
+        "To: " + till.join(", "),
+        "Subject: " + mimeOrd(amne),
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="' + g + '"',
+        "",
+        "--" + g,
+        "Content-Type: text/plain; charset=UTF-8",
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64utf8(kropp),
+        "--" + g,
+        'Content-Type: text/plain; charset=UTF-8; name="' + mimeOrd(bilagaNamn) + '"',
+        "Content-Disposition: attachment; filename*=UTF-8''" + encodeURIComponent(bilagaNamn),
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64utf8(bilaga),
+        "--" + g + "--",
+        ""
+    ].join("\r\n");
+    const emlNamn = filnamnSakert("Mejl " + namn + " " + datum) + ".eml";
+    laddaNer(emlNamn, eml, "message/rfc822");
+    modal("Mejlet ligger i Hämtade filer", "", '<p>Anteckningen är för lång för en vanlig mejllänk, så Wimo har gjort ett färdigt mejl som fil: <b>' + esc(emlNamn) + '</b>.</p>' +
+        '<p>Öppna filen så öppnas mejlet i Outlook med mottagare, ämne och <b>hela anteckningen bifogad som textfil</b>. Tryck sedan Skicka.</p>' +
+        '<p class="hjalp">Använder du Gmail eller ett annat mejl i webbläsaren: ladda ner textfilen och bifoga den själv.</p>', [
+        { txt: "Ladda ner textfilen", fn: () => laddaNer(bilagaNamn, bilaga, "text/plain;charset=utf-8") },
+        { txt: "Ladda ner mejlet igen", fn: () => laddaNer(emlNamn, eml, "message/rfc822") },
+        { txt: "Klar", primar: true, fn: stangModal }
+    ]);
 }
 
 /* ---------- möten på flera tavlor ----------

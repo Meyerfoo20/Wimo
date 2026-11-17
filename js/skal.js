@@ -57,6 +57,11 @@
         }
         catch (e) { }
         try {
+            if (anteckningarOppen())
+                stangAnteckningar();
+        }
+        catch (e) { }
+        try {
             if (tidplanOppen())
                 stangTidplan();
         }
@@ -107,6 +112,10 @@
                 oppnaTidplan();
                 window.scrollTo({ top: 0 });
             }
+            else if (vy === "anteckningar") {
+                oppnaAnteckningar();
+                window.scrollTo({ top: 0 });
+            }
             markeraNav();
         });
     });
@@ -138,6 +147,8 @@
                 return "forslag";
             if (tidplanOppen())
                 return "tidplan";
+            if (anteckningarOppen())
+                return "anteckningar";
         }
         catch (e) { }
         return "tavla";
@@ -164,6 +175,7 @@
         obs.observe($("dagbok"), { attributes: true, attributeFilter: ["class"] });
         obs.observe($("forslag"), { attributes: true, attributeFilter: ["class"] });
         obs.observe($("tidplan"), { attributes: true, attributeFilter: ["class"] });
+        obs.observe($("anteckningar"), { attributes: true, attributeFilter: ["class"] });
     }
     function stangMeny() { document.body.classList.remove("p4-menyoppen"); $("p4Meny").setAttribute("aria-expanded", "false"); }
     $("p4Meny").addEventListener("click", function () {
