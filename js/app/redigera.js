@@ -122,7 +122,7 @@ function visaKort(k) {
                 '</li>').join("") +
             '</ul>';
     }
-    const kropp = '<ul class="detalj">' +
+    const kropp = (typeof tpTvKortInfo === "function" ? tpTvKortInfo(k) : "") + '<ul class="detalj">' +
         rader.map(r => '<li><span class="et">' + r[0] + '</span><span>' + esc(r[1]) + '</span></li>').join("") + '</ul>' +
         ordHtml + resHtml + flyttHtml + forHtml + kedjeHtml +
         '<div class="falt" style="margin-top:14px"><label for="dNot">Anteckningar</label>' +
@@ -692,7 +692,8 @@ function redigeraKort(k) {
     // Kort i ett moment (avrop, leverans, klart) delar momentets Plats / del, som ligger på startposten.
     const momentBar = k.kedja ? T().kort.find(x => x.kedja === k.kedja && (x.roll === "S" || x.roll === "P") && x.id !== k.id) : null;
     const platsVarde = momentBar && !k.plats ? momentBar.plats || "" : k.plats || "";
-    const kropp = '<div class="falt"><label for="rText">Text</label><input class="f" id="rText" value="' + esc(k.text) + '"></div>' +
+    const kropp = (typeof tpTvKortInfo === "function" ? tpTvKortInfo(k) : "") +
+        '<div class="falt"><label for="rText">Text</label><input class="f" id="rText" value="' + esc(k.text) + '"></div>' +
         '<div class="tva"><div class="falt"><label for="rDag">Dag</label><select class="f" id="rDag">' + dagOptioner(k.dag) + '</select></div>' +
         '<div class="falt"><label for="rTyp">Typ</label><select class="f" id="rTyp">' +
         TYPER.map(t => '<option value="' + t + '"' + (t === k.typ ? " selected" : "") + '>' + TYPNAMN[t] + '</option>').join("") +
@@ -1232,7 +1233,7 @@ function ueSerieFaltHtml(t, k) {
     }, 0);
     const vis = k.ueVisning || "kort";
     return '<div class="falt ueblock"><label>Datum</label><div class="ue-datumrad">' +
-        '<button type="button" class="mknapp" id="rUeKal">📅 Ändra datum i kalendern…</button>' +
+        '<button type="button" class="mknapp" id="rUeKal">Ändra datum i kalendern…</button>' +
         '<span id="rUeInfo" class="hjalp">' + esc(info) + '</span></div>' +
         '<div class="falt' + (l.length > 1 ? "" : " dold") + '" id="rUeVisFalt" style="margin:8px 0 0"><label>Visa på tavlan som</label>' +
         '<div class="lage" id="rUeVis"><button type="button" data-v="kort"' + (vis === "kort" ? ' class="vald"' : "") + '>Kort varje dag</button>' +

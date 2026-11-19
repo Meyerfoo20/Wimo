@@ -49,7 +49,7 @@ function snabbPost(dag) {
         (i === 0 ? ' class="vald"' : "") + '>' + o + '</button>').join("") + '</div></div></div>' +
         '<div id="sbUe" class="dold ueblock">' +
         '<div class="falt"><label>Datum</label><div class="ue-datumrad">' +
-        '<button type="button" class="mknapp" id="sbUeKal">📅 Välj datum i kalendern…</button>' +
+        '<button type="button" class="mknapp" id="sbUeKal">Välj datum i kalendern…</button>' +
         '<span id="sbUeInfo" class="hjalp"></span></div></div>' +
         '<div class="falt" id="sbUeVisFalt"><label>Visa på tavlan som</label>' +
         '<div class="lage" id="sbUeVis"><button type="button" data-v="kort" class="vald">Kort varje dag</button>' +

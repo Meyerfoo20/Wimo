@@ -310,6 +310,19 @@ function opRedigeraKort(kort, o, tavlaId) {
         fore: fore, historik: [] };
 }
 
+// Kopplingen mellan en post på tavlan och en period i tidplanen (kort.tp = { aid, qid } eller null).
+function opSattTidplanKoppling(kort, tp, tavlaId) {
+    if (!kort || !kort.id || !tavlaId)
+        return { ok: false, fel: "kort eller tavla saknas", andringar: [], fore: [], historik: [] };
+    const bo = { typ: "tavla", id: tavlaId };
+    return { ok: true, fel: null,
+        andringar: [{ typ: "satt", objekt: "kort", id: kort.id, falt: { tp: tp || null }, bo: bo }],
+        fore: [Object.prototype.hasOwnProperty.call(kort, "tp")
+            ? { objekt: "kort", id: kort.id, falt: "tp", varde: kort.tp, bo: bo }
+            : { objekt: "kort", id: kort.id, falt: "tp", saknades: true, bo: bo }],
+        historik: [] };
+}
+
 function franvaroFalt(o, aldre) {
     const ut = [["dag", o.dag],
         ["tillDag", o.tillDag || ""],
@@ -1210,7 +1223,7 @@ function tpSyskon(p, foralder) {
         .slice().sort((a, b) => a.ordning - b.ordning);
 }
 
-const TP_FALT = ["namn", "ansvarig", "farg", "kalkTimmar", "foralder", "ordning", "perioder"];
+const TP_FALT = ["namn", "ansvarig", "farg", "kalkTimmar", "klart", "samband", "foralder", "ordning", "perioder"];
 
 // o: { namn, ansvarig, kalkTimmar, efter: id | null, fore: id | null }. Utan efter/fore hamnar raden sist.
 function opTpNyAktivitet(p, o, klocka, genId) {

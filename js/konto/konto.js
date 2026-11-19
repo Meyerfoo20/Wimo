@@ -243,15 +243,22 @@
     // känner inte till den och kan därför aldrig råka ta bort en dagbok.
     const DBN = "dagbok:";
     const arDbNyckel = (key) => key.indexOf(DBN) === 0;
-    const nyckelFor = (coll, id) => coll === "delar" ? id : coll === "dagbok" ? DBN + id : coll + "/" + id;
+    // Tidplanen ligger också i en egen samling, projekt/{id}/tidplan/{aktivitet}: en aktivitet per dokument
+    // och "_inst" för kalender och resurstyper. Två personer som planerar samtidigt krockar då bara
+    // om de ändrar samma aktivitet.
+    const TPN = "tidplan:", TP_INST = "_inst";
+    const arTpNyckel = (key) => key.indexOf(TPN) === 0;
+    const nyckelFor = (coll, id) => coll === "delar" ? id : coll === "dagbok" ? DBN + id : coll === "tidplan" ? TPN + id : coll + "/" + id;
     function delRef(pid, key) {
         if (arDbNyckel(key)) return fb.fs.doc(fb.db, "projekt", pid, "dagbok", key.slice(DBN.length));
+        if (arTpNyckel(key)) return fb.fs.doc(fb.db, "projekt", pid, "tidplan", key.slice(TPN.length));
         if (key.indexOf("/") < 0) return fb.fs.doc(fb.db, "projekt", pid, "delar", key);
         const i = key.indexOf("/");
         return fb.fs.doc(fb.db, "projekt", pid, "tavlor", key.slice(0, i), "poster", key.slice(i + 1));
     }
     const delSamling = (pid, coll) => coll === "delar" ? fb.fs.collection(fb.db, "projekt", pid, "delar")
         : coll === "dagbok" ? fb.fs.collection(fb.db, "projekt", pid, "dagbok")
+        : coll === "tidplan" ? fb.fs.collection(fb.db, "projekt", pid, "tidplan")
         : fb.fs.collection(fb.db, "projekt", pid, "tavlor", coll, "poster");
     const kopiaDoc = (pid) => fb.fs.doc(fb.db, "projektkopior", pid);
     const msAv = (t) => t && typeof t.toMillis === "function" ? t.toMillis() : 0;
@@ -273,6 +280,22 @@
         const x = JSON.parse(innehall(p));
         const logo = x.logotyp, tavlor = x.tavlor || [], dagbok = Array.isArray(x.dagbok) ? x.dagbok : [];
         delete x.logotyp; delete x.tavlor; delete x.dagbok;
+        // tidplanen: en del per aktivitet + en för resten. Den gamla kopian i bas tas bort först när
+        // molnet bekräftat att tidplanens egna delar finns (då har flytten lyckats).
+        const tp = x.tidplan && typeof x.tidplan === "object" ? x.tidplan : null;
+        if (tp) {
+            const akt = Array.isArray(tp.aktiviteter) ? tp.aktiviteter : [];
+            const inst = Object.assign({}, tp);
+            delete inst.aktiviteter;
+            delar.set(TPN + TP_INST, JSON.stringify(inst));
+            akt.forEach((a, j) => {
+                if (!a || typeof a !== "object" || !a.id) return;
+                const key = TPN + docNamn(a.id);
+                delar.set(key, JSON.stringify(a)); pos.set(key, j);
+            });
+            const b = moln.delar[p.id];
+            if (b && b[TPN + TP_INST] && b[TPN + TP_INST][1] !== null) delete x.tidplan;
+        }
         delar.set("bas", JSON.stringify(x));
         // varje dagbok är en egen del, så att den aldrig försvinner och inte krockar med andra
         dagbok.forEach((d) => { if (d && d.id) delar.set(DBN + docNamn(d.id), JSON.stringify(d)); });
@@ -300,6 +323,19 @@
         try { p.logotyp = L.has("logo") ? JSON.parse(L.get("logo")) : null; } catch (e) { p.logotyp = null; }
         const tav = new Map();
         p.dagbok = [];
+        // tidplanens egna delar går före en (äldre) kopia i bas
+        if (L.has(TPN + TP_INST)) {
+            let inst = {};
+            try { inst = JSON.parse(L.get(TPN + TP_INST)) || {}; } catch (e) { }
+            const akt = [];
+            for (const [key, data] of L) {
+                if (!arTpNyckel(key) || key === TPN + TP_INST) continue;
+                try { const a = JSON.parse(data); if (a && a.id) akt.push({ a, pos: pos.get(key) || 0 }); } catch (e) { }
+            }
+            akt.sort((x, y) => ((x.a.ordning || 0) - (y.a.ordning || 0)) || (x.pos - y.pos));
+            inst.aktiviteter = akt.map((x) => x.a);
+            p.tidplan = inst;
+        }
         for (const [key, data] of L) {
             const i = key.indexOf("/");
             if (i < 0) {
@@ -358,6 +394,7 @@
     // Får jag ändra den här delen? Reglerna kontrollerar samma sak.
     function tillat(pid, key) {
         if (arAdmin()) return true;
+        if (arTpNyckel(key)) return arProjektAdmin(pid);   // tidplanen ändras av projektadmin
         if (key.indexOf("/") < 0) return !arLas(pid);
         const r = tavlaRatt(pid, key.slice(0, key.indexOf("/")));
         return r === "admin" || r === "red";
@@ -696,7 +733,7 @@
             });
             tid[coll] = max;
         };
-        await Promise.all([las("delar"), las("dagbok").catch(() => { })].concat(synligaTavlor(pid).map(las)));
+        await Promise.all([las("delar"), las("dagbok").catch(() => { }), las("tidplan").catch(() => { })].concat(synligaTavlor(pid).map(las)));
         return { delar, pos, tid, b };
     }
     // Ett hämtat projekt blir den lokala kopian.
@@ -1052,6 +1089,7 @@
             if (m.version !== 2 || !moln.delar[pid]) return;
             vill.set(pid + "|delar", [pid, "delar"]);
             vill.set(pid + "|dagbok", [pid, "dagbok"]);
+            vill.set(pid + "|tidplan", [pid, "tidplan"]);
             synligaTavlor(pid).forEach((tid) => vill.set(pid + "|" + tid, [pid, tid]));
         });
         for (const [k, av] of delLyss) {
@@ -1059,7 +1097,7 @@
             av(); delLyss.delete(k);
             const [pid, coll] = k.split("|");
             // tavlan syns inte längre för mig: den tas bort från datorn
-            if (coll !== "delar" && coll !== "dagbok" && projektMeta.has(pid) && moln.delar[pid]) inkFor(pid).rensa.add(coll);
+            if (coll !== "delar" && coll !== "dagbok" && coll !== "tidplan" && projektMeta.has(pid) && moln.delar[pid]) inkFor(pid).rensa.add(coll);
         }
         for (const [k, [pid, coll]] of vill) if (!delLyss.has(k)) startaDelLyss(pid, coll);
     }

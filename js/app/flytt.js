@@ -402,6 +402,8 @@ function modal(titel, undertitel, kropp, knappar) {
         const kn = document.createElement("button");
         kn.className = "mknapp" + (b.primar ? " primar" : "") + (b.fara ? " fara" : "");
         kn.textContent = b.txt;
+        if (b.id)
+            kn.id = b.id;
         kn.addEventListener("click", b.fn);
         if (b.vanster)
             foot.prepend(kn);

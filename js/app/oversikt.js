@@ -39,7 +39,7 @@ function aktivitetRad(p, a, markera) {
         '<td><b>' + esc(a.titel) + '</b>' + (a.kommentar ? '<span class="fkom">' + esc(a.kommentar) + '</span>' : "") +
         (h ? '<span class="fkopp">↳ hinder' + (h.hinder.status === "lost" ? " (löst)" : "") + " · " + esc(h.tavla.namn) + '</span>' : "") +
         (ov ? '<span class="fkopp">↳ överförd till ' + esc(ov.tavla.namn) + " " + kortDatum(ov.kort.dag) + '</span>' : "") +
-        (a.kalender && a.kalender.dag && (Array.isArray(a.tavlor) || fKalender(p, a)) ? '<span class="fkopp">📅 visas i kalendern · ' +
+        (a.kalender && a.kalender.dag && (Array.isArray(a.tavlor) || fKalender(p, a)) ? '<span class="fkopp">↳ visas i kalendern · ' +
             esc(Array.isArray(a.tavlor) ? resTavlorText(p, a) : fKalender(p, a).tavla.namn) + " " + kortDatum(a.kalender.dag) + '</span>' : "") + '</td>' +
         '<td>' + esc(a.kategori || "Övrigt") + '</td>' + (p.tavlor.length > 1 ? '<td>' + esc(resTavlorText(p, a)) + '</td>' : "") + '<td>' + esc(a.ansvarig || "–") + '</td>' +
         '<td class="dat">' + nar + (sen ? ' <span class="rodtal">förfallen</span>' : "") + '</td></tr>';
