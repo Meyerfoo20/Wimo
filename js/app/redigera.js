@@ -105,6 +105,12 @@ function visaKort(k) {
                 '</li>').join("") + '</ul>';
         }
     }
+    if (!k.virtuell && k.typ === "avrop" && typeof avrBestDetalj === "function") {
+        const best = k.avrop && k.avrop.best;
+        forHtml += '<p class="fraga avr-rubrik" style="font-size:14px">Beställning' + (best && best.mallNamn ? ' <small>' + esc(best.mallNamn) + "</small>" : "") +
+            '<button type="button" class="p4d-lank" id="dBest">' + (best ? "Ändra" : "+ Lägg till beställning") + "</button></p>" +
+            (best ? avrBestDetalj(best, k) : "");
+    }
     if (!k.virtuell && k.typ === "avrop" && !k.kedja) {
         const eget = k.avrop || {}, kopp = eget.foretagId && ftgPost(state, eget.foretagId);
         forHtml += '<p class="fraga" style="font-size:14px">Företag</p><div class="mftg">' +
@@ -128,10 +134,10 @@ function visaKort(k) {
         '<div class="falt" style="margin-top:14px"><label for="dNot">Anteckningar</label>' +
         '<p class="hjalp">Metod, mängd, avvikelse, vad som sades på mötet. Syns som en prick på kortet.</p>' +
         '<textarea class="f" id="dNot" rows="3">' + esc(k.not || "") + '</textarea>' +
-        '<div class="p4-mailrad"><button type="button" class="mknapp p4-mailknapp" id="dMaila"' + (k.not ? "" : " disabled") +
+        '<div class="p4-mailrad"><button type="button" class="mknapp p4-mailknapp" id="dMaila"' + (k.not || (k.avrop && k.avrop.best) ? "" : " disabled") +
         ' title="Öppnar ett nytt mejl i Outlook (eller ditt vanliga mejlprogram) med anteckningarna">' +
         '<span class="p4-mailikon" aria-hidden="true"></span>Maila</button>' +
-        '<span class="hjalp" id="dMailaHjalp">' + (k.not ? "" : "Skriv en anteckning först") + "</span></div></div>";
+        '<span class="hjalp" id="dMailaHjalp">' + (k.not ? "" : k.avrop && k.avrop.best ? "Mejlet blir en färdig beställning till leverantören" : "Skriv en anteckning först") + "</span></div></div>";
     const knappar = [];
     if (k.virtuell) {
         knappar.push({ txt: "Serien…", vanster: true, fn: () => { sparaNot(k); seriensVal(k); } });
@@ -165,12 +171,16 @@ function visaKort(k) {
     // Maila: nytt mejl med kortets uppgifter och anteckningarna
     const not = document.getElementById("dNot"), mail = document.getElementById("dMaila");
     if (not && mail) {
+        const harBest = !!(k.avrop && k.avrop.best);
         not.addEventListener("input", () => {
-            mail.disabled = !not.value.trim();
-            document.getElementById("dMailaHjalp").textContent = mail.disabled ? "Skriv en anteckning först" : "";
+            mail.disabled = !not.value.trim() && !harBest;
+            document.getElementById("dMailaHjalp").textContent = mail.disabled ? "Skriv en anteckning först" : !not.value.trim() && harBest ? "Mejlet blir en färdig beställning till leverantören" : "";
         });
         mail.addEventListener("click", () => { sparaNot(k); valjMottagare(k, t, mail, till => mailaAnteckning(k, t, not.value.trim(), till)); });
     }
+    const dB = document.getElementById("dBest");
+    if (dB)
+        dB.addEventListener("click", () => { sparaNot(k); avrBestDialog(k, () => visaKort(k)); });
     const oU = document.getElementById("ordUpp"), oN = document.getElementById("ordNer");
     if (oU)
         oU.addEventListener("click", () => { sparaNot(k); if (flyttaIDag(k, -1)) {
@@ -834,14 +844,17 @@ function mailDag(dag, tid) {
 }
 
 function mailaAnteckning(k, t, text, till) {
-    if (!text)
+    const best = (k.typ === "avrop" || k.roll === "A") && k.avrop && k.avrop.best && typeof avrMejlRader === "function" ? k.avrop.best : null;
+    if (!text && !best)
         return;
     const p = projektForTavla(t) || state;
     const namn = kortText(k, t, p);
     const del = typeof kortDel === "function" ? kortDel(k, t) : "";
     const delAv = del.replace(/^Del\s*(\d+)(?::(\d+))?$/, (m, a, b) => b ? a + " av " + b : a);
     const avrop = k.typ === "avrop" || k.roll === "A";
-    const amne = namn + " · " + p.projekt + (p.tavlor.length > 1 ? " – " + t.namn : "");
+    const levB = best ? avropsLeverans(k, t) : null;
+    const amne = best ? "Beställning " + [best.markning, best.mallNamn || (k.avrop && k.avrop.txt) || namn].filter(Boolean).join(" · ") + (levB ? " – leverans " + mailDagNamn(levB.dag).toLowerCase() : "") + " – " + p.projekt
+        : namn + " · " + p.projekt + (p.tavlor.length > 1 ? " – " + t.namn : "");
     const rader = [namn, "Projekt: " + p.projekt + (p.tavlor.length > 1 ? " · " + t.namn : "")];
     if (avrop) {
         // avropets eget datum är samma dag som mejlet skickas, så det är leveransen som står
@@ -853,13 +866,23 @@ function mailaAnteckning(k, t, text, till) {
     if (delAv) rader.push("Del: " + delAv);
     if (k.vem) rader.push("Ansvarig: " + k.vem);
     const skickat = mailDagNamn(d2iso(new Date()));
-    let kropp = rader.join("\r\n") + "\r\n" + (avrop ? "Material:" : "\r\nAnteckningar:") + "\r\n" + text.replace(/\r?\n/g, "\r\n") +
+    if (best) {
+        // en färdig beställning med samma uppgifter som beställningsmallen
+        rader.length = 0;
+        rader.push("Hej!", "", "Vi vill beställa följande till " + p.projekt + ".", "");
+        avrMejlRader(best, k, t).forEach(r => rader.push(r));
+        if (text) rader.push("", "Övrigt:", text);
+        rader.push("", "Tack på förhand!", best.bestallare && best.bestallare.namn ? best.bestallare.namn : "");
+        text = "";
+    }
+    let kropp = best ? rader.join("\r\n").replace(/\r?\n/g, "\r\n") + "\r\n"
+        : rader.join("\r\n") + "\r\n" + (avrop ? "Material:" : "\r\nAnteckningar:") + "\r\n" + text.replace(/\r?\n/g, "\r\n") +
         (avrop ? "\r\nSkickat " + skickat.charAt(0).toLowerCase() + skickat.slice(1) : "") + "\r\n";
     // mejlprogrammen klarar inte hur långa länkar som helst: då blir det ett färdigt mejl som fil,
     // med hela anteckningen bifogad som textfil
     const MAX = 1800;
     if (encodeURIComponent(kropp).length + (till || []).join(",").length > MAX)
-        return mailSomFil(till || [], amne, rader, text, namn, k.dag);
+        return best ? bestallningSomFil(till || [], amne, kropp, namn, k.dag) : mailSomFil(till || [], amne, rader, text, namn, k.dag);
     const a = document.createElement("a");
     a.href = "mailto:" + (till || []).join(",") + "?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(kropp);
     document.body.appendChild(a);
@@ -919,6 +942,21 @@ function mailSomFil(till, amne, rader, text, namn, dag) {
         '<p>Öppna filen så öppnas mejlet i Outlook med mottagare, ämne och <b>hela anteckningen bifogad som textfil</b>. Tryck sedan Skicka.</p>' +
         '<p class="hjalp">Använder du Gmail eller ett annat mejl i webbläsaren: ladda ner textfilen och bifoga den själv.</p>', [
         { txt: "Ladda ner textfilen", fn: () => laddaNer(bilagaNamn, bilaga, "text/plain;charset=utf-8") },
+        { txt: "Ladda ner mejlet igen", fn: () => laddaNer(emlNamn, eml, "message/rfc822") },
+        { txt: "Klar", primar: true, fn: stangModal }
+    ]);
+}
+
+// En lång beställning: färdigt mejl som fil med hela beställningen i mejlet (ingen bilaga behövs).
+function bestallningSomFil(till, amne, kropp, namn, dag) {
+    const d = iso2d(dag), datum = d.getDate() + "-" + (d.getMonth() + 1);
+    const eml = ["X-Unsent: 1", "To: " + till.join(", "), "Subject: " + mimeOrd(amne), "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", b64utf8(kropp), ""].join("\r\n");
+    const emlNamn = filnamnSakert("Beställning " + namn + " " + datum) + ".eml";
+    laddaNer(emlNamn, eml, "message/rfc822");
+    modal("Beställningen ligger i Hämtade filer", "", '<p>Beställningen är för lång för en vanlig mejllänk, så Wimo har gjort ett färdigt mejl som fil: <b>' + esc(emlNamn) + '</b>.</p>' +
+        '<p>Öppna filen så öppnas mejlet i Outlook med mottagare, ämne och hela beställningen. Tryck sedan Skicka.</p>', [
+        { txt: "Kopiera texten", fn: () => { if (navigator.clipboard) navigator.clipboard.writeText(kropp).then(() => status("Beställningen kopierad")); } },
         { txt: "Ladda ner mejlet igen", fn: () => laddaNer(emlNamn, eml, "message/rfc822") },
         { txt: "Klar", primar: true, fn: stangModal }
     ]);

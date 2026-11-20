@@ -65,6 +65,10 @@ function snabbPost(dag) {
         '<input class="f" id="sbTom" type="date"></div></div>' +
         '<div id="sbAvrop" class="dold avropblock">' +
         '<div class="rubrik2">Avropet (frivilligt — fyller i avropslistan)</div>' +
+        (typeof avrInst === "function" ? (avrInst().mallar.length
+            ? '<div class="falt"><label for="sbMall">Mall</label><select class="f" id="sbMall"><option value="">Ingen mall</option>' +
+                avrInst().mallar.map(m => '<option value="' + esc(m.id) + '">' + esc(m.namn) + '</option>').join("") + '</select></div>'
+            : '<p class="hjalp avr-tips">Beställer ni samma saker ofta? Gör färdiga mallar under <button type="button" class="p4d-lank" id="sbMallInst">Projektinställningar → Avrop</button>.</p>') : "") +
         '<div class="falt"><label>Typ av avrop</label>' +
         '<div class="lage" id="sbSlag"><button type="button" data-s="material">Material</button>' +
         '<button type="button" data-s="ue">UE / extern resurs</button></div></div>' +
@@ -72,6 +76,7 @@ function snabbPost(dag) {
         '<span id="sbLevRuta">' + foretagValjare(state, "leverantor", null, "sbForetag") + '</span></div>' +
         '<div class="falt"><label for="sbLevDag" id="sbLevDagEt">Leverans</label>' +
         '<input class="f" id="sbLevDag" type="date"></div></div>' +
+        '<div id="sbBestRuta"><button type="button" class="p4d-lank" id="sbBestNy">+ Lägg till beställning (produkter, leveranstid, lastzon)</button></div>' +
         '<p class="hjalp" style="margin:2px 0 0">Ett avrop från Snabb post är alltid fristående. ' +
         'Hör avropet till ett produktionsmoment lägger du in det under Planera moment · Material / UE.</p>' +
         '</div>' +
@@ -79,6 +84,7 @@ function snabbPost(dag) {
         'få material- och leveransuppgifter, eftersom det inte finns som en enskild post förrän det bockas av. ' +
         'Avmarkera Återkommer om du vill fylla i det.</div></div>';
     let slag = null, fOrsak = FRANVARO[0], valtForetag = null, manuelltForetag = "";
+    let best = null, mallNamn = "";   // beställningen (från mall eller manuellt)
     let ueDatum = null, ueVisning = "kort";   // ueDatum: datum valda i kalendern (null = Dag till Till och med)
     function laggUpp() {
         const txt = document.getElementById("sbText").value.trim();
@@ -119,9 +125,14 @@ function snabbPost(dag) {
             logg("Återkommande post upplagd: " + txt + (andra.length ? " (även på " + andra.map(x => x.namn).join(", ") + ")" : ""));
         }
         else if (typ === "avrop") {
+            const levDag = document.getElementById("sbLevDag").value;
+            if (best && !levDag) {
+                document.getElementById("sbLevDag").focus();
+                return status("Välj leveransdatum för beställningen", true);
+            }
             skapaSnabbAvrop({ dag: dagVal, text: txt, tid: tid, vem: vem, slag: slag,
                 foretagId: valtForetag, leverantor: valtForetag ? "" : manuelltForetag,
-                levDag: document.getElementById("sbLevDag").value });
+                levDag: levDag, best: best ? avrRensa(best) : null });
         }
         else {
             // en post per vardag från Dag till och med Till och med
@@ -260,6 +271,43 @@ function snabbPost(dag) {
         kopplaForetagValjare(ruta, state, (sel, id, sk, txt) => { valtForetag = id; manuelltForetag = id ? "" : (txt || ""); });
     }));
     kopplaForetagValjare(document.getElementById("sbLevRuta"), state, (sel, id, sk, txt) => { valtForetag = id; manuelltForetag = id ? "" : (txt || ""); });
+    // beställning: mall eller manuellt
+    const bestRuta = document.getElementById("sbBestRuta");
+    const ritaBest = () => {
+        if (!best) {
+            bestRuta.innerHTML = '<button type="button" class="p4d-lank" id="sbBestNy">+ Lägg till beställning (produkter, leveranstid, lastzon)</button>';
+            return;
+        }
+        bestRuta.innerHTML = '<div class="avr-snabb"><div class="avr-snabbtopp"><b>Beställning' + (best.mallNamn ? " · " + esc(best.mallNamn) : "") + '</b>' +
+            '<button type="button" class="p4d-lank" id="sbBestBort">Ta bort beställningen</button></div>' + avrBestHtml(best) + '</div>';
+    };
+    if (bestRuta && typeof avrBestKoppla === "function") {
+        const hall = {};
+        ["rader", "levTid", "lastzon", "meddelande"].forEach(n => Object.defineProperty(hall, n, { get: () => best[n], set: (v) => { best[n] = v; } }));
+        avrBestKoppla(bestRuta, hall, ritaBest);
+        bestRuta.addEventListener("click", (e) => {
+            if (e.target.id === "sbBestNy") { best = avrNyBest(null); ritaBest(); const f = bestRuta.querySelector('[data-avrf="produkt"]'); if (f) f.focus(); }
+            if (e.target.id === "sbBestBort") { best = null; const ms = document.getElementById("sbMall"); if (ms) ms.value = ""; ritaBest(); }
+        });
+    }
+    const valjSlag = (s) => { const b = document.querySelector('#sbSlag button[data-s="' + s + '"]'); if (b) b.click(); };
+    const mallVal = document.getElementById("sbMall");
+    if (mallVal) mallVal.addEventListener("change", () => {
+        const m = avrInst().mallar.find(x => x.id === mallVal.value);
+        const txtF = document.getElementById("sbText");
+        if (!m) { if (txtF.value === mallNamn) txtF.value = ""; mallNamn = ""; best = null; return ritaBest(); }
+        // mallen fyller i vad, typ, leverantör och beställningen; datum och leveranstid väljer man själv
+        if (!txtF.value.trim() || txtF.value === mallNamn) txtF.value = m.namn;
+        mallNamn = m.namn;
+        valtForetag = m.foretagId || null; manuelltForetag = m.foretagId ? "" : (m.leverantor || "");
+        valjSlag(m.slag === "ue" ? "ue" : "material");
+        const levTid = best ? best.levTid : "";
+        best = avrNyBest(m); best.levTid = levTid;
+        ritaBest();
+        status("Mallen " + m.namn + " ifylld. Välj leveransdatum och leveranstid.");
+    });
+    const mi = document.getElementById("sbMallInst");
+    if (mi) mi.addEventListener("click", () => { stangModal(); avropInstDialog(); });
     visaAvrop();
     ["sbText", "sbVem", "sbTid", "sbPlats"].forEach(i => document.getElementById(i).addEventListener("keydown", e => {
         if (e.key === "Enter")

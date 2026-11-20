@@ -527,6 +527,9 @@ function projektInstallningar() {
         '<p class="fraga" style="font-size:14px;margin-top:18px">Företag</p>' +
         '<p class="hjalp">' + state.foretag.filter(f => f.aktiv).length + ' aktiva leverantörer och UE. ' +
         '<button type="button" class="parkiv" id="piForetag">Hantera företag</button></p>' +
+        '<p class="fraga" style="font-size:14px;margin-top:18px">Avrop och beställningar</p>' +
+        '<p class="hjalp">' + (typeof avrInst === "function" ? (() => { const a = avrInst(); return (a.mallar.length ? a.mallar.length + (a.mallar.length === 1 ? " mall" : " mallar") : "Inga mallar än") + (a.markning ? " · märkning " + esc(a.markning) : "") + ". "; })() : "") +
+        '<button type="button" class="parkiv" id="piAvrop">Hantera avrop och mallar</button></p>' +
         '<p class="fraga" style="font-size:14px;margin-top:18px">Resurser</p>' +
         '<p class="hjalp">' + state.resurser.personer.filter(x => x.aktiv).length + ' aktiva personer i ' +
         state.resurser.kategorier.length + ' yrkesgrupper. <button type="button" class="parkiv" id="piResurser">Hantera resurser</button></p>' +
@@ -589,6 +592,9 @@ function projektInstallningar() {
     const pf = document.getElementById("piForetag");
     if (pf)
         pf.addEventListener("click", () => { stangModal(); foretagDialog(); });
+    const pa = document.getElementById("piAvrop");
+    if (pa)
+        pa.addEventListener("click", () => { stangModal(); avropInstDialog(); });
     const pr = document.getElementById("piResurser");
     if (pr)
         pr.addEventListener("click", () => { stangModal(); resursbankDialog(); });

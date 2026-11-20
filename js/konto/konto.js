@@ -986,8 +986,8 @@
             const k = konflikter.get(id);
             if (!k) return;
             sakerhetskopieraLokalt(id, k.borttagen ? null : [...k.delar.keys()]);
+            // molnets version gäller alltid; den lokala sparas tyst i papperskorgen, inget meddelande behövs
             losKonflikt(id, false);
-            status("Uppdaterat från molnet – din tidigare version finns i papperskorgen under Mitt konto");
         }, 0);
     }
     function registreraKonflikter(id, lista) {
@@ -1137,6 +1137,8 @@
             }).catch((e) => { hamtas.delete(pid); console.warn("Wimo hämtning:", e); });
         });
     }
+    // Uppdateringar som väntat medan en dialog var öppen läggs in när den stängs – utan att användaren behöver göra något.
+    new MutationObserver(() => { if (vantande.size && !dialogOppen()) setTimeout(tillampaVantande, 50); }).observe(document.body, { childList: true });
     function tillampaVantande() {
         if (!vantande.size) return;
         if (dialogOppen()) { uppdateraUI(); return; }
@@ -1772,7 +1774,7 @@
             const k = konflikter.get(p.id);
             const poster = p.tavlor.reduce((n, t) => n + t.kort.length, 0);
             const andrad = senastAndrad(p);
-            const lageTxt = k ? (k.borttagen ? "Borttaget på en annan enhet" : "Ändrat på två ställen")
+            const lageTxt = k ? (k.borttagen ? "Borttaget på en annan enhet" : "Synkar…")
                 : !synkKlar ? "Väntar" : !kanSkriva(p) ? "Läsbehörig" : arAndrad(p) ? "Sparas…" : "Sparat";
             const klass = k ? "konflikt" : arAndrad(p) || !synkKlar ? "vantar" : "ok";
             return "<tr><td><b>" + esc(p.projekt) + "</b>" +
@@ -1793,11 +1795,10 @@
         }).join("");
         kort.innerHTML =
             '<div class="p4-ks-rubrikrad"><h2>' + (arAdmin() ? "Alla projekt" : "Dina projekt") + "</h2>" +
-              '<span class="p4-ks-status ' + (lage === "synkad" ? "ok" : lage === "konflikt" || lage === "fel" ? "konflikt" : "vantar") + '">' +
+              '<span class="p4-ks-status ' + (lage === "synkad" ? "ok" : lage === "fel" ? "konflikt" : "vantar") + '">' +
               esc(lagesText()) + "</span>" +
               '<span class="p4-ks-knappar p4-ks-hoger-knappar">' + (kanSkapaProjekt() ? '<button type="button" class="mknapp" data-ks="nyttprojekt">+ Nytt projekt</button>' : "") +
               "</span></div>" +
-            (konflikter.size ? '<div class="notis">Välj vilken version som ska gälla för projekten som ändrats på två ställen.</div>' : "") +
             '<div class="p4-ks-tabellram"><table class="lista p4-ks-tabell"><thead><tr><th>Projekt</th><th>Tavlor</th><th>Poster</th>' + (harNagonAdminroll() ? "<th>Medlemmar</th><th>Projektkod</th>" : "") + '<th>Senast ändrat</th><th>Molnet</th><th></th></tr></thead>' +
             "<tbody>" + rader + "</tbody></table></div>";
     }
@@ -1947,7 +1948,7 @@
             synkar: "Synkar…",
             synkad: "Sparat i molnet" + (tid ? " " + tid : ""),
             offline: "Offline — synkas när nätet är tillbaka",
-            konflikt: konflikter.size + (konflikter.size === 1 ? " projekt" : " projekt") + " har ändrats på två ställen",
+            konflikt: "Synkar…",
             fel: "Kunde inte synka — försöker igen",
             val: "Välj hur dina projekt ska synkas",
         }[lage];
@@ -1969,7 +1970,8 @@
             knapp.title = anvandare ? (anvandare.email || "") + " · " + lagesText() : "Logga in för att spara i molnet";
         }
         window.p4Moln = { aktiv: !!(anvandare && synkKlar), lage: lage, text: lagesText(), vantar: vantande.size };
-        const bannerTxt = lage === "val" ? lagesText() : konflikter.size ? lagesText() : vantande.size ? "Det finns uppdateringar från en annan enhet" : "";
+        // bara valet vid första synken visas som banner; uppdateringar från andra enheter läggs in automatiskt
+        const bannerTxt = lage === "val" ? lagesText() : "";
         const banner = $("p4MolnBanner");
         if (banner) {
             banner.classList.toggle("dold", !bannerTxt);

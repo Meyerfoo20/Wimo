@@ -391,10 +391,12 @@ function opSkapaSnabbAvrop(o, foretagId, tavlaId, klocka, genId) {
         if (!lev.ok)
             return lev;
     }
-    if (o.slag || o.leverantor || o.levDag || foretagId) {
+    if (o.slag || o.leverantor || o.levDag || foretagId || o.best) {
         kAvr.avrop = { slag: o.slag || null, txt: o.text || "", leverantor: o.leverantor || "",
             foretagId: foretagId || null, levDag: o.levDag || "",
             levKortId: lev ? lev.andringar[0].id : null };
+        if (o.best)
+            kAvr.avrop.best = o.best;
     }
     return { ok: true, fel: null,
         andringar: avr.andringar.concat(lev ? lev.andringar : []),
