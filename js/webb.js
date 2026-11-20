@@ -41,6 +41,28 @@
     boka.addEventListener("focus", stanna);
   }
 
+  // navigeringen på datorn: varje bokstav får en egen ruta så att ordet kan rulla upp bokstav för bokstav
+  const lankar = document.querySelector(".nav-lankar");
+  if (lankar && matchMedia("(min-width: 761px)").matches) {
+    lankar.classList.add("rull");
+    lankar.querySelectorAll("li:not(.bara-smal) a").forEach((a) => {
+      const text = a.textContent;
+      a.setAttribute("aria-label", text);
+      const ord = document.createElement("span");
+      ord.className = "rull-ord";
+      ord.setAttribute("aria-hidden", "true");
+      [...text].forEach((t, i) => {
+        const s = document.createElement("span");
+        s.textContent = t;
+        s.dataset.b = t;
+        s.style.setProperty("--i", i);
+        ord.appendChild(s);
+      });
+      a.textContent = "";
+      a.appendChild(ord);
+    });
+  }
+
   // mobilmenyn
   const nav = document.querySelector(".nav"), meny = document.querySelector(".meny");
   if (meny) meny.addEventListener("click", () => {

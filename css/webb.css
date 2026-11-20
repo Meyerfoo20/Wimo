@@ -91,9 +91,29 @@ img { display: block; max-width: 100%; }
 .nav-logga .vit { display: none; }
 html[data-tema="mork"] .nav-logga .svart { display: none; }
 html[data-tema="mork"] .nav-logga .vit { display: block; }
-.nav-lankar { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.nav-lankar a { display: block; padding: 8px 14px; border-radius: 999px; color: var(--dampad); font-size: 15px; font-weight: 500; text-decoration: none; }
+.nav-lankar { position: relative; display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.nav-lankar a { position: relative; z-index: 1; display: block; padding: 8px 14px; border-radius: 999px; color: var(--dampad); font-size: 15px; font-weight: 500; text-decoration: none; transition: color .25s ease; }
 .nav-lankar a:hover { color: var(--text); background: var(--bg-alt); }
+/* på datorn: bokstäverna rullar upp en i taget och en liten stapel, i samma form som posterna på tavlan, byggs ut under ordet */
+.nav-lankar.rull { gap: 12px; }
+.nav-lankar.rull a { --c: var(--prod); --k: var(--prod-kant); --f: var(--prod-fyll); display: flex; align-items: center; height: 38px; padding: 0 15px; line-height: 1; }
+.nav-lankar.rull li:nth-child(2) a { --c: var(--avrop); --k: var(--avrop-kant); --f: var(--avrop-fyll); }
+.nav-lankar.rull li:nth-child(3) a { --c: var(--ue); --k: var(--ue-kant); --f: var(--ue-fyll); }
+.nav-lankar.rull a { background: linear-gradient(var(--f), var(--f)) left / 0 100% no-repeat; border-radius: 12px 12px 12px 0;
+  transition: color .25s ease, background-size .45s cubic-bezier(.65, 0, .35, 1) .08s; }
+/* hover: ramen ritas fram och fyllningen glider in efter, från vänster */
+.nav-lankar.rull a:hover, .nav-lankar.rull a:focus-visible { color: var(--text); background-color: transparent; background-size: 100% 100%; }
+/* sidan man är på: fylld som en post på tavlan */
+.nav-lankar.rull a[aria-current="page"] { background-size: 100% 100%; color: var(--text); font-weight: 600; }
+.nav-lankar.rull a::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  border: 2px solid var(--k); border-left-color: var(--c); border-bottom-color: var(--c); border-radius: 12px 12px 12px 0;
+  clip-path: inset(0 100% 0 0 round 12px 12px 12px 0); transition: clip-path .45s cubic-bezier(.65, 0, .35, 1); }
+.nav-lankar.rull a:hover::after, .nav-lankar.rull a:focus-visible::after, .nav-lankar.rull a[aria-current="page"]::after { clip-path: inset(0 0 0 0 round 12px 12px 12px 0); }
+.rull-ord { display: block; clip-path: inset(0); line-height: 1.3em; height: 1.3em; }
+.rull-ord > span { display: inline-block; white-space: pre; transition: transform .42s cubic-bezier(.65, 0, .35, 1); transition-delay: calc(var(--i) * 22ms); }
+.rull-ord > span { line-height: 1.3em; }
+.rull-ord > span::after { content: attr(data-b); display: block; height: 1.3em; }
+.nav-lankar.rull a:hover .rull-ord > span, .nav-lankar.rull a:focus-visible .rull-ord > span { transform: translateY(-1.3em); }
 .nav-lankar a[aria-current="page"] { color: var(--text); font-weight: 600; }
 .nav-hoger { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .tema { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 1px solid var(--linje); border-radius: 999px; background: var(--kort); color: var(--text); cursor: pointer; }
@@ -326,6 +346,7 @@ html[data-tema="mork"] .tema .mane { display: none; }
   .nav-lankar { display: none; position: absolute; top: 72px; left: 0; right: 0; flex-direction: column; padding: 8px 16px 16px; background: var(--bg); border-bottom: 1px solid var(--linje); }
   .nav.oppen .nav-lankar { display: flex; }
   .nav-lankar a { padding: 12px 8px; font-size: 17px; }
+
   .meny { display: grid; }
   .nav-hoger .knapp.ljus { display: none; }
   .nav-hoger .knapp.liten { padding: 0 14px; font-size: 14px; }
@@ -347,7 +368,7 @@ html[data-tema="mork"] .tema .mane { display: none; }
   .fot-topp { grid-template-columns: 1fr; gap: 48px; }
   .fot-kolumner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *:not(.nav-lankar a):not(.nav-lankar a::after):not(.rull-ord > span) { transition: none !important; } }
 .bara-mobil { display: none; }
 @media (max-width: 760px) { .bara-mobil { display: block; border-top: 1px solid var(--linje); margin-top: 6px; padding-top: 6px; } }
 @media (max-width: 480px) {
