@@ -134,7 +134,7 @@ const HJALP_SEKTIONER = [
         "<h4>Veckans utfall</h4>" +
         "<p>Visar <b>planpålitligheten</b>: hur stor del av de produktionsposter ni lovade som blev gjorda. 80 % eller mer är bra. Du ser också det som inte blev gjort, de vanligaste orsakerna och sådant som tillkom under veckan. Välj vecka bland de senaste åtta.</p>" +
         "<h4>Resurser</h4>" +
-        "<p>Vilka personer och yrkesgrupper som finns och hur många som är på plats varje dag, med frånvaro inräknad. Personer lägger du in under <i>Projektinställningar → Resurser</i>.</p>" +
+        "<p>Vilka personer och yrkesgrupper som finns och hur många som är på plats varje dag, med frånvaro inräknad. Har någon inget arbete inplanerat de kommande fem arbetsdagarna visas en varning överst och personen märks med <i>Inget planerat</i>. Personer lägger du in under <i>Projektinställningar → Resurser</i>.</p>" +
         "<h4>Historik</h4>" +
         "<p>Panelen <i>Historik</i> till höger visar vad som har ändrats på tavlan och av vem — bra när något verkar ha försvunnit.</p>" },
 

@@ -381,7 +381,8 @@ function bemanningDialog(k) {
 
 let resFilter = { vy: "person", period: "2v", fran: null, till: null, omf: "projekt" };
 
-function resursPersonTabell(p, u) {
+function resursPersonTabell(p, u, ledig) {
+    const utan = new Set(ledig ? ledig.personer.map(x => x.id) : []);
     const r = p.resurser;
     const tid = resFilter.omf === "tavla" && T() ? T().id : null;
     const synliga = r.personer.filter(x => ((x.aktiv && resPaTavla(x, tid)) || u.karta[x.id] || u.franvaro[x.id]));
@@ -396,7 +397,8 @@ function resursPersonTabell(p, u) {
         u.dagar.map(d => '<th>' + dagRubrik(d) + '</th>').join("") + '</tr></thead><tbody>' +
         sorterade.map(x => {
             const k = resKat(p, x.kategoriId);
-            return '<tr><td class="resnamn"><b>' + esc(x.namn) + '</b>' + (x.aktiv ? "" : ' <em class="inaktiv">Inaktiv</em>') +
+            return '<tr' + (utan.has(x.id) ? ' class="resutan"' : "") + '><td class="resnamn"><b>' + esc(x.namn) + '</b>' + (x.aktiv ? "" : ' <em class="inaktiv">Inaktiv</em>') +
+                (utan.has(x.id) ? '<em class="utanarbete" title="Inget arbete inplanerat ' + esc(periodText(ledig.fran, ledig.till)) + '">Inget planerat</em>' : "") +
                 '<span>' + esc(k ? k.namn : "") + '</span></td>' +
                 u.dagar.map(d => {
                     const lista = (u.karta[x.id] || {})[d] || [];
@@ -418,7 +420,7 @@ function resursPersonTabell(p, u) {
         }).join("") + '</tbody></table></div>';
 }
 
-function resursGruppTabell(p, u) {
+function resursGruppTabell(p, u, ledig) {
     const r = p.resurser;
     if (!r.kategorier.length)
         return '<p class="utom">Inga yrkesgrupper registrerade.</p>';
@@ -459,6 +461,19 @@ function resursGruppTabell(p, u) {
     return html;
 }
 
+/* varning: aktiva personer som inte har något arbete den kommande arbetsveckan */
+function utanArbeteNotis(p, ledig) {
+    if (!ledig || !ledig.personer.length)
+        return "";
+    const perGrupp = {};
+    ledig.personer.forEach(x => { const k = resKat(p, x.kategoriId); (perGrupp[k ? k.namn : "Utan yrkesgrupp"] = perGrupp[k ? k.namn : "Utan yrkesgrupp"] || []).push(x.namn); });
+    const n = ledig.personer.length;
+    return '<div class="notis utanarbete-notis"><b>' + (n === 1 ? "1 person har" : n + " personer har") + ' inget arbete inplanerat de kommande fem arbetsdagarna (' + esc(periodText(ledig.fran, ledig.till)) + ').</b> ' +
+        'Lägg in dem på ett moment eller markera frånvaro.<ul>' +
+        Object.keys(perGrupp).sort((a, b) => a.localeCompare(b, "sv")).map(g => '<li><span>' + esc(g) + '</span> ' +
+            perGrupp[g].sort((a, b) => a.localeCompare(b, "sv")).map(esc).join(", ") + '</li>').join("") + '</ul></div>';
+}
+
 function franvaroKonfLista(p, u) {
     if (!u.franKonf || !u.franKonf.length)
         return "";
@@ -490,6 +505,7 @@ function resursKonfLista(p, u) {
 function resursVy() {
     const p = state, f = resFilter;
     const u = resursUnderlag(p, f, T(), IDAG);
+    const ledig = personerUtanArbete(p, f.omf === "tavla" && T() ? T().id : null, IDAG);
     const kropp = '<div class="filterrad">' +
         '<label>Vy<select class="f" id="rvVy"><option value="person"' + (f.vy === "person" ? " selected" : "") + '>Per person</option>' +
         '<option value="grupp"' + (f.vy === "grupp" ? " selected" : "") + '>Per yrkesgrupp</option></select></label>' +
@@ -500,8 +516,8 @@ function resursVy() {
         '<option value="tavla"' + (f.omf === "tavla" ? " selected" : "") + '>Denna tavla (' + esc(T().namn) + ')</option></select></label>' +
         '</div>' +
         (p.resurser.personer.length ? "" : '<div class="notis">Projektet har inga resurser. Lägg till dem under Projektinställningar → Resurser.</div>') +
-        resursKonfLista(p, u) +
-        (f.vy === "grupp" ? resursGruppTabell(p, u) : resursPersonTabell(p, u));
+        resursKonfLista(p, u) + utanArbeteNotis(p, ledig) +
+        (f.vy === "grupp" ? resursGruppTabell(p, u, ledig) : resursPersonTabell(p, u, ledig));
     modal("Resursplanering", p.projekt + " · " + u.per.text, kropp, [
         { txt: "Hantera resurser", vanster: true, fn: () => { stangModal(); resursbankDialog(); } },
         { txt: "Stäng", fn: stangModal },

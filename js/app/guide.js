@@ -548,7 +548,7 @@ function ritaMaterial() {
             samlaMaterial();
             if (!m.avropDag)
                 return;
-            m.ledtid = String(arbetsdagarMellan(m.avropDag, m.levDag));
+            m.ledtid = String(Math.max(0, arbetsdagarMellan(m.avropDag, m.levDag)));
             lt.value = m.ledtid;
             varna(rad, m);
         };
@@ -559,9 +559,19 @@ function ritaMaterial() {
     });
     function varna(rad, m) {
         const v = rad.querySelector(".mvarn");
-        if (iso2d(m.avropDag) < iso2d(tavlaStart())) {
+        const vad = arUe(m) ? "UE-starten" : "Leveransen";
+        if (m.avropDag && m.levDag && m.avropDag > m.levDag) {
+            v.innerHTML = '<div class="notis rod" style="margin:8px 0 0">Avropet ligger efter ' + (arUe(m) ? "UE-starten" : "leveransen") + '. Välj ett tidigare avropsdatum eller en senare ' + (arUe(m) ? "start." : "leverans.") + '</div>';
+        }
+        else if (arHelg(m.levDag)) {
+            v.innerHTML = '<div class="notis rod" style="margin:8px 0 0">' + vad + ' ligger på en ' + (iso2d(m.levDag).getDay() === 0 ? "söndag" : "lördag") + ' (' + kortDatum(m.levDag) + '). Välj en arbetsdag.</div>';
+        }
+        else if (arHelg(m.avropDag) && !avropSent(m)) {
+            v.innerHTML = '<div class="notis rod" style="margin:8px 0 0">Avropet ligger på en helgdag (' + kortDatum(m.avropDag) + '). Välj en arbetsdag.</div>';
+        }
+        else if (avropSent(m)) {
             v.innerHTML = '<div class="notis rod" style="margin:8px 0 0">Avropet skulle ha legat ' + kortDatum(m.avropDag) +
-                ' (v' + veckonr(m.avropDag) + ') — före tavlan. Det läggs på första dagen märkt "gör idag" och hamnar på hinderlistan.</div>';
+                ' (v' + veckonr(m.avropDag) + '), som redan har passerat. Det läggs på idag märkt "gör idag" och hamnar på hinderlistan.</div>';
         }
         else if (!inomTavlan(m.levDag)) {
             v.innerHTML = '<div class="notis">' + (arUe(m) ? "UE-starten" : "Leveransen") + ' ligger ' + kortDatum(m.levDag) +
@@ -637,6 +647,18 @@ function stegMaterial() {
     document.getElementById("laggUe").addEventListener("click", () => lagg("ue"));
     ritaMaterial();
 }
+
+/* avrop vars datum redan har passerat (före idag) ska göras idag */
+function avropSent(m) { return !!m.avropDag && m.avropDag < IDAG; }
+
+function idagArbetsdag() {
+    let d = IDAG;
+    while ((iso2d(d).getDay() + 6) % 7 > 4)
+        d = plus(d, 1);
+    return d;
+}
+
+function arHelg(iso) { return !!iso && (iso2d(iso).getDay() + 6) % 7 > 4; }
 
 function arbetsdag(iso) {
     const d = iso2d(iso), v = (d.getDay() + 6) % 7;
@@ -883,8 +905,8 @@ function planeradeKort() {
     g.kedja = g.kedja || "k" + uid();
     const kedja = g.kedja, ut = [];
     (g.mtrl || []).forEach(m => {
-        const sent = iso2d(m.avropDag) < iso2d(tavlaStart());
-        ut.push({ dag: arbetsdag(m.avropDag), typ: "avrop", roll: "A", mid: m.id,
+        const sent = avropSent(m);
+        ut.push({ dag: sent ? idagArbetsdag() : arbetsdag(m.avropDag), typ: "avrop", roll: "A", mid: m.id,
             text: avropText(m) + (sent ? " · gör idag" : ""), vem: g.vem, kedja: kedja });
         ut.push({ dag: m.levDag, typ: m.slag === "ue" ? "ue" : "leverans", roll: "L", mid: m.id,
             text: levText(m), vem: g.vem, kedja: kedja });
@@ -912,7 +934,7 @@ function planeradeHinder() {
         h.push({ vad: forvalText(f), vem: f.vem || "", nar: f.nar || "", forId: f.id });
     });
     (g.mtrl || []).forEach(m => {
-        if (iso2d(m.avropDag) < iso2d(tavlaStart()))
+        if (avropSent(m))
             h.push({ vad: avropText(m) + " är sent mot ledtiden", vem: g.vem || "", nar: IDAG, forId: null });
     });
     return h;

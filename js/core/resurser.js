@@ -155,3 +155,28 @@ function resursUnderlag(p, f, t, idag) {
     return { per: per, tavlor: tavlor, dagar: dagar2, karta: karta, konf: konf, konfNyckel: konfNyckel, behov: behov, moment: moment,
         franvaro: franvaro, franKonf: franKonf };
 }
+
+/* Personer utan något inplanerat arbete den kommande arbetsveckan (5 arbetsdagar från idag).
+   Arbete räknas på alla tavlor i projektet; den som är heldagsfrånvarande hela perioden tas inte med. */
+function personerUtanArbete(p, tid, idag) {
+    let fran = idag;
+    while ((iso2d(fran).getDay() + 6) % 7 > 4)
+        fran = plus(fran, 1);
+    let till = fran, n = 1;
+    while (n < 5) {
+        till = plus(till, 1);
+        if ((iso2d(till).getDay() + 6) % 7 < 5)
+            n++;
+    }
+    const karta = resursKarta(p, p.tavlor, fran, till);
+    const franv = franvaroKarta(p, fran, till);
+    const dagar2 = arbetsdagarMellanDatum(fran, till);
+    const personer = ((p.resurser && p.resurser.personer) || []).filter(x => x.aktiv && resPaTavla(x, tid)).filter(x => {
+        const k = karta[x.id] || {};
+        if (dagar2.some(d => (k[d] || []).length))
+            return false;
+        const f = franv[x.id] || {};
+        return !dagar2.every(d => f[d] && f[d].hel);
+    });
+    return { fran: fran, till: till, personer: personer };
+}

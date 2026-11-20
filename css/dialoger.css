@@ -1596,3 +1596,20 @@ body.visning #pstart {
 #avrMallar { padding-bottom: 10px; }
 .avr-mallrubrik { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
 .avr-mallknappar { gap: 14px; align-items: center; }
+
+/* resursvyn: personer utan inplanerat arbete den kommande arbetsveckan */
+.utanarbete-notis ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.utanarbete-notis li { margin-top: 2px; }
+.utanarbete-notis li span { font-weight: 700; }
+.restabell td.resnamn em.utanarbete {
+  display: inline-block;
+  margin: 3px 0 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  background: var(--varning-fyll);
+  color: var(--varning);
+}
