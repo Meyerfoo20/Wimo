@@ -18,7 +18,27 @@
   try { inloggad = localStorage.getItem("wimo-inloggad") === "1"; } catch (e) { }
   if (inloggad) {
     document.querySelectorAll('[data-konto="logga"]').forEach((a) => { if (a.closest(".nav-hoger, .borja-knappar")) a.remove(); else a.textContent = "Öppna Wimo"; });
+    document.querySelectorAll('.fot [data-konto="skapa"]').forEach((a) => a.closest("li").remove());
     document.querySelectorAll('[data-konto="skapa"]').forEach((a) => { a.textContent = "Öppna Wimo"; a.setAttribute("href", "konto.html"); });
+    document.querySelectorAll("[data-konto-not]").forEach((p) => { p.innerHTML = '<span>Du är inloggad.</span> <a href="konto.html">Öppna Wimo</a>'; });
+  }
+
+  // rubriklänken i heron slutar knuffa när man har hovrat den en gång
+  const boka = document.querySelector(".hero-boka");
+  if (boka) {
+    const pil = boka.querySelector("svg");
+    const stanna = () => {
+      if (boka.classList.contains("sedd")) return;
+      // pilen glider mjukt tillbaka från där pulsen var i stället för att hoppa
+      const nu = getComputedStyle(pil).transform;
+      boka.classList.add("sedd");
+      pil.style.transform = nu === "none" ? "" : nu;
+      pil.getBoundingClientRect();
+      pil.style.transition = "transform .35s cubic-bezier(.65, 0, .35, 1)";
+      pil.style.transform = "translateX(0)";
+    };
+    boka.addEventListener("mouseenter", stanna);
+    boka.addEventListener("focus", stanna);
   }
 
   // mobilmenyn
