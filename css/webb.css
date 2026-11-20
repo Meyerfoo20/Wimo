@@ -112,12 +112,17 @@ html[data-tema="mork"] .tema .mane { display: none; }
 .hero-ingress { margin: 0 0 6px; color: var(--dampad); font-size: 18.5px; max-width: 44ch; }
 .hero-knappar { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 /* rubriklänken: pilen knuffar lätt tills man har hovrat, linjen glider in under */
-.hero-boka { position: relative; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 6px; color: var(--text); text-decoration: none;
+.hero-boka { position: relative; isolation: isolate; display: inline-flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 12px 20px; border-radius: 16px; color: var(--text); text-decoration: none;
   font-size: clamp(22px, 2.2vw, 28px); font-weight: 800; letter-spacing: -.025em; line-height: 1.2; }
-/* linjen: växer in från vänster vid hover och glider ut åt höger när musen lämnar */
-.hero-boka::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: currentColor;
-  transform: scaleX(0); transform-origin: right center; transition: transform .5s cubic-bezier(.65, 0, .35, 1); }
-.hero-boka:hover::after, .hero-boka:focus-visible::after { transform: scaleX(1); transform-origin: left center; }
+/* hörnen: uppe till vänster och nere till höger, som en halvöppen knapp. Vid hover växer de och en ton glider in från vänster */
+.hero-boka::before, .hero-boka::after { content: ""; position: absolute; width: 26px; height: 22px; border: 0 solid currentColor; pointer-events: none;
+  transition: width .5s cubic-bezier(.65, 0, .35, 1), height .5s cubic-bezier(.65, 0, .35, 1); }
+.hero-boka::before { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; border-top-left-radius: 16px; }
+.hero-boka::after { right: 0; bottom: 0; border-bottom-width: 2px; border-right-width: 2px; border-bottom-right-radius: 16px; }
+.hero-boka:hover::before, .hero-boka:hover::after, .hero-boka:focus-visible::before, .hero-boka:focus-visible::after { width: 44%; height: 70%; }
+.hero-boka span { position: relative; }
+.hero-boka { background: linear-gradient(var(--bg-alt), var(--bg-alt)) left / 0 100% no-repeat; transition: background-size .5s cubic-bezier(.65, 0, .35, 1); }
+.hero-boka:hover, .hero-boka:focus-visible { background-size: 100% 100%; }
 .hero-boka svg { width: 1em; height: 1em; flex: none; }
 @media (prefers-reduced-motion: no-preference) {
   .hero-boka:not(.sedd) svg { animation: knuff 1.8s ease-in-out infinite; }
