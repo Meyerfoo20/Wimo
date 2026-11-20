@@ -63,6 +63,13 @@
     });
   }
 
+  // öppnas sidorna direkt från datorn (file://) finns inga korta adresser, så där används filnamnen
+  if (location.protocol === "file:") document.querySelectorAll("a[href]").forEach((a) => {
+    const h = a.getAttribute("href");
+    if (h === "./") a.setAttribute("href", "index.html");
+    else if (h === "om-oss" || h === "kontakt") a.setAttribute("href", h + ".html");
+  });
+
   // mobilmenyn
   const nav = document.querySelector(".nav"), meny = document.querySelector(".meny");
   if (meny) meny.addEventListener("click", () => {
