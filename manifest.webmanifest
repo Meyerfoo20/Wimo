@@ -3,7 +3,7 @@
   "short_name": "Wimo",
   "description": "Fyraveckorsplanering för byggarbetsplatser",
   "lang": "sv",
-  "start_url": "./",
+  "start_url": "konto.html",
   "scope": "./",
   "display": "standalone",
   "display_override": [

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wimo</title>
+  <script>try { if (localStorage.getItem("wimo-tema") === "mork") document.documentElement.setAttribute("data-tema", "mork"); } catch (e) { }</script>
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png?v=1">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/favicon-192.png?v=1">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png?v=1">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#f8f6f0" id="p4Temafarg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Wimo">
+  <meta name="description" content="Wimo – digital fyraveckorstavla för produktionsplanering på byggarbetsplatser.">
+  <meta name="theme-color" content="#f8f6f0">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
+
+  <link rel="stylesheet" href="css/bas.css?v=20261120e">
+  <link rel="stylesheet" href="css/dialoger.css?v=20261120e">
+  <link rel="stylesheet" href="css/vyer.css?v=20261120e">
+  <link rel="stylesheet" href="css/utskrift.css?v=20261120e">
+  <link rel="stylesheet" href="css/skal.css?v=20261120e">
+  <link rel="stylesheet" href="css/konto.css?v=20261120e">
+  <link rel="stylesheet" href="css/datumval.css?v=20261120e">
+  <link rel="stylesheet" href="css/gantt.css?v=20261120e">
+  <link rel="stylesheet" href="css/dagbok.css?v=20261120e">
+  <link rel="stylesheet" href="css/forslag.css?v=20261120e">
+  <link rel="stylesheet" href="css/tidplan.css?v=20261120e">
+  <link rel="stylesheet" href="css/tema.css?v=20261120e">
+  <link rel="stylesheet" href="css/backup.css?v=20261120e">
+  <link rel="stylesheet" href="css/hjalp.css?v=20261120e">
+  <link rel="stylesheet" href="css/hindernotis.css?v=20261120e">
+  <link rel="stylesheet" href="css/mobil.css?v=20261120e">
+</head>
+<body class="p4-laddar">
+  <!-- Laddning medan inloggningen kontrolleras -->
+  <div class="p4-laddning" id="p4Laddning" role="status">
+    <img class="p4-ord p4-logotyp" src="img/wimo.png?v=1" alt="Wimo" width="660" height="160">
+    <span class="p4-snurr" aria-hidden="true"></span>
+    <p id="p4LaddningText">Startar Wimo…</p>
+  </div>
+
+  <!-- Väntar på godkännande: inloggad men inte godkänd av en admin -->
+  <div class="p4-vantesida" id="p4Vantar" role="status">
+    <div class="p4-vantar-kort">
+      <img class="p4-ord p4-logotyp" src="img/wimo.png?v=1" alt="Wimo" width="660" height="160">
+      <span class="p4-vantar-ikon" aria-hidden="true"></span>
+      <h1 id="p4VantarRubrik">Ditt konto väntar på godkännande</h1>
+      <p id="p4VantarText"></p>
+      <form class="p4-vantar-kod" id="p4VantarKodForm" novalidate>
+        <label for="p4VantarKod">Har du fått en projektkod?</label>
+        <div class="p4-vantar-kodrad"><input class="f p4-kodfalt" id="p4VantarKod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="T.ex. K7M4QX"><button type="submit" class="mknapp primar">Skicka ansökan</button></div>
+        <div class="notis dold" id="p4VantarKodSvar" role="status"></div>
+      </form>
+      <button type="button" class="mknapp primar p4-vantar-skapa dold" id="p4VantarSkapa">+ Skapa ett projekt</button>
+      <button type="button" class="mknapp" id="p4VantarLoggaUt">Logga ut</button>
+    </div>
+  </div>
+
+  <!-- Inloggning: visas för den som inte är inloggad -->
+  <div class="p4-inloggning" id="p4Inloggning">
+    <section class="p4-in-intro">
+      <img class="p4-ord p4-logotyp" src="img/wimo-vit.png?v=1" alt="Wimo" width="660" height="160">
+      <h1>Fyra veckor framåt.<br>Ett kort per arbetsmoment.</h1>
+      <p>Den digitala fyraveckorstavlan för produktionsplanering — från tidplanen till vad laget gör på onsdag morgon.</p>
+      <ul>
+        <li>Planera moment med material, avrop och förutsättningar</li>
+        <li>Följ upp hinder, bemanning och veckans utfall</li>
+        <li>Projekten sparas i molnet och du når dem från alla dina datorer</li>
+      </ul>
+    </section>
+    <section class="p4-in-kort" aria-labelledby="kkRubrik">
+      <div class="p4-konto-flikar" role="tablist">
+        <button type="button" data-k="logga" role="tab">Logga in</button>
+        <button type="button" data-k="skapa" role="tab">Skapa konto</button>
+      </div>
+      <h2 id="kkRubrik">Välkommen tillbaka</h2>
+      <p class="hjalp" id="kkHjalp"></p>
+      <form id="kkFormular" novalidate>
+        <div class="falt dold" id="kkNamnFalt"><label for="kkNamn">Namn</label><input class="f" id="kkNamn" autocomplete="name" placeholder="Förnamn Efternamn"></div>
+        <div class="falt"><label for="kkEpost">E-post</label><input class="f" id="kkEpost" type="email" autocomplete="email" required></div>
+        <div class="falt"><label for="kkLosen">Lösenord</label><input class="f" id="kkLosen" type="password" autocomplete="current-password" required></div>
+        <div class="falt dold" id="kkLosen2Falt"><label for="kkLosen2">Upprepa lösenordet</label><input class="f" id="kkLosen2" type="password" autocomplete="new-password"></div>
+        <div class="falt dold" id="kkKodFalt"><label for="kkKod">Projektkod <span class="p4-valfri">(om du har fått en)</span></label><input class="f p4-kodfalt" id="kkKod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="T.ex. K7M4QX"><small class="hjalp">Koden får du av projektadmin. Då är det projektadmin som godkänner dig. Utan kod godkänns kontot av huvudadmin.</small></div>
+        <div class="notis rod dold" id="kkFel" role="alert"></div>
+        <button type="submit" class="p4-btn p4-btn-primar p4-in-skicka" id="kkSkicka">Logga in</button>
+      </form>
+      <button type="button" class="p4-konto-lank" id="kkGlomt">Glömt lösenordet?</button>
+    </section>
+  </div>
+
+  <a class="p4-hoppa" href="#rutnat">Hoppa till tavlan</a>
+
+  <header class="p4-header">
+    <div class="p4-header-inre">
+      <button class="p4-meny" id="p4Meny" type="button" aria-label="Öppna menyn" aria-expanded="false"><span></span><span></span><span></span></button>
+      <a class="p4-brand" href="#" id="p4Brand" title="Till tavlan">
+        <img class="p4-ord p4-logotyp" src="img/wimo.png?v=1" alt="Wimo" width="660" height="160">
+        <img id="logga" class="logga dold" alt="">
+      </a>
+      <button class="projektknapp" id="projektknapp" title="Byt eller hantera projekt"><span class="p4-pre">Projekt</span><span id="projektnamnText">Projekt</span><span class="p4-hindermark dold" id="projektHinder" role="img" aria-label="Öppna hinder">⚠</span><span class="p4-caret" aria-hidden="true"></span></button>
+      <nav class="flikar" id="flikar" aria-label="Tavlor"></nav>
+      <div class="p4-header-hoger">
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+        <button class="p4-tema" id="p4Tema" type="button" title="Byt till mörkt läge" aria-label="Byt till mörkt läge" aria-pressed="false">
+          <svg class="ik-mane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="ik-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M2 12h2.2M19.8 12H22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
+        </button>
+        <label class="p4-sok" title="Sök bland posterna på tavlan ( / )">
+          <span class="p4-ik ik-sok" aria-hidden="true"></span>
+          <input id="p4Sok" type="search" placeholder="Sök på tavlan" autocomplete="off" aria-label="Sök på tavlan">
+          <kbd>/</kbd>
+        </label>
+        <button class="p4-konto" id="p4Konto" type="button"><span class="p4-konto-avatar" aria-hidden="true"></span><span class="p4-konto-text">Logga in</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="p4-molnbanner dold" id="p4MolnBanner" role="status">
+    <span id="p4MolnBannerText"></span>
+    <button type="button" id="p4MolnBannerKnapp">Visa</button>
+  </div>
+
+  <div class="p4-skal">
+    <nav class="p4-sidebar" id="p4Sidebar" aria-label="Huvudmeny">
+      <div class="p4-navgrupp">
+        <div class="p4-navrubrik">Översikt</div>
+        <button class="p4-nav aktiv" type="button" data-nav="tavla"><span class="p4-ik ik-tavla"></span><span>Tavlan</span></button>
+        <button class="p4-nav" type="button" data-nav="dash"><span class="p4-ik ik-dash"></span><span>Projektöversikt</span><span class="p4-badge dold" id="p4AtgBadge" title="Kräver åtgärd"></span></button>
+        <button class="p4-nav" type="button" data-nav="tidplan"><span class="p4-ik ik-tidplan"></span><span>Tidplan</span></button>
+        <button class="p4-nav" type="button" data-nav="start"><span class="p4-ik ik-lista"></span><span>Att göra</span><span class="p4-badge p4-badge-ljus dold" id="p4AgBadge" title="Öppna punkter"></span></button>
+        <button class="p4-nav" type="button" data-nav="backup"><span class="p4-ik ik-backup"></span><span>Back up</span><span class="p4-badge p4-badge-ljus dold" id="p4BuBadge" title="Back-up jobb som är redo"></span></button>
+        <button class="p4-nav" type="button" data-nav="gantt"><span class="p4-ik ik-gantt"></span><span>Gantt-schema</span></button>
+        <button class="p4-nav" type="button" data-nav="dagbok"><span class="p4-ik ik-dagbok"></span><span>Dagbok</span></button>
+        <button class="p4-nav" type="button" data-nav="anteckningar"><span class="p4-ik ik-anteckning"></span><span>Anteckningar</span></button>
+      </div>
+      <div class="p4-navgrupp">
+        <div class="p4-navrubrik">Uppföljning</div>
+        <button class="p4-nav" id="utfallKnapp" type="button"><span class="p4-ik ik-utfall"></span><span>Veckans utfall</span></button>
+        <button class="p4-nav" id="resursKnapp" type="button"><span class="p4-ik ik-folk"></span><span>Resurser</span></button>
+        <button class="p4-nav" id="avropKnapp" type="button"><span class="p4-ik ik-last"></span><span>Avropslista</span></button>
+      </div>
+      <div class="p4-navgrupp">
+        <div class="p4-navrubrik">Data</div>
+        <button class="p4-nav" type="button" data-klick="visning"><span class="p4-ik ik-tv"></span><span>Visningsläge</span></button>
+        <button class="p4-nav" id="skrivUt" type="button"><span class="p4-ik ik-skriv"></span><span>Skriv ut</span></button>
+        <button class="p4-nav" type="button" data-nav="konto"><span class="p4-ik ik-konto"></span><span>Mitt konto</span><span class="p4-badge dold" id="p4KontoBadge"></span></button>
+      </div>
+      <div class="p4-navgrupp">
+        <div class="p4-navrubrik">Stöd</div>
+        <button class="p4-nav" type="button" data-nav="hjalp"><span class="p4-ik ik-hjalp"></span><span>Hjälp</span></button>
+        <button class="p4-nav" type="button" data-nav="forslag"><span class="p4-ik ik-forslag"></span><span>Förslag</span></button>
+        <button class="p4-nav dold" type="button" id="p4Installera"><span class="p4-ik ik-installera"></span><span>Installera appen</span></button>
+      </div>
+
+      <div class="p4-backup" id="p4Backup">
+        <div class="p4-backup-rad"><span class="p4-prick" id="p4BackupPrick"></span><b>Molnsynk</b></div>
+        <p id="p4BackupText">Ansluter till molnet…</p>
+      </div>
+
+      <button class="p4-nav p4-nav-liten" type="button" id="p4Genvagar"><span class="p4-ik ik-tangent"></span><span>Kortkommandon</span><kbd>?</kbd></button>
+    </nav>
+    <div class="p4-skugga" id="p4Skugga"></div>
+
+    <main class="p4-main" id="p4Main">
+      <section class="p4-tavlasida" aria-label="Fyraveckorstavlan">
+        <div class="p4-hero">
+          <div class="p4-hero-text">
+            <input class="tavlanamn" id="tavlanamn" aria-label="Tavlans namn" title="Klicka för att byta namn på tavlan">
+            <div class="p4-hero-meta">
+              <span class="spann" id="spann"></span>
+              <span class="p4-laschip" title="Du kan se allt i projektet men inte ändra något. Be en admin om du behöver redigera.">Bara läsbehörighet</span>
+              <span class="vychip dold" id="vychip">Du tittar utanför planen <button id="tillPlanen">Till planen</button></span>
+              <button class="kedjechip dold" id="kedjechip" title="Dölj den markerade kedjan">Kedja visas · Dölj ×</button>
+            </div>
+          </div>
+          <div class="p4-hero-knappar">
+            <button class="navknapp dold" id="skarmLank" title="Länk som visar tavlan på en skärm, till exempel i Yodeck">Länk till skärm</button>
+            <button class="navknapp" id="visning" title="Avsluta visningsläget ( V )">Avsluta visning</button>
+          </div>
+        </div>
+
+        <div class="p4-verktyg">
+          <div class="p4-grupp" role="group" aria-label="Bläddra">
+            <button class="navknapp" id="bakat" title="Bläddra en vecka bakåt — planen påverkas inte ( ← )">←<span class="p4-txt"> Föregående</span></button>
+            <button class="navknapp" id="idagKnapp" title="Bläddra till innevarande vecka ( T )">Denna vecka</button>
+            <button class="navknapp" id="framat" title="Bläddra en vecka framåt — planen påverkas inte ( → )"><span class="p4-txt">Nästa </span>→</button>
+          </div>
+          <span class="veckoval" id="veckoval">
+            <button type="button" data-v="1">1 vecka</button><button type="button" data-v="2">2 veckor</button><button type="button" data-v="4">4 veckor</button>
+          </span>
+          <div class="p4-verktyg-hoger">
+            <button class="navknapp" id="pagaendeKnapp" title="Visa flerdagarsmoment på dagarna mellan start och klart (gäller denna tavla)">Pågående</button>
+            <button class="navknapp" id="nyTavlaKnapp" title="Skapa en ny tavla i projektet, t.ex. för ett annat delområde">+ Ny tavla</button>
+          </div>
+        </div>
+
+        <div class="p4-filter" role="group" aria-label="Visa posttyper">
+          <span class="p4-filter-rubrik">Visa</span>
+          <label class="p4-chip c-mote"><input type="checkbox" id="v-mote" checked><span class="p4-chipprick"></span>Möte</label>
+          <label class="p4-chip c-produktion"><input type="checkbox" id="v-produktion" checked><span class="p4-chipprick"></span>Produktion</label>
+          <label class="p4-chip c-avrop"><input type="checkbox" id="v-avrop" checked><span class="p4-chipprick"></span>Avrop</label>
+          <label class="p4-chip c-leverans"><input type="checkbox" id="v-leverans" checked><span class="p4-chipprick"></span>Leverans / viktigt</label>
+          <label class="p4-chip c-ue"><input type="checkbox" id="v-ue" checked><span class="p4-chipprick"></span>UE</label>
+          <label class="p4-chip c-franvaro"><input type="checkbox" id="v-franvaro" checked><span class="p4-chipprick"></span>Frånvaro</label>
+          <label class="p4-chip c-ovrigt"><input type="checkbox" id="v-ovrigt" checked><span class="p4-chipprick"></span>Övrigt</label>
+          <span class="p4-sokinfo dold" id="p4SokInfo"></span>
+        </div>
+
+        <div class="varningsremsa" id="varningsremsa"></div>
+        <div class="tavla"><div class="rutnat" id="rutnat"></div></div>
+        <div class="tomtavla dold" id="tomtavla">
+          <b>Tavlan är tom — dags att lägga upp planen.</b>
+          <span>Börja med denna vecka och nästa från huvudtidplanen. Bryt ner till delar, och backa avrop efter ledtiden.</span>
+          <div class="p4-tom-knappar">
+            <button type="button" class="p4-btn p4-btn-primar" id="planeraKnapp" title="Femstegsguide för ett produktionsmoment ( P )">Planera första momentet</button>
+            <button type="button" class="p4-btn p4-btn-ljus" id="snabbPostKnapp" title="Ny post ( N )">+ Snabb post</button>
+          </div>
+        </div>
+        <p class="p4-tips">Klicka på en post för att öppna den · dra för att flytta · dubbelklicka för att redigera · <b>+ Post</b> i varje dag</p>
+      </section>
+
+      <aside class="p4-aside" aria-label="Sidopaneler">
+        <div class="panel" id="varningspanel">
+          <h2><span class="p4-ik ik-vader"></span>Vädervarningar<button type="button" class="p4-fallknapp" id="vaderFall" aria-expanded="false" aria-controls="varningsinnehall" title="Visa vädret"><span class="p4-caret" aria-hidden="true"></span></button></h2>
+          <div id="varningsinnehall"></div>
+        </div>
+
+        <div class="panel p4-hinderpanel">
+          <h2><span class="p4-ik ik-hinder"></span>Hinderlista <span class="antal" id="hinderAntal"></span></h2>
+          <div class="hindertopp" id="hindertopp"></div>
+          <div class="varn dold" id="hinderVarn">Fler än tio rader — då ligger ni efter. Det är i sig informationen.</div>
+          <ul class="hinder" id="hinderlista"></ul>
+          <div class="hinderform">
+            <input class="f" id="hVad" placeholder="Vad är hindret?">
+            <div class="rad2">
+              <input class="f" id="hVem" placeholder="Vem (namn)">
+              <input class="f" id="hNar" type="date" title="Senast när det ska vara löst">
+              <button class="mknapp primar" id="hLagg">Lägg till</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="historikpanel">
+          <h2><span class="p4-ik ik-historik"></span>Historik <span class="antal" id="histAntal"></span></h2>
+          <ul class="hist" id="historik"></ul>
+          <div class="ordlista" id="ordlista"></div>
+        </div>
+
+      </aside>
+
+      <section class="p4-kontosida" id="p4KontoSida" aria-label="Mitt konto"></section>
+      <div id="dash" class="dold"></div>
+      <div id="pstart" class="dold"></div>
+      <div id="gantt" class="dold" aria-label="Gantt-schema"></div>
+      <div id="dagbok" class="dold" aria-label="Dagbok"></div>
+      <div id="anteckningar" class="dold" aria-label="Anteckningar"></div>
+      <div id="tidplan" class="dold" aria-label="Tidplan"></div>
+      <div id="backup" class="dold" aria-label="Back up"></div>
+      <div id="hjalp" class="dold" aria-label="Hjälp"></div>
+      <div id="forslag" class="dold" aria-label="Förslag"></div>
+    </main>
+  </div>
+
+  <footer class="p4-footer">
+    <div class="p4-footer-inre">
+      <div class="p4-footer-kol p4-footer-brand">
+        <div class="p4-brand p4-brand-mork"><img class="p4-ord p4-logotyp" src="img/wimo-vit.png?v=1" alt="Wimo" width="660" height="160"></div>
+        <p>Digital fyraveckorstavla för produktionsplanering. Fyra veckor framåt, ett kort per arbetsmoment — från tidplanen till vad laget gör på onsdag morgon.</p>
+      </div>
+      <div class="p4-footer-kol">
+        <h4>Kortkommandon</h4>
+        <ul class="p4-genvagslista">
+          <li><kbd>N</kbd> Snabb post</li><li><kbd>P</kbd> Planera moment</li>
+          <li><kbd>←</kbd><kbd>→</kbd> Bläddra veckor</li><li><kbd>T</kbd> Denna vecka</li>
+          <li><kbd>/</kbd> Sök</li><li><kbd>H</kbd> Hjälp</li><li><kbd>Esc</kbd> Stäng</li>
+        </ul>
+      </div>
+      <div class="p4-footer-kol">
+        <h4>Din data</h4>
+        <p>Projekten sparas automatiskt i molnet, med en kopia i webbläsaren så att Wimo fungerar även utan nät. Bara projektets medlemmar och admin kommer åt ett projekt.</p>
+        <p class="p4-footer-lagring" id="p4Lagring"></p>
+      </div>
+    </div>
+    <div class="p4-footer-botten"><span>Wimo · v<span id="p4Version"></span></span><span>Sparas i molnet · synkas mellan datorer · fungerar offline</span></div>
+  </footer>
+
+  <div class="angrarad dold" id="angrarad">
+    <span id="angraText"></span><button type="button" id="angraKnapp">Ångra</button>
+  </div>
+
+  <div id="utskrift"></div>
+  <div id="utskriftsfot"></div>
+
+  <!-- Domänlogik (core) -->
+  <script src="js/core/konstanter.js?v=20261120e"></script>
+  <script src="js/core/datum.js?v=20261120e"></script>
+  <script src="js/core/kalender.js?v=20261120e"></script>
+  <script src="js/core/tpberakning.js?v=20261120e"></script>
+  <script src="js/core/kort.js?v=20261120e"></script>
+  <script src="js/core/operationer.js?v=20261120e"></script>
+  <script src="js/core/avrop.js?v=20261120e"></script>
+  <script src="js/core/resurser.js?v=20261120e"></script>
+  <script src="js/core/franvaro.js?v=20261120e"></script>
+  <script src="js/core/foretag.js?v=20261120e"></script>
+  <script src="js/core/projekt.js?v=20261120e"></script>
+
+  <!-- Gränssnitt, lagring och dialoger -->
+  <script src="js/app/grund.js?v=20261120e"></script>
+  <script src="js/app/tavla.js?v=20261120e"></script>
+  <script src="js/app/flytt.js?v=20261120e"></script>
+  <script src="js/app/guide.js?v=20261120e"></script>
+  <script src="js/app/redigera.js?v=20261120e"></script>
+  <script src="js/app/avropsmallar.js?v=20261120e"></script>
+  <script src="js/app/utfall-vader.js?v=20261120e"></script>
+  <script src="js/app/utskrift.js?v=20261120e"></script>
+  <script src="js/app/register.js?v=20261120e"></script>
+  <script src="js/app/oversikt.js?v=20261120e"></script>
+  <script src="js/app/projekt.js?v=20261120e"></script>
+  <script src="js/app/gantt.js?v=20261120e"></script>
+  <script src="js/app/backup.js?v=20261120e"></script>
+  <script src="js/app/hjalp.js?v=20261120e"></script>
+  <script src="js/app/dagbok.js?v=20261120e"></script>
+  <script src="js/app/forslag.js?v=20261120e"></script>
+  <script src="js/app/tidplan.js?v=20261120e"></script>
+  <script src="js/app/tidplan-resurser.js?v=20261120e"></script>
+  <script src="js/app/tidplan-uppfoljning.js?v=20261120e"></script>
+  <script src="js/app/tidplan-samband.js?v=20261120e"></script>
+  <script src="js/app/tidplan-tavla.js?v=20261120e"></script>
+  <script src="js/app/tidplan-utskrift.js?v=20261120e"></script>
+  <script src="js/app/anteckningar.js?v=20261120e"></script>
+  <script src="js/app/hindernotis.js?v=20261120e"></script>
+
+  <!-- Det nya skalet: navigering, sök, kortkommandon och säkerhetskopia -->
+  <script src="js/skal.js?v=20261120e"></script>
+
+  <!-- Egen datumväljare för alla datumfält -->
+  <script src="js/app/datumval.js?v=20261120e"></script>
+
+  <!-- Konto och molnsynk (Firebase) -->
+  <script src="js/konto/firebase-config.js?v=20261120e"></script>
+  <script src="js/konto/konto.js?v=20261120e"></script>
+</body>
+</html>

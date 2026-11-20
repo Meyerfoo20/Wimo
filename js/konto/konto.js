@@ -21,7 +21,7 @@
    huvudadmin första gången de öppnar Wimo. Se "molnformatet" nedan.
 
    Skriptet är ett vanligt skript som laddar Firebase med dynamisk import, så
-   att det fungerar även när index.html öppnas direkt från disken.
+   att det fungerar även när konto.html öppnas direkt från disken.
    ====================================================================== */
 (function () {
     "use strict";
@@ -1544,6 +1544,8 @@
         if (!$("p4Inloggning")) return;
         document.querySelectorAll(".p4-konto-flikar button").forEach((b) =>
             b.addEventListener("click", () => { skapaLage = b.dataset.k === "skapa"; visaFormular(); }));
+        // från startsidan: wimo.se/#skapa-konto öppnar fliken Skapa konto direkt
+        if (location.hash === "#skapa-konto") { skapaLage = true; visaFormular(); }
         $("kkFormular").addEventListener("submit", skicka);
         $("kkGlomt").addEventListener("click", async () => {
             const epost = $("kkEpost").value.trim();
@@ -3120,6 +3122,8 @@
             ansokanKollad = "";
             stoppaApp();
             anvandare = u;
+            // startsidan (wimo.se) visar "Öppna Wimo" i stället för Logga in när man redan är inloggad
+            try { if (u) localStorage.setItem("wimo-inloggad", "1"); else localStorage.removeItem("wimo-inloggad"); } catch (e) { }
             konflikter.clear(); rensaVantande();
             const lasCache = u ? lasJson(LASNYCKEL, null) : null;
             behCache = lasCache && lasCache.uid === u.uid && lasCache.beh ? lasCache.beh : {};

@@ -1,0 +1,321 @@
+/* ======================================================================
+   Wimo · startsidan (wimo.se/webb): Hem, Om oss, Kontakt
+   Samma färger och typsnitt som appen, ljust och mörkt läge.
+   ====================================================================== */
+
+:root {
+  --bg: #f8f6f0;
+  --bg-alt: #eee8dc;
+  --kort: #ffffff;
+  --text: #181c19;
+  --dampad: #56615a;
+  --svag: #8e968f;
+  --linje: #ded8cb;
+  --linje-ljus: #ebe6da;
+  --knapp: #1f2428;
+  --knapp-hover: #323a40;
+  --knapp-text: #ffffff;
+  --pop: #38bdf8;
+  --bock-kant: #d6cfbf; --varning: #8a5b12; --varning-fyll: #fbf3e3;
+  --mote: #1f2428;      --mote-fyll: #edeae2;       --mote-kant: #b7b0a1;
+  --prod: #07695b;      --prod-fyll: #d3ece4;       --prod-kant: #84c3b1;
+  --avrop: #643f9a;     --avrop-fyll: #ebe0f6;      --avrop-kant: #bba1dc;
+  --lev: #b0261b;       --lev-fyll: #fadad3;        --lev-kant: #e6a193;
+  --ue: #b35204;        --ue-fyll: #fce2c6;         --ue-kant: #e9ad76;
+  --ovr: #1f4ea8;       --ovr-fyll: #dae6f8;        --ovr-kant: #99b4e3;
+  --skugga: 0 24px 60px rgba(24, 28, 25, .10), 0 2px 8px rgba(24, 28, 25, .05);
+  --r: 14px;
+  --bredd: 1180px;
+}
+html[data-tema="mork"] {
+  color-scheme: dark;
+  --bg: #121517;
+  --bg-alt: #1a1e21;
+  --kort: #1e2327;
+  --text: #eceeed;
+  --dampad: #aab3ae;
+  --svag: #7f8984;
+  --linje: #343b40;
+  --linje-ljus: #2a3034;
+  --bock-kant: #4a545b; --varning: #f1c27c; --varning-fyll: #3a2c14;
+  --knapp: #e8ebe9;
+  --knapp-hover: #ffffff;
+  --knapp-text: #121517;
+  --mote: #d6dadd;      --mote-fyll: #272c30;       --mote-kant: #4c555c;
+  --prod: #43d3b5;      --prod-fyll: #113a32;       --prod-kant: #22705f;
+  --avrop: #bb9bf0;     --avrop-fyll: #2d2244;      --avrop-kant: #5c4789;
+  --lev: #ff7d6c;       --lev-fyll: #45201b;        --lev-kant: #8e3b31;
+  --ue: #ffa553;        --ue-fyll: #43290e;         --ue-kant: #8d5720;
+  --ovr: #82aaff;       --ovr-fyll: #1a2a4a;        --ovr-kant: #375892;
+  --skugga: 0 24px 60px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .3);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { font-family: Manrope, Inter, system-ui, sans-serif; letter-spacing: -.02em; margin: 0; }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+:focus-visible { outline: 3px solid var(--pop); outline-offset: 2px; border-radius: 4px; }
+.ram { width: min(var(--bredd), calc(100% - 48px)); margin: 0 auto; }
+.dold-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- knappar ---------- */
+.knapp {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 46px; padding: 0 22px;
+  border: 1.5px solid var(--knapp); border-radius: 999px;
+  background: var(--knapp); color: var(--knapp-text);
+  font: 600 15.5px/1 Inter, system-ui, sans-serif; text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.knapp:hover { background: var(--knapp-hover); border-color: var(--knapp-hover); }
+.knapp.ljus { background: transparent; color: var(--text); border-color: var(--linje); }
+.knapp.ljus:hover { border-color: var(--text); }
+.knapp.liten { height: 40px; padding: 0 16px; font-size: 14.5px; }
+
+/* ---------- navigering ---------- */
+.nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+.nav.skuggad { border-bottom-color: var(--linje); }
+.nav-inre { display: flex; align-items: center; gap: 28px; height: 72px; }
+.nav-logga img { height: 26px; width: auto; }
+.nav-logga .vit { display: none; }
+html[data-tema="mork"] .nav-logga .svart, html[data-tema="mork"] .fot-logga .svart { display: none; }
+html[data-tema="mork"] .nav-logga .vit, html[data-tema="mork"] .fot-logga .vit { display: block; }
+.nav-lankar { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.nav-lankar a { display: block; padding: 8px 14px; border-radius: 999px; color: var(--dampad); font-size: 15px; font-weight: 500; text-decoration: none; }
+.nav-lankar a:hover { color: var(--text); background: var(--bg-alt); }
+.nav-lankar a[aria-current="page"] { color: var(--text); font-weight: 600; }
+.nav-hoger { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.tema { width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 1px solid var(--linje); border-radius: 999px; background: var(--kort); color: var(--text); cursor: pointer; }
+.tema:hover { border-color: var(--text); }
+.tema svg { width: 18px; height: 18px; }
+.tema .sol { display: none; }
+html[data-tema="mork"] .tema .sol { display: block; }
+html[data-tema="mork"] .tema .mane { display: none; }
+.meny { display: none; width: 40px; height: 40px; padding: 0; border: 1px solid var(--linje); border-radius: 999px; background: var(--kort); color: var(--text); cursor: pointer; place-items: center; }
+.meny svg { width: 18px; height: 18px; }
+
+/* ---------- hero ---------- */
+.hero { padding: 64px 0 0; overflow: hidden; }
+.hero-text { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 48px; align-items: end; }
+.hero h1 { font-size: clamp(42px, 6.4vw, 84px); line-height: .98; font-weight: 800; letter-spacing: -.045em; max-width: 11ch; text-wrap: balance; }
+.hero-ingress { margin: 0 0 6px; color: var(--dampad); font-size: 18.5px; max-width: 44ch; }
+.hero-knappar { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+
+/* tavlan i hjälten */
+.scen { position: relative; margin-top: 56px; padding-bottom: 72px; }
+.scen::before { content: ""; position: absolute; inset: 120px -100vw 0; background: var(--bg-alt); z-index: 0; }
+.fonster { position: relative; z-index: 1; border: 1px solid var(--linje); border-radius: 18px; background: var(--kort); box-shadow: var(--skugga); overflow: hidden; }
+.fonster-topp { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--linje); }
+.fonster-topp b { font-family: Manrope, Inter, sans-serif; font-size: 19px; letter-spacing: -.02em; }
+.fonster-topp span { color: var(--svag); font-size: 13.5px; }
+.flikar { display: flex; gap: 6px; margin-left: auto; }
+.flikar span { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--dampad); border: 1px solid var(--linje); }
+.flikar span.vald { background: var(--knapp); border-color: var(--knapp); color: var(--knapp-text); }
+
+.tavla { display: grid; grid-template-columns: 88px repeat(5, minmax(0, 1fr)); }
+.tavla > div { min-height: 150px; border-right: 1px solid var(--linje-ljus); border-bottom: 1px solid var(--linje-ljus); padding: 8px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.tavla > div:nth-child(6n) { border-right: 0; }
+.tavla .dh { min-height: 0; padding: 10px 10px 8px; font-size: 12.5px; font-weight: 700; color: var(--dampad); background: var(--bg); }
+.tavla .dh.idag { color: var(--text); box-shadow: inset 0 -3px 0 var(--pop); }
+.tavla .vk { background: var(--bg); align-items: flex-start; }
+.tavla .vk b { font-family: Manrope, Inter, sans-serif; font-size: 22px; letter-spacing: -.03em; line-height: 1; }
+.tavla .vk small { font-size: 11px; color: var(--svag); margin-top: 4px; white-space: nowrap; }
+.tavla .dnr { position: absolute; top: 6px; right: 9px; font-size: 11.5px; color: var(--svag); font-weight: 600; }
+.tavla .dnr + .post { margin-top: 16px; }
+
+/* posterna: samma mått och kanter som .kort på tavlan i appen */
+.post {
+  --c: var(--prod); --f: var(--prod-fyll); --k: var(--prod-kant);
+  position: relative; padding: 6px 7px 6px 30px;
+  border: 3px solid var(--k); border-left-color: var(--c); border-bottom-color: var(--c);
+  border-radius: 10px 10px 10px 0;
+  background: var(--f); font-size: 13.5px; line-height: 1.28;
+}
+.post::before { content: ""; position: absolute; left: 8px; top: 8px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid var(--bock-kant); border-radius: 5px; background: var(--kort); }
+.post i { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; font-style: normal; font-size: .74em; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.3; color: var(--c); margin: 1px 0 2px; font-variant-numeric: tabular-nums; }
+.post b { display: block; font-weight: 700; letter-spacing: -.005em; color: color-mix(in srgb, var(--c) 28%, var(--text)); overflow-wrap: break-word; hyphens: auto; }
+.post small { display: block; color: var(--dampad); font-size: 11.5px; font-weight: 500; line-height: 1.3; margin-top: 3px; }
+.post.mote { --c: var(--mote); --f: var(--mote-fyll); --k: var(--mote-kant); }
+.post.avrop { --c: var(--avrop); --f: var(--avrop-fyll); --k: var(--avrop-kant); }
+.post.lev { --c: var(--lev); --f: var(--lev-fyll); --k: var(--lev-kant); }
+.post.ue { --c: var(--ue); --f: var(--ue-fyll); --k: var(--ue-kant); }
+.post.ovr { --c: var(--ovr); --f: var(--ovr-fyll); --k: var(--ovr-kant); }
+.flyttmark { font-size: .95em; font-weight: 700; letter-spacing: .02em; text-transform: none; line-height: 1.5; padding: 0 6px; border-radius: 999px; background: var(--varning-fyll); color: var(--varning); white-space: nowrap; }
+
+/* tidplanen under tavlan */
+.tidplan { border-top: 1px solid var(--linje); }
+.tp-rubrik { display: flex; align-items: center; gap: 10px; padding: 12px 20px 4px; font-size: 13px; color: var(--dampad); }
+.tp-rubrik b { color: var(--text); font-size: 14px; }
+.tp-rad { display: grid; grid-template-columns: 180px minmax(0, 1fr); align-items: center; height: 36px; padding: 0 20px; border-bottom: 1px solid var(--linje-ljus); }
+.tp-rad:last-child { border-bottom: 0; }
+.tp-rad > span { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-rad > span.under { padding-left: 18px; font-weight: 500; }
+.tp-spar { position: relative; height: 100%; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--linje-ljus) calc(10% - 1px) 10%); }
+/* staplarna: samma som .tp-stapel i appens tidplan */
+.stapel {
+  --c: var(--prod); --f: var(--prod-fyll); --k: var(--prod-kant);
+  position: absolute; top: 5px; height: 26px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  border: 3px solid var(--k); border-left-color: var(--c); border-bottom-color: var(--c);
+  border-radius: 10px 10px 10px 0; background: var(--f);
+  color: var(--c); font-style: normal; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+  transform-origin: left center;
+}
+.stapel em { position: relative; z-index: 1; font-style: normal; padding: 0 6px; }
+.stapel.ue { --c: var(--ue); --f: var(--ue-fyll); --k: var(--ue-kant); }
+.stapel.ovr { --c: var(--ovr); --f: var(--ovr-fyll); --k: var(--ovr-kant); }
+.stapel.avrop { --c: var(--avrop); --f: var(--avrop-fyll); --k: var(--avrop-kant); }
+/* gruppens tidsspann: tunn linje med ändmarkeringar, som .tp-summa */
+.stapel.grupp { top: 13px; height: 10px; border: 0; border-top: 4px solid var(--prod); border-radius: 0; background: none; overflow: visible; }
+.stapel.grupp::before, .stapel.grupp::after { content: ""; position: absolute; top: -4px; width: 0; height: 0; border-top: 9px solid var(--prod); }
+.stapel.grupp::before { left: 0; border-right: 6px solid transparent; }
+.stapel.grupp::after { right: 0; border-left: 6px solid transparent; }
+.stapel .fyll { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--c) 26%, transparent); }
+.idaglinje { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--pop); opacity: .55; }
+
+/* laddningen: tavlan fylls på dag för dag och en post flyttas (en enda sekvens) */
+@media (prefers-reduced-motion: no-preference) {
+  .spela .post { opacity: 0; transform: translateY(6px); animation: in .45s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: calc(var(--d, 0) * 70ms + 200ms); }
+  .spela .stapel:not(.grupp) { transform: scaleX(0); animation: vax .7s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: calc(var(--d, 0) * 90ms + 900ms); }
+  .spela .stapel.grupp { opacity: 0; animation: in .4s ease forwards; animation-delay: 1.5s; }
+  .spela .flyttmark { opacity: 0; animation: in .3s ease forwards; animation-delay: 3.1s; }
+  .spela .post.flytt { animation: in .45s cubic-bezier(.2, .7, .2, 1) calc(var(--d, 0) * 70ms + 200ms) forwards, flytt .7s cubic-bezier(.5, 0, .2, 1) 2.4s backwards; }
+}
+@keyframes in { to { opacity: 1; transform: none; } }
+@keyframes vax { to { transform: scaleX(1); } }
+@keyframes flytt { from { transform: translateX(calc(-100% - 17px)); } }
+
+/* ---------- avsnitt ---------- */
+.avsnitt { padding: 96px 0; }
+.avsnitt + .avsnitt { border-top: 1px solid var(--linje); }
+.rubrikrad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: end; margin-bottom: 48px; }
+.rubrikrad h2, .sida-topp h1 { font-size: clamp(32px, 4vw, 50px); line-height: 1.04; font-weight: 800; letter-spacing: -.035em; max-width: 16ch; text-wrap: balance; }
+.rubrikrad p { margin: 0; color: var(--dampad); max-width: 46ch; }
+
+/* flödet: tre steg i ordning */
+.floede { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: steg; border-top: 2px solid var(--text); }
+.floede li { padding: 22px 28px 0 0; counter-increment: steg; }
+.floede li + li { padding-left: 28px; border-left: 1px solid var(--linje); }
+.floede li::before { content: counter(steg); display: block; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 15px; color: var(--svag); margin-bottom: 18px; }
+.floede h3 { font-size: 23px; line-height: 1.15; margin-bottom: 10px; }
+.floede p { margin: 0; color: var(--dampad); font-size: 16px; }
+.mini { margin-top: 22px; height: 146px; border: 1px solid var(--linje); border-radius: 10px; background: var(--kort); position: relative; overflow: hidden; padding: 12px; }
+.mini .post { max-width: 180px; }
+.mini .post + .post { margin-top: 6px; margin-left: 28px; }
+.mini-tal { display: flex; align-items: baseline; gap: 10px; }
+.mini-tal b { font-family: Manrope, Inter, sans-serif; font-size: 44px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+.mini-tal span { font-size: 13px; color: var(--dampad); }
+.mini-staplar { display: flex; align-items: flex-end; gap: 6px; height: 38px; margin-top: 10px; }
+.mini-staplar i { flex: 1; background: var(--prod-kant); border-radius: 3px 3px 0 0; }
+.mini-staplar i.nu { background: var(--prod); }
+.mini .stapel { left: 0; }
+
+/* funktioner: en lista, inte kort */
+.funktioner { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px; margin: 0; padding: 0; list-style: none; }
+.funktioner li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 16px; padding: 22px 0; border-top: 1px solid var(--linje); }
+.funktioner li::before { content: ""; width: 12px; height: 12px; margin-top: 7px; border-radius: 3px 3px 3px 0; background: var(--f, var(--prod)); border: 2px solid var(--c, var(--prod)); }
+.funktioner h3 { font-family: Inter, system-ui, sans-serif; font-size: 18px; letter-spacing: -.01em; font-weight: 650; margin-bottom: 4px; }
+.funktioner p { margin: 0; color: var(--dampad); font-size: 16px; }
+.f-prod { --c: var(--prod); --f: var(--prod-fyll); }
+.f-avrop { --c: var(--avrop); --f: var(--avrop-fyll); }
+.f-lev { --c: var(--lev); --f: var(--lev-fyll); }
+.f-ue { --c: var(--ue); --f: var(--ue-fyll); }
+.f-ovr { --c: var(--ovr); --f: var(--ovr-fyll); }
+.f-mote { --c: var(--mote); --f: var(--mote-fyll); }
+
+/* kom igång */
+.borja { padding: 88px 0 96px; }
+.borja-inre { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: center; padding: 48px 56px; border-radius: 22px; background: var(--knapp); color: var(--knapp-text); }
+.borja h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.05; font-weight: 800; letter-spacing: -.035em; max-width: 18ch; }
+.borja p { margin: 10px 0 0; opacity: .75; max-width: 50ch; }
+.borja .knapp { background: var(--knapp-text); color: var(--knapp); border-color: var(--knapp-text); }
+.borja .knapp:hover { opacity: .9; }
+.borja .knapp.ljus { background: transparent; color: var(--knapp-text); border-color: color-mix(in srgb, var(--knapp-text) 40%, transparent); }
+.borja-knappar { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ---------- undersidor ---------- */
+.sida-topp { padding: 72px 0 40px; }
+.sida-topp p { margin: 18px 0 0; color: var(--dampad); font-size: 19px; max-width: 52ch; }
+.text-kolumner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 64px; padding: 56px 0 96px; border-top: 1px solid var(--linje); }
+.text-kolumner h2 { font-size: 26px; line-height: 1.15; font-weight: 800; }
+.text-kolumner p { margin: 0 0 18px; color: var(--dampad); max-width: 60ch; }
+.text-kolumner p:first-child { color: var(--text); font-size: 19px; }
+.fakta { margin: 0; padding: 0; list-style: none; border-top: 2px solid var(--text); }
+.fakta li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--linje); font-size: 16px; }
+.fakta li span:first-child { color: var(--dampad); }
+
+.kontakt { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 64px; padding: 48px 0 96px; border-top: 1px solid var(--linje); }
+.formular { display: grid; gap: 18px; }
+.formular .tva { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.formular label { display: grid; gap: 7px; font-size: 14.5px; font-weight: 600; }
+.formular input, .formular textarea, .formular select {
+  width: 100%; padding: 12px 14px; border: 1.5px solid var(--linje); border-radius: 10px;
+  background: var(--kort); color: var(--text); font: 400 16px/1.4 Inter, system-ui, sans-serif;
+}
+.formular input:focus, .formular textarea:focus, .formular select:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pop) 35%, transparent); }
+.formular textarea { min-height: 150px; resize: vertical; }
+.formular .knapp { justify-self: start; }
+.formular .hjalp { margin: 0; font-size: 14px; color: var(--dampad); }
+.formular .fel { margin: 0; color: var(--lev); font-weight: 600; font-size: 14.5px; }
+.kontaktvagar { margin: 0; padding: 0; list-style: none; border-top: 2px solid var(--text); }
+.kontaktvagar li { padding: 18px 0; border-bottom: 1px solid var(--linje); }
+.kontaktvagar span { display: block; color: var(--dampad); font-size: 14px; }
+.kontaktvagar a, .kontaktvagar b { font-size: 18px; font-weight: 600; text-decoration: none; }
+.kontaktvagar a:hover { text-decoration: underline; }
+
+/* ---------- sidfot ---------- */
+.fot { border-top: 1px solid var(--linje); padding: 40px 0 48px; font-size: 14.5px; color: var(--dampad); }
+.fot-inre { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; }
+.fot-logga img { height: 22px; width: auto; }
+.fot-logga .vit { display: none; }
+.fot nav { display: flex; gap: 20px; margin-left: auto; }
+.fot a { text-decoration: none; }
+.fot a:hover { color: var(--text); text-decoration: underline; }
+
+/* ---------- mindre skärmar ---------- */
+@media (max-width: 1000px) {
+  .hero-text, .rubrikrad, .text-kolumner, .kontakt { grid-template-columns: 1fr; gap: 24px; }
+  .tavla { grid-template-columns: 60px repeat(3, minmax(0, 1fr)); }
+  .tavla .d4, .tavla .d5 { display: none; }
+  .tavla > div:nth-child(6n) { border-right: 1px solid var(--linje-ljus); }
+  .tavla > div.d3 { border-right: 0; }
+  .floede { grid-template-columns: 1fr; border-top: 0; }
+  .floede li, .floede li + li { padding: 26px 0; border-left: 0; border-top: 2px solid var(--text); }
+  .borja-inre { grid-template-columns: 1fr; padding: 36px 28px; }
+}
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .ram { width: calc(100% - 32px); }
+  .nav-lankar { display: none; position: absolute; top: 72px; left: 0; right: 0; flex-direction: column; padding: 8px 16px 16px; background: var(--bg); border-bottom: 1px solid var(--linje); }
+  .nav.oppen .nav-lankar { display: flex; }
+  .nav-lankar a { padding: 12px 8px; font-size: 17px; }
+  .meny { display: grid; }
+  .nav-hoger .knapp.ljus { display: none; }
+  .nav-hoger .knapp.liten { padding: 0 14px; font-size: 14px; }
+  .tavla .vk small { display: none; }
+  .tavla .vk b { font-size: 18px; }
+  .hero { padding-top: 40px; }
+  .tavla { grid-template-columns: 48px repeat(2, minmax(0, 1fr)); }
+  .tavla .d3 { display: none; }
+  .tavla > div.d2 { border-right: 0; }
+  .flikar { display: none; }
+  .tp-rad { grid-template-columns: 110px minmax(0, 1fr); padding: 0 12px; }
+  .funktioner { grid-template-columns: 1fr; }
+  .formular .tva { grid-template-columns: 1fr; }
+  .fakta li { grid-template-columns: 1fr; gap: 2px; }
+  .avsnitt { padding: 72px 0; }
+  .fot nav { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.bara-mobil { display: none; }
+@media (max-width: 760px) { .bara-mobil { display: block; border-top: 1px solid var(--linje); margin-top: 6px; padding-top: 6px; } }

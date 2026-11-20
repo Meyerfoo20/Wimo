@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kontakta Wimo</title>
+  <meta name="description" content="Frågor om Wimo, en genomgång för ert företag eller hjälp med ett konto.">
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png?v=1">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=1">
+  <script>if (/[?&]skarm=/.test(location.search) || matchMedia("(display-mode: standalone)").matches) location.replace("konto.html" + location.search + location.hash);</script>
+  <script>try { if (localStorage.getItem("wimo-tema") === "mork" || (!localStorage.getItem("wimo-tema") && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.setAttribute("data-tema", "mork"); } catch (e) { }</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="css/webb.css?v=4">
+</head>
+<body>
+<header class="nav">
+  <div class="ram nav-inre">
+    <a class="nav-logga" href="index.html" aria-label="Wimo – till startsidan"><img class="svart" src="img/wimo.png" alt="Wimo" width="107" height="26"><img class="vit" src="img/wimo-vit.png" alt="" width="107" height="26"></a>
+    <nav aria-label="Huvudmeny"><ul class="nav-lankar"><li><a href="index.html">Hem</a></li><li><a href="om-oss.html">Om oss</a></li><li><a href="kontakt.html" aria-current="page">Kontakt</a></li><li class="bara-mobil"><a href="konto.html" data-konto="logga">Logga in</a></li></ul></nav>
+    <div class="nav-hoger">
+      <button type="button" class="tema" aria-pressed="false" aria-label="Byt till mörkt läge" title="Byt till mörkt läge">
+        <svg class="mane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+        <svg class="sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <a class="knapp ljus liten" href="konto.html" data-konto="logga">Logga in</a>
+      <a class="knapp liten" href="konto.html#skapa-konto" data-konto="skapa">Skapa konto</a>
+      <button type="button" class="meny" aria-expanded="false" aria-label="Meny"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+  </div>
+</header>
+<main class="ram">
+<section class="sida-topp">
+  <h1>Kontakta oss</h1>
+  <p>Vill ni se hur Wimo fungerar för era projekt, eller har du frågor om ett konto? Skriv några rader så hör vi av oss.</p>
+</section>
+<section class="kontakt">
+  <form class="formular" id="kontaktformular" data-till="info@fenrac.se" novalidate>
+    <div class="tva">
+      <label>Namn<input name="namn" autocomplete="name" required></label>
+      <label>Företag<input name="foretag" autocomplete="organization"></label>
+    </div>
+    <div class="tva">
+      <label>E-post<input name="epost" type="email" autocomplete="email" required></label>
+      <label>Telefon<input name="telefon" type="tel" autocomplete="tel"></label>
+    </div>
+    <label>Vad gäller det?
+      <select name="arende">
+        <option>Boka en genomgång av Wimo</option>
+        <option>Fråga om pris och avtal</option>
+        <option>Hjälp med mitt konto</option>
+        <option>Förslag på förbättring</option>
+        <option>Annat</option>
+      </select>
+    </label>
+    <label>Meddelande<textarea name="meddelande" required placeholder="Berätta kort om era projekt eller vad du undrar över."></textarea></label>
+    <p class="fel" role="alert"></p>
+    <button type="submit" class="knapp">Skicka meddelandet</button>
+    <p class="hjalp">Knappen öppnar ett färdigt mejl i ditt mejlprogram. Tryck Skicka där.</p>
+  </form>
+  <ul class="kontaktvagar">
+    <li><span>E-post</span><a href="mailto:info@fenrac.se">info@fenrac.se</a></li>
+    <li><span>Grundare</span><b>Neo Carlsson och Marcus Forsmark</b></li>
+    <li><span>Har du redan ett konto?</span><a href="konto.html" data-konto="logga">Logga in i Wimo</a></li>
+  </ul>
+</section>
+</main>
+<footer class="fot">
+  <div class="ram fot-inre">
+    <a class="fot-logga" href="index.html" aria-label="Wimo"><img class="svart" src="img/wimo.png" alt="Wimo" width="90" height="22"><img class="vit" src="img/wimo-vit.png" alt="" width="90" height="22"></a>
+    <span>Grundat av Neo Carlsson och Marcus Forsmark</span>
+    <nav aria-label="Sidfot"><a href="index.html">Hem</a><a href="om-oss.html">Om oss</a><a href="kontakt.html">Kontakt</a><a href="konto.html" data-konto="logga">Logga in</a></nav>
+  </div>
+</footer>
+<script src="js/webb.js?v=3"></script>
+</body>
+</html>

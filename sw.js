@@ -2,7 +2,7 @@
    Gör att Wimo kan installeras som app på datorn och mobilen.
    Hämtar alltid senaste versionen från nätet först; cachen används bara när nätet saknas,
    så en uppladdad ny version syns direkt. Firebase och andra adresser rörs inte. */
-const CACHE = "wimo-v1";
+const CACHE = "wimo-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
@@ -23,7 +23,7 @@ self.addEventListener("fetch", (e) => {
             }
             return svar;
         }).catch(() => caches.match(req, { ignoreSearch: req.mode === "navigate" })
-            .then((t) => t || (req.mode === "navigate" ? caches.match("./", { ignoreSearch: true }) : undefined))
+            .then((t) => t || (req.mode === "navigate" ? caches.match("konto.html", { ignoreSearch: true }) : undefined))
             .then((t) => t || new Response("Wimo är offline och sidan finns inte sparad än.", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } })))
     );
 });
