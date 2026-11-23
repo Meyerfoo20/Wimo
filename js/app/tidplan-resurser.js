@@ -156,6 +156,8 @@ function tpPeriodDialog(a, q) {
                 '<button type="button" class="p4d-lank" data-pdsegny>+ Ny del från en senare dag</button>' : "") + "</div>";
     };
     const kropp = '<div class="tp-pd">' +
+        '<label class="falt"><span>Namn på stapeln <span class="hjalp">visas i slutet av stapeln</span></span>' +
+        '<input class="f" id="pdNamn" maxlength="80" value="' + esc(q.namn || "") + '" placeholder="' + esc(a.namn || "Aktivitetens namn") + '" autocomplete="off"></label>' +
         '<div class="tp-pd-datum"><label class="falt"><span>Start</span><input class="f" type="date" id="pdStart" value="' + esc(q.start) + '"></label>' +
         '<label class="falt"><span>Arbetsdagar</span><input class="f" type="number" min="1" step="1" id="pdDagar" value="' + q.arbDagar + '"></label>' +
         '<div class="tp-pd-info" id="pdInfo"></div></div>' +
@@ -282,7 +284,7 @@ function tpPeriodDialog(a, q) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return ($("pdFel").innerHTML = '<div class="notis rod">Ange ett startdatum.</div>');
         if (!(dagar >= 1)) return ($("pdFel").innerHTML = '<div class="notis rod">Perioden måste ha minst en arbetsdag.</div>');
         if (bem.some(b => !b.resursTyp)) return ($("pdFel").innerHTML = '<div class="notis rod">Välj yrkesgrupp för varje resurs, eller ta bort raden.</div>');
-        const falt = { start, arbDagar: dagar, farg, bemanning: tpRensaBemanning(bem.map(b => ({ resursTyp: b.resursTyp, segment: b.varierande ? b.segment : [b.segment.slice().sort((x, y) => x.franDag - y.franDag)[0]] })), dagar) };
+        const falt = { start, arbDagar: dagar, farg, namn: $("pdNamn").value.trim(), bemanning: tpRensaBemanning(bem.map(b => ({ resursTyp: b.resursTyp, segment: b.varierande ? b.segment : [b.segment.slice().sort((x, y) => x.franDag - y.franDag)[0]] })), dagar) };
         if (ar) falt.utanforSammanstallning = !!($("pdUtanfor") && $("pdUtanfor").checked);
         stangModal();
         tpValdPeriod = a.id + "|" + q.id;

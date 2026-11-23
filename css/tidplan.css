@@ -167,8 +167,7 @@ body.tp-raddrar, body.tp-raddrar * { cursor: grabbing !important; user-select: n
   border: 3px solid var(--produktion-kant);
   border-left-color: var(--produktion);
   border-bottom-color: var(--produktion);
-  border-radius: var(--r-s);
-  border-bottom-left-radius: 0;
+  border-radius: 0;
   background: var(--produktion-fyll);
   color: var(--produktion);
   font: inherit;
@@ -718,9 +717,9 @@ body.tp-drar, body.tp-drar * { cursor: grabbing !important; user-select: none; }
 .tpu-axel span { position: absolute; height: 50%; display: flex; align-items: center; padding-left: .8mm; border-right: .15mm solid #d5d9dc; overflow: hidden; white-space: nowrap; font-size: 6.2pt; line-height: 1; }
 .tpu-axel .o { top: 0; font-weight: 700; color: #15191d; }
 .tpu-axel .u { top: 50%; border-top: .15mm solid #d5d9dc; justify-content: center; padding: 0; color: #4a5258; font-weight: 600; }
-.tpu-st { position: absolute; top: 17%; height: 66%; display: flex; align-items: center; justify-content: center; border: .3mm solid var(--k); border-left: .7mm solid var(--c); border-bottom: .7mm solid var(--c); border-radius: .6mm .6mm .6mm 0; background: var(--f); color: var(--c); font-size: 5.8pt; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: 1; }
+.tpu-st { position: absolute; top: 17%; height: 66%; display: flex; align-items: center; justify-content: center; border: .3mm solid var(--k); border-left: .7mm solid var(--c); border-bottom: .7mm solid var(--c); border-radius: 0; background: var(--f); color: var(--c); font-size: 5.8pt; font-weight: 700; white-space: nowrap; overflow: hidden; line-height: 1; }
 .tpu-st.i-grupp { top: 46%; height: 44%; }
-.tpu-st.klippt-v { border-left-style: dashed; border-radius: 0 .6mm .6mm 0; }
+.tpu-st.klippt-v { border-left-style: dashed; }
 .tpu-st.klippt-h { border-right-style: dashed; }
 .tpu-gspann { position: absolute; top: 20%; height: .9mm; background: var(--c); }
 .tpu-gspann::before, .tpu-gspann::after { content: ""; position: absolute; top: 0; border-top: 1.8mm solid var(--c); }
@@ -902,3 +901,74 @@ body.tp-drar .tp-koppla { opacity: 0; }
 .tp-tvsumma { font-size: 13.5px; }
 /* på tavlan: posten kommer från tidplanen */
 .tp-tvfran { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 9px 12px; border-left: 3px solid var(--accent-pop); border-radius: 0 var(--r-s) var(--r-s) 0; background: var(--bg-alt); font-size: 13.5px; }
+
+/* ==== underaktivitet direkt från en rad ==== */
+.tp-nyunder {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .1s;
+}
+.tp-rad:hover .tp-nyunder, .tp-rad:focus-within .tp-nyunder, .tp-nyunder:focus-visible { opacity: 1; }
+.tp-nyunder:hover { border-color: var(--text-main); color: var(--text-main); }
+.tp-e.redigerar .tp-nyunder { display: none; }
+@media (hover: none) { .tp-nyunder { opacity: .7; } }
+
+/* ==== namnet efter stapeln ==== */
+.tp-stnamn {
+  position: absolute;
+  left: calc(100% + 22px);
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.tp-stnamn.eget { color: var(--text-main); }
+.tp-summa .tp-stnamn { top: -2px; color: var(--text-main); font-weight: 700; }
+.z-manad .tp-stnamn { font-size: 11px; left: calc(100% + 6px); }
+.tpu-stnamn { position: absolute; top: 17%; height: 66%; display: flex; align-items: center; font-size: 5.6pt; font-weight: 600; color: #333; white-space: nowrap; line-height: 1; }
+.tpu-stnamn.i-grupp { top: 46%; height: 44%; }
+.tpu-stnamn.ovre { top: 4%; height: 40%; font-weight: 700; color: #111; }
+
+/* ==== tomma rader att skriva i ==== */
+.tp-fyllrad { cursor: text; }
+.tp-fyllrad .tp-nr { color: var(--text-faint); }
+.tp-fyllkal { cursor: default; }
+
+/* ==== fullvy: tidplanen över hela fönstret ==== */
+.tp-fullknapp { display: inline-flex; align-items: center; gap: 6px; }
+body.tp-fullvy { overflow: hidden; }
+body.tp-fullvy #tidplan {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  overflow: auto;
+  padding: 18px 24px 28px;
+  background: var(--bg-main);
+  overscroll-behavior: contain;
+}
+body.tp-fullvy #tidplan .tp-hero { margin-bottom: 14px; }
+body.tp-fullvy #tidplan .tp-hero .g-rubrik { font-size: 22px; }
+@media (max-width: 760px) { body.tp-fullvy #tidplan { padding: 12px; } }
+@media print { body.tp-fullvy #tidplan { position: static; overflow: visible; padding: 0; } }

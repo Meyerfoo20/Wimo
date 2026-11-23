@@ -1,0 +1,378 @@
+/* ======================================================================
+   Wimo Forma · organisation, projektinställningar och projektlistan
+   ====================================================================== */
+
+/* ======================= Organisation ======================= */
+function foVyOrg(yta) {
+    const p = foP, jag = foJagId(), leda = foKanLeda(p, jag);
+    const flikar = [["personer", "Personer", p.personer.filter(x => x.aktiv).length], ["foretag", "Företag", p.foretag.filter(x => x.aktiv).length],
+        ["disc", "Discipliner", p.discipliner.filter(x => x.aktiv).length], ["forum", "Mötesforum", p.forum.filter(x => x.aktiv).length], ["ind", "Indelningar", p.indelningar.length]];
+    if (!flikar.some(f => f[0] === foFlik.org)) foFlik.org = "personer";
+    const nyText = { personer: "+ Ny kontakt", foretag: "+ Nytt företag", disc: "+ Ny disciplin", forum: "+ Nytt mötesforum", ind: "+ Ny indelning" }[foFlik.org];
+    let html = foTopp("Organisation", leda ? '<button class="navknapp" type="button" id="foOrgNy">' + nyText + '</button>' : "");
+    html += '<div class="fo-flikar" role="tablist">' + flikar.map(([k, t, n]) => '<button type="button" role="tab" class="fo-flik' + (foFlik.org === k ? " vald" : "") + '" aria-selected="' + (foFlik.org === k) + '" data-orgflik="' + k + '">' +
+        t + ' <span>' + n + '</span></button>').join("") + '</div>';
+    if (foFlik.org === "personer") {
+        const l = p.personer.slice().sort((a, b) => (b.aktiv - a.aktiv) || foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
+        html += '<div class="fo-filterrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foOrgSok" type="search" placeholder="Sök namn, företag, disciplin eller e-post" data-behall></label></div>';
+        html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell" id="foPersonTabell"><thead><tr><th>Namn</th><th>Företag och befattning</th><th>Disciplin</th><th>E-post och telefon</th><th>Roll</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
+            l.map(x => {
+                const ft = foForetag(p, x.foretagId);
+                return '<tr data-rad="' + x.id + '" class="' + (x.aktiv ? "" : "utford") + '" data-sok="' + esc(foNormal([foPersonNamn(p, x.id), ft && ft.namn, x.befattning, x.epost, (x.disc || []).map(d => foDiscText(p, d)).join(" ")].join(" "))) + '">' +
+                    '<td><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.id === jag ? ' <span class="hjalp">(du)</span>' : "") + (x.extern ? ' <span class="fo-chip">Extern</span>' : "") + (x.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
+                    '<td>' + esc(ft ? ft.namn : "–") + (x.befattning ? '<small>' + esc(x.befattning) + '</small>' : "") + '</td>' +
+                    '<td>' + esc((x.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
+                    '<td>' + (x.epost ? '<a href="mailto:' + esc(x.epost) + '">' + esc(x.epost) + '</a>' : "–") + (x.tel ? '<small><a href="tel:' + esc(x.tel.replace(/\s/g, "")) + '">' + esc(x.tel) + '</a></small>' : "") + '</td>' +
+                    '<td>' + esc(FO_ROLLER[x.roll] || "–") + (x.uid ? '<small>Har Wimo-konto</small>' : "") + '</td>' +
+                    '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-person="' + x.id + '">Ändra</button>' : "") + '</td></tr>';
+            }).join("") + '</tbody></table></div>' : foTomt("Inga personer ännu", "Lägg till projektets deltagare. En kontakt behöver inget Wimo-konto.");
+    }
+    if (foFlik.org === "foretag") {
+        const l = p.foretag.slice().sort((a, b) => (b.aktiv - a.aktiv) || a.namn.localeCompare(b.namn, "sv"));
+        html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Företag</th><th>Discipliner</th><th>Personer</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
+            l.map(f => '<tr data-rad="' + f.id + '" class="' + (f.aktiv ? "" : "utford") + '"><td><b>' + esc(f.namn) + '</b>' + (f.orgnr ? '<small>' + esc(f.orgnr) + '</small>' : "") + '</td>' +
+                '<td>' + esc((f.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
+                '<td>' + esc(p.personer.filter(x => x.foretagId === f.id && x.aktiv).map(x => foPersonNamn(p, x.id)).join(", ") || "–") + '</td>' +
+                '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-foretag="' + f.id + '">Ändra</button>' : "") + '</td></tr>').join("") + '</tbody></table></div>'
+            : foTomt("Inga företag ännu", "Lägg upp konsulter, entreprenörer och beställare som deltar i projekteringen.");
+    }
+    if (foFlik.org === "disc") {
+        const l = p.discipliner.slice().sort((a, b) => a.ordning - b.ordning);
+        html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Kod</th><th>Disciplin</th><th>Frågor</th><th>Personer</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
+            l.map((d, i) => '<tr data-rad="' + d.id + '" class="' + (d.aktiv ? "" : "utford") + '"><td><b>' + esc(d.kod) + '</b></td><td>' + esc(d.namn) + (d.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
+                '<td>' + p.fragor.filter(f => !f.makulerad && (f.fran === d.id || (f.ansvarig && f.ansvarig.disc === d.id))).length + '</td>' +
+                '<td>' + p.personer.filter(x => x.aktiv && (x.disc || []).includes(d.id)).length + '</td>' +
+                '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp fo-ikonknapp" data-discupp="' + d.id + '"' + (i ? "" : " disabled") + ' aria-label="Flytta upp">↑</button>' +
+                    '<button type="button" class="fo-minknapp fo-ikonknapp" data-discner="' + d.id + '"' + (i < l.length - 1 ? "" : " disabled") + ' aria-label="Flytta ner">↓</button>' +
+                    '<button type="button" class="fo-minknapp" data-disc="' + d.id + '">Ändra</button>' : "") + '</td></tr>').join("") + '</tbody></table></div>'
+            : foTomt("Inga discipliner ännu", "Discipliner är teknikområdena i projekteringen, till exempel A Arkitekt, K Konstruktör och VS Värme och sanitet.",
+                leda ? '<button type="button" class="mknapp" id="foStdDisc">Lägg till vanliga discipliner</button>' : "");
+    }
+    if (foFlik.org === "forum") {
+        html += p.forum.length ? '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Kort</th><th>Mötesforum</th><th>Tid och plats</th><th>Mötesledare</th><th>Deltagare</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
+            p.forum.map(f => '<tr data-rad="' + f.id + '" class="' + (f.aktiv ? "" : "utford") + '"><td><b>' + esc(f.kort) + '</b></td><td>' + esc(f.namn) + (f.nastaMote ? '<small>Nästa möte ' + foDatumKort(f.nastaMote) + '</small>' : "") + '</td>' +
+                '<td>' + esc([f.tid, f.plats].filter(Boolean).join(" · ") || "–") + '</td><td>' + esc(foPersonNamn(p, f.ledare) || "–") + '</td><td>' + (f.deltagare || []).length + '</td>' +
+                '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-forum="' + f.id + '">Ändra</button>' : "") + '</td></tr>').join("") + '</tbody></table></div>'
+            : foTomt("Inga mötesforum ännu", "Ett mötesforum är en återkommande mötestyp med egna deltagare, till exempel Projekteringsmöte.");
+    }
+    if (foFlik.org === "ind") {
+        html += p.indelningar.length ? '<div class="fo-indlista">' + p.indelningar.map(ind => '<div class="dashblock"><h3>' + esc(ind.namn) +
+            (leda ? '<button type="button" class="fo-minknapp fo-hoger" data-ind="' + ind.id + '">Ändra</button>' : "") + '</h3><div class="fo-valchips">' +
+            ind.varden.map(v => '<span class="fo-valchip' + (v.aktiv ? "" : " av") + '">' + esc(v.namn) + '</span>').join("") + '</div></div>').join("") + '</div>'
+            : foTomt("Inga indelningar ännu", "Indelningar delar upp projektet, till exempel Byggnad (Hus A, Hus B) eller Etapp. En fråga kan märkas med flera värden.");
+    }
+    yta.innerHTML = html;
+    yta.querySelectorAll("[data-orgflik]").forEach(b => b.addEventListener("click", () => { foFlik.org = b.dataset.orgflik; foRita(); }));
+    const ny = document.getElementById("foOrgNy");
+    if (ny) ny.addEventListener("click", () => ({ personer: () => foPersonDialog(null), foretag: () => foForetagDialog(null), disc: () => foDiscDialog(null), forum: () => foForumDialog(null), ind: () => foIndDialog(null) })[foFlik.org]());
+    yta.querySelectorAll("[data-person]").forEach(b => b.addEventListener("click", () => foPersonDialog(foPerson(p, b.dataset.person))));
+    yta.querySelectorAll("[data-foretag]").forEach(b => b.addEventListener("click", () => foForetagDialog(foForetag(p, b.dataset.foretag))));
+    yta.querySelectorAll("[data-disc]").forEach(b => b.addEventListener("click", () => foDiscDialog(foDisc(p, b.dataset.disc))));
+    yta.querySelectorAll("[data-discupp]").forEach(b => b.addEventListener("click", () => foGor("flyttaDisc", { id: b.dataset.discupp, steg: -1 })));
+    yta.querySelectorAll("[data-discner]").forEach(b => b.addEventListener("click", () => foGor("flyttaDisc", { id: b.dataset.discner, steg: 1 })));
+    yta.querySelectorAll("[data-forum]").forEach(b => b.addEventListener("click", () => foForumDialog(foForum(p, b.dataset.forum))));
+    yta.querySelectorAll("[data-ind]").forEach(b => b.addEventListener("click", () => foIndDialog(p.indelningar.find(x => x.id === b.dataset.ind))));
+    const std = document.getElementById("foStdDisc");
+    if (std) std.addEventListener("click", () => {
+        [["A", "Arkitekt"], ["K", "Konstruktör"], ["VS", "Värme och sanitet"], ["V", "Ventilation"], ["E", "El"], ["B", "Brand"], ["L", "Landskap"], ["G", "Geoteknik"]]
+            .forEach(([k, n]) => foGor("sparaDisc", { id: foId(), kod: k, namn: n }, true));
+        foRita(); status("Åtta vanliga discipliner lades till. Ta bort eller byt namn på dem som inte passar.");
+    });
+    const sok = document.getElementById("foOrgSok");
+    if (sok) sok.addEventListener("input", () => {
+        const q = foNormal(sok.value).trim();
+        document.querySelectorAll("#foPersonTabell tbody tr").forEach(tr => { tr.hidden = !!q && !tr.dataset.sok.includes(q); });
+    });
+}
+
+function foPersonDialog(x) {
+    const p = foP, ny = !x;
+    const kropp = '<div class="tva"><div class="falt"><label for="foPdFn">Förnamn</label><input class="f" id="foPdFn" value="' + esc(x ? x.fornamn : "") + '"></div>' +
+        '<div class="falt"><label for="foPdEn">Efternamn</label><input class="f" id="foPdEn" value="' + esc(x ? x.efternamn : "") + '"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foPdFt">Företag</label><select class="f" id="foPdFt"><option value="">–</option>' + p.foretag.filter(f => f.aktiv || (x && f.id === x.foretagId)).map(f =>
+            '<option value="' + f.id + '"' + (x && x.foretagId === f.id ? " selected" : "") + '>' + esc(f.namn) + '</option>').join("") + '</select></div>' +
+        '<div class="falt"><label for="foPdBef">Befattning</label><input class="f" id="foPdBef" value="' + esc(x ? x.befattning : "") + '" placeholder="Uppdragsansvarig"></div></div>' +
+        '<div class="falt"><label>Discipliner</label>' + foValChips("pdisc", p.discipliner.filter(d => d.aktiv).sort((a, b) => a.ordning - b.ordning).map(d => ({ id: d.id, namn: d.kod + " " + d.namn })), x ? x.disc || [] : []) + '</div>' +
+        '<div class="tva"><div class="falt"><label for="foPdEp">E-post</label><input class="f" id="foPdEp" type="email" value="' + esc(x ? x.epost : "") + '"></div>' +
+        '<div class="falt"><label for="foPdTel">Telefon</label><input class="f" id="foPdTel" type="tel" value="' + esc(x ? x.tel : "") + '"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foPdRoll">Roll i projektet</label><select class="f" id="foPdRoll">' + Object.keys(FO_ROLLER).map(r =>
+            '<option value="' + r + '"' + ((x ? x.roll : "projektor") === r ? " selected" : "") + '>' + FO_ROLLER[r] + '</option>').join("") + '</select></div>' +
+        '<div class="falt"><label>&nbsp;</label><label class="fo-kryss"><input type="checkbox" id="foPdExt"' + (x && x.extern ? " checked" : "") + '> Extern deltagare</label></div></div>' +
+        '<p class="hjalp" style="margin:0">Roller: administratör och projekteringsledare ändrar register och fastställer beslut. Projektör registrerar och besvarar frågor. Granskare och läsare kan läsa och kvittera.</p>' +
+        '<p class="hjalp" style="margin:6px 0 0">Har personen ett Wimo-konto med samma e-post kopplas kontot automatiskt när hen öppnar projektet.</p>';
+    const knappar = [];
+    if (x) knappar.push({ txt: x.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => {
+        const v = foLasPersonForm(); v.id = x.id; v.aktiv = !x.aktiv;
+        if (foGor("sparaPerson", v)) { stangModal(); status(x.aktiv ? "Kontakten är inaktiverad. Historiken finns kvar." : "Kontakten är aktiv igen."); }
+    } });
+    knappar.push({ txt: "Avbryt", fn: stangModal });
+    knappar.push({ txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
+        const v = foLasPersonForm(); v.id = x ? x.id : foId();
+        if (foGor("sparaPerson", v)) { stangModal(); status(ny ? "Kontakten lades till." : "Kontakten sparades."); }
+    } });
+    modal(ny ? "Ny kontakt" : foPersonNamn(p, x.id), ny ? "En kontakt behöver inget Wimo-konto." : (FO_ROLLER[x.roll] || ""), kropp, knappar);
+    foKopplaValChips(document.getElementById("overlay"));
+    setTimeout(() => { const t = document.getElementById("foPdFn"); if (t) t.focus(); }, 30);
+}
+function foLasPersonForm() {
+    return { fornamn: document.getElementById("foPdFn").value, efternamn: document.getElementById("foPdEn").value, foretagId: document.getElementById("foPdFt").value,
+        befattning: document.getElementById("foPdBef").value, disc: foValda("pdisc"), epost: document.getElementById("foPdEp").value,
+        tel: document.getElementById("foPdTel").value, roll: document.getElementById("foPdRoll").value, extern: document.getElementById("foPdExt").checked };
+}
+function foKopplaValChips(rot) {
+    if (!rot) return;
+    rot.querySelectorAll(".fo-valchips .fo-valchip").forEach(b => b.addEventListener("click", () => {
+        if (b.closest(".fo-valchips").dataset.enkel) b.closest(".fo-valchips").querySelectorAll(".fo-valchip").forEach(x => { if (x !== b) { x.classList.remove("pa"); x.setAttribute("aria-pressed", "false"); } });
+        b.classList.toggle("pa"); b.setAttribute("aria-pressed", b.classList.contains("pa"));
+    }));
+}
+function foValda(namn) { return [...document.querySelectorAll('.fo-valchips[data-val="' + namn + '"] .fo-valchip.pa')].map(b => b.dataset.id); }
+
+function foForetagDialog(f) {
+    const p = foP, ny = !f;
+    modal(ny ? "Nytt företag" : f.namn, "", '<div class="falt"><label for="foFdNamn">Namn</label><input class="f" id="foFdNamn" value="' + esc(f ? f.namn : "") + '"></div>' +
+        '<div class="falt"><label for="foFdOrg">Organisationsnummer (frivilligt)</label><input class="f" id="foFdOrg" value="' + esc(f ? f.orgnr : "") + '"></div>' +
+        '<div class="falt"><label>Discipliner</label>' + foValChips("fdisc", p.discipliner.filter(d => d.aktiv).map(d => ({ id: d.id, namn: d.kod + " " + d.namn })), f ? f.disc || [] : []) + '</div>', [
+        ...(f ? [{ txt: f.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => { if (foGor("sparaForetag", { id: f.id, namn: f.namn, orgnr: f.orgnr, disc: f.disc, aktiv: !f.aktiv })) stangModal(); } }] : []),
+        { txt: "Avbryt", fn: stangModal },
+        { txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
+            if (foGor("sparaForetag", { id: f ? f.id : foId(), namn: document.getElementById("foFdNamn").value, orgnr: document.getElementById("foFdOrg").value, disc: foValda("fdisc") })) stangModal();
+        } }]);
+    foKopplaValChips(document.getElementById("overlay"));
+    setTimeout(() => document.getElementById("foFdNamn").focus(), 30);
+}
+function foDiscDialog(d) {
+    const ny = !d;
+    modal(ny ? "Ny disciplin" : d.kod + " – " + d.namn, "Kortkoden är unik i projektet och syns i alla listor.",
+        '<div class="tva"><div class="falt"><label for="foDdKod">Kortkod</label><input class="f" id="foDdKod" maxlength="6" value="' + esc(d ? d.kod : "") + '" placeholder="K"></div>' +
+        '<div class="falt"><label for="foDdNamn">Namn</label><input class="f" id="foDdNamn" value="' + esc(d ? d.namn : "") + '" placeholder="Konstruktör"></div></div>', [
+        ...(d ? [{ txt: d.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => { if (foGor("sparaDisc", { id: d.id, kod: d.kod, namn: d.namn, aktiv: !d.aktiv })) stangModal(); } }] : []),
+        { txt: "Avbryt", fn: stangModal },
+        { txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
+            if (foGor("sparaDisc", { id: d ? d.id : foId(), kod: document.getElementById("foDdKod").value, namn: document.getElementById("foDdNamn").value })) stangModal();
+        } }]);
+    setTimeout(() => document.getElementById("foDdKod").focus(), 30);
+}
+function foForumDialog(f) {
+    const p = foP, ny = !f;
+    modal(ny ? "Nytt mötesforum" : f.namn, "Ett återkommande möte med egna deltagare.",
+        '<div class="tva"><div class="falt"><label for="foMdNamn">Namn</label><input class="f" id="foMdNamn" value="' + esc(f ? f.namn : "") + '" placeholder="Projekteringsmöte"></div>' +
+        '<div class="falt"><label for="foMdKort">Kortnamn</label><input class="f" id="foMdKort" maxlength="6" value="' + esc(f ? f.kort : "") + '" placeholder="PM"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foMdPlats">Plats</label><input class="f" id="foMdPlats" value="' + esc(f ? f.plats : "") + '" placeholder="Platskontoret"></div>' +
+        '<div class="falt"><label for="foMdTid">Tid</label><input class="f" id="foMdTid" type="time" value="' + esc(f ? f.tid : "") + '"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foMdLed">Mötesledare</label>' + foPersonSelect("foMdLed", f ? f.ledare : "", "–") + '</div>' +
+        '<div class="falt"><label for="foMdSek">Protokollförare</label>' + foPersonSelect("foMdSek", f ? f.sekreterare : "", "–") + '</div></div>' +
+        '<div class="falt"><label for="foMdNasta">Nästa möte</label><input class="f" id="foMdNasta" type="date" value="' + esc(f ? f.nastaMote : "") + '"></div>' +
+        '<div class="falt"><label>Deltagare (distributionslista)</label>' + foValChips("mdelt", p.personer.filter(x => x.aktiv).map(x => ({ id: x.id, namn: foPersonNamn(p, x.id) })), f ? f.deltagare || [] : []) + '</div>', [
+        ...(f ? [{ txt: f.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => { if (foGor("sparaForum", Object.assign({}, f, { aktiv: !f.aktiv }))) stangModal(); } }] : []),
+        { txt: "Avbryt", fn: stangModal },
+        { txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
+            if (foGor("sparaForum", { id: f ? f.id : foId(), namn: document.getElementById("foMdNamn").value, kort: document.getElementById("foMdKort").value,
+                plats: document.getElementById("foMdPlats").value, tid: document.getElementById("foMdTid").value, ledare: document.getElementById("foMdLed").value,
+                sekreterare: document.getElementById("foMdSek").value, nastaMote: document.getElementById("foMdNasta").value, deltagare: foValda("mdelt") })) stangModal();
+        } }]);
+    foKopplaValChips(document.getElementById("overlay"));
+    setTimeout(() => document.getElementById("foMdNamn").focus(), 30);
+}
+function foIndDialog(ind) {
+    const ny = !ind;
+    const varden = ind ? ind.varden.slice() : [];
+    const rita = () => {
+        const el = document.getElementById("foIdVarden");
+        el.innerHTML = varden.map((v, i) => '<div class="fo-vardrad"><input class="f" data-vi="' + i + '" value="' + esc(v.namn) + '">' +
+            '<label class="fo-kryss"><input type="checkbox" data-va="' + i + '"' + (v.aktiv !== false ? " checked" : "") + '> Aktiv</label></div>').join("") +
+            '<button type="button" class="p4d-lank" id="foIdNyttVarde">+ Lägg till värde</button>';
+        el.querySelectorAll("[data-vi]").forEach(i => i.addEventListener("input", () => { varden[+i.dataset.vi].namn = i.value; }));
+        el.querySelectorAll("[data-va]").forEach(i => i.addEventListener("change", () => { varden[+i.dataset.va].aktiv = i.checked; }));
+        document.getElementById("foIdNyttVarde").addEventListener("click", () => { varden.push({ id: foId(), namn: "", aktiv: true }); rita(); const s = el.querySelectorAll("[data-vi]"); s[s.length - 1].focus(); });
+    };
+    modal(ny ? "Ny indelning" : ind.namn, "Värden kan läggas till och ändras under hela projektet.",
+        '<div class="falt"><label for="foIdNamn">Indelningstyp</label><input class="f" id="foIdNamn" value="' + esc(ind ? ind.namn : "") + '" placeholder="Byggnad, Etapp eller Delområde"></div>' +
+        '<div class="falt"><label>Värden</label><div id="foIdVarden"></div></div>', [
+        { txt: "Avbryt", fn: stangModal },
+        { txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
+            if (foGor("sparaIndelning", { id: ind ? ind.id : foId(), namn: document.getElementById("foIdNamn").value, varden: varden })) stangModal();
+        } }]);
+    if (!varden.length) varden.push({ id: foId(), namn: "", aktiv: true });
+    rita();
+    setTimeout(() => document.getElementById("foIdNamn").focus(), 30);
+}
+
+/* ======================= Projektinställningar ======================= */
+function foVyInst(yta) {
+    const p = foP, jag = foJagId(), leda = foKanLeda(p, jag), admin = foRoll(p, jag) === "admin";
+    const post = foLista.find(x => x.id === foPid) || {};
+    const moln = !!post.moln;
+    const dis = leda ? "" : " disabled";
+    let html = foTopp("Projektinställningar");
+    html += '<div class="fo-tvakol"><div class="dashblock"><h3>Projektuppgifter</h3>' +
+        '<div class="falt"><label for="foIuNamn">Projektnamn</label><input class="f" id="foIuNamn" data-uf="namn" value="' + esc(p.namn) + '"' + dis + '></div>' +
+        '<div class="tva"><div class="falt"><label for="foIuNr">Projektnummer</label><input class="f" id="foIuNr" data-uf="nummer" value="' + esc(p.nummer) + '"' + dis + '></div>' +
+        '<div class="falt"><label for="foIuPl">Projekteringsledare</label>' + foPersonSelect("foIuPl", p.plId, "–", ' data-uf="plId"' + dis) + '</div></div>' +
+        '<div class="tva"><div class="falt"><label for="foIuBest">Beställare</label><input class="f" id="foIuBest" data-uf="bestallare" value="' + esc(p.bestallare) + '"' + dis + '></div>' +
+        '<div class="falt"><label for="foIuEnt">Entreprenör</label><input class="f" id="foIuEnt" data-uf="entreprenor" value="' + esc(p.entreprenor) + '"' + dis + '></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foIuStart">Start</label><input class="f" type="date" id="foIuStart" data-uf="start" value="' + esc(p.start) + '"' + dis + '></div>' +
+        '<div class="falt"><label for="foIuSlut">Slut</label><input class="f" type="date" id="foIuSlut" data-uf="slut" value="' + esc(p.slut) + '"' + dis + '></div></div>' +
+        '<div class="falt"><label for="foIuBesk">Beskrivning</label><textarea class="f" id="foIuBesk" data-uf="beskrivning" rows="3"' + dis + '>' + esc(p.beskrivning) + '</textarea></div>' +
+        '<p class="hjalp" style="margin:0">Ändringar sparas direkt.</p></div>';
+    html += '<div><div class="dashblock"><h3>Arbetsflöde</h3>' +
+        '<label class="fo-kryss fo-installning"><input type="checkbox" id="foIaAuto"' + (p.inst.autoBesvarad ? " checked" : "") + dis + '><span><b>Nytt svar på ofullständigt svar ger Besvarad direkt</b>' +
+        '<small>Avmarkera om frågeställaren själv ska avgöra när kompletteringen räcker.</small></span></label>' +
+        '<p class="hjalp" style="margin:10px 0 0">Historik, revisionsmarkering och kvittering av ändringar i sak går inte att stänga av. Det är så spårbarheten bevaras.</p></div>';
+    html += '<div class="dashblock"><h3>Åtkomst</h3>' + (moln
+        ? '<p class="hjalp" style="margin-top:0">Projektet sparas i molnet. De som har åtkomst ser och arbetar i samma projekt.</p>' + foMedlemHtml(admin)
+        : '<p class="hjalp" style="margin-top:0">Projektet sparas bara i den här webbläsaren. ' + (foMoln() && window.p4FormaMoln.farSkapa() ? "Flytta det till molnet för att dela det med andra och nå det från fler datorer." : foMoln() ? "Be huvudadmin om behörigheten Får skapa projekt för att kunna dela det i molnet." : "Logga in för att kunna dela projektet i molnet.") + '</p>' +
+            (foMoln() && window.p4FormaMoln.farSkapa() ? '<button type="button" class="mknapp" id="foTillMoln">Flytta till molnet</button>' : "")) + '</div>';
+    html += '<div class="dashblock"><h3>Data</h3><p class="hjalp" style="margin-top:0">Exporten innehåller hela projektet med historik, men inte bilagornas filer.</p>' +
+        '<div class="fo-knapprad"><button type="button" class="mknapp" id="foExpJson">Exportera projektet</button><button type="button" class="mknapp" id="foExpCsv">Exportera frågor till Excel</button></div>' +
+        (admin || !moln ? '<div class="fo-farozon"><button type="button" class="fo-farlank" id="foTaBort">' + (moln ? "Ta bort projektet för alla" : "Ta bort projektet från den här datorn") + '</button></div>' : "") + '</div></div></div>';
+    yta.innerHTML = html;
+    yta.querySelectorAll("[data-uf]").forEach(el => el.addEventListener("change", () => {
+        const a = {}; a[el.dataset.uf] = el.value;
+        if (el.dataset.uf === "namn" && !el.value.trim()) { el.value = p.namn; return status("Projektet måste ha ett namn.", true); }
+        if (foGor("projektUppgifter", a, true)) { foVisaSparat(el); foRitaHeader(); }
+    }));
+    const auto = document.getElementById("foIaAuto");
+    if (auto) auto.addEventListener("change", () => { if (foGor("installning", { nyckel: "autoBesvarad", varde: auto.checked, text: auto.checked ? "nytt svar ger Besvarad" : "frågeställaren avgör" }, true)) foVisaSparat(auto); });
+    document.getElementById("foExpJson").addEventListener("click", () => {
+        foLaddaNer(foFilnamn(p.namn) + "-forma-" + foIdag() + ".json", JSON.stringify({ format: "wimo-forma", version: FO_VER, exporterad: foNu(), projekt: p }, null, 1), "application/json");
+        status("Projektet exporterades.");
+    });
+    document.getElementById("foExpCsv").addEventListener("click", () => foLaddaNer(foFilnamn(p.namn) + "-fragor-" + foIdag() + ".csv", foCsvFragor(p, p.fragor.slice().sort((a, b) => a.nr - b.nr)), "text/csv;charset=utf-8"));
+    const tb = document.getElementById("foTaBort");
+    if (tb) tb.addEventListener("click", () => {
+        modal("Ta bort " + p.namn + "?", moln ? "Projektet tas bort för alla som har åtkomst. Det går inte att ångra." : "Projektet tas bort från den här webbläsaren.",
+            '<p class="hjalp">Exportera projektet först om du vill spara en kopia. Skriv projektets namn för att bekräfta.</p><input class="f" id="foTbNamn" placeholder="' + esc(p.namn) + '">', [
+            { txt: "Avbryt", fn: stangModal },
+            { txt: "Ta bort", primar: true, fara: true, fn: async () => {
+                if (document.getElementById("foTbNamn").value.trim() !== p.namn) return status("Skriv projektets namn exakt för att ta bort det.", true);
+                stangModal();
+                const id = foPid;
+                if (moln) { try { await window.p4FormaMoln.radera(id); } catch (e) { return status("Projektet kunde inte tas bort i molnet. Kontrollera att du är administratör och har nät.", true); } }
+                foTaBortLokalt(id);
+                foGaTill("projekt");
+                status("Projektet är borttaget.");
+            } }]);
+    });
+    const tm = document.getElementById("foTillMoln");
+    if (tm) tm.addEventListener("click", async () => {
+        tm.disabled = true;
+        try {
+            const gammal = foPid, data = JSON.parse(JSON.stringify(p));
+            const k = foKonto();
+            const mig = data.personer.find(x => x.roll === "admin");
+            if (mig && k && k.uid && !data.personer.some(x => x.uid === k.uid)) { mig.uid = k.uid; if (!mig.epost) mig.epost = (k.epost || "").toLowerCase(); }
+            const id = await foSkapaProjekt(data.namn, data, true);
+            foTaBortLokalt(gammal);
+            foOppnaProjekt(id);
+            foRita();
+            status("Projektet ligger nu i molnet. Lägg till personer under Åtkomst.");
+        } catch (e) { console.warn(e); tm.disabled = false; status("Projektet kunde inte flyttas till molnet. Kontrollera nätet och att Firestore-reglerna för Forma är publicerade.", true); }
+    });
+    foKopplaMedlemmar();
+}
+function foMedlemHtml(admin) {
+    const m = foMolnMeta || { medlemmar: [], admins: [] };
+    const personer = window.p4FormaMoln.personer();
+    const namn = (uid) => { const x = personer.find(y => y.uid === uid); const pp = foP.personer.find(y => y.uid === uid); return x ? (x.namn || x.epost) : pp ? foPersonNamn(foP, pp.id) : "Wimo-konto"; };
+    const ej = personer.filter(x => !m.medlemmar.includes(x.uid));
+    return '<ul class="fo-medlemmar">' + m.medlemmar.map(uid => '<li><span>' + esc(namn(uid)) + (m.admins.includes(uid) ? ' <span class="fo-chip">Administratör</span>' : "") + '</span>' +
+        (admin && uid !== window.p4FormaMoln.uid() ? '<button type="button" class="fo-minknapp" data-tabortmedlem="' + uid + '">Ta bort</button>' : "") + '</li>').join("") + '</ul>' +
+        (admin ? (ej.length ? '<div class="fo-nyrad"><select class="f" id="foNyMedlem"><option value="">Välj person med Wimo-konto …</option>' + ej.map(x =>
+            '<option value="' + x.uid + '">' + esc((x.namn || "") + (x.epost ? " – " + x.epost : "")) + '</option>').join("") + '</select>' +
+            '<button type="button" class="mknapp" id="foLaggMedlem">Ge åtkomst</button></div>' : '<p class="hjalp">Alla Wimo-konton du kan se har redan åtkomst.</p>') +
+            '<p class="hjalp" style="margin:8px 0 0">Listan visar Wimo-konton i dina Plan-projekt. Den som får åtkomst läggs in som kontakt med rollen Projektör första gången hen öppnar projektet.</p>' : "");
+}
+function foKopplaMedlemmar() {
+    const lagg = document.getElementById("foLaggMedlem");
+    const m = foMolnMeta || { medlemmar: [], admins: [] };
+    if (lagg) lagg.addEventListener("click", async () => {
+        const uid = document.getElementById("foNyMedlem").value;
+        if (!uid) return status("Välj en person först.", true);
+        try { await window.p4FormaMoln.medlemmar(foPid, m.medlemmar.concat(uid), m.admins); status("Personen har fått åtkomst till projektet."); }
+        catch (e) { status("Åtkomsten kunde inte sparas. Bara projektets administratör kan ändra den.", true); }
+    });
+    document.querySelectorAll("[data-tabortmedlem]").forEach(b => b.addEventListener("click", async () => {
+        const uid = b.dataset.tabortmedlem;
+        try { await window.p4FormaMoln.medlemmar(foPid, m.medlemmar.filter(x => x !== uid), m.admins.filter(x => x !== uid)); status("Åtkomsten är borttagen."); }
+        catch (e) { status("Åtkomsten kunde inte ändras.", true); }
+    }));
+}
+
+/* ======================= Alla projekt ======================= */
+function foVyProjekt(yta) {
+    const lista = foAllaProjekt();
+    const moln = foMoln(), farSkapa = moln && window.p4FormaMoln.farSkapa();
+    let html = foTopp("Alla projekt", '<button class="navknapp" type="button" id="foImport">Importera</button>');
+    html += '<p class="hjalp fo-ingress">Forma-projekten är skilda från projekten i Wimo Plan. Varje projekt har sina egna frågor, beslut, åtgärder, möten och kontakter.</p>';
+    html += '<div class="fo-projektgrid">' + lista.map(x => {
+        const lok = foLasLs(foLsProjekt(x.id), null), d = lok && lok.data;
+        const n = d ? (d.fragor || []).filter(f => !f.makulerad && f.lage !== "klar").length : null;
+        return '<button type="button" class="fo-projektkort' + (x.id === foPid ? " aktiv" : "") + '" data-projekt="' + x.id + '"><b>' + esc(x.namn) + '</b>' +
+            '<span>' + (x.moln ? "I molnet" : "Bara på den här datorn") + (x.demo || (d && d.demo) ? " · demo" : "") + '</span>' +
+            (n !== null ? '<small>' + n + (n === 1 ? " aktiv fråga" : " aktiva frågor") + '</small>' : '<small>Öppna för att hämta</small>') + '</button>';
+    }).join("") +
+        '<div class="fo-projektkort ny"><b>Nytt projekt</b><input class="f" id="foNyttNamn" placeholder="Projektets namn">' +
+        (moln ? '<label class="fo-kryss"><input type="checkbox" id="foNyttMoln"' + (farSkapa ? " checked" : " disabled") + '> Spara i molnet och dela med andra</label>' +
+            (farSkapa ? "" : '<small>Du behöver behörigheten Får skapa projekt av huvudadmin för att skapa molnprojekt.</small>') : '<small>Logga in för att spara projekt i molnet.</small>') +
+        '<button type="button" class="p4-btn p4-btn-primar" id="foSkapa">Skapa projekt</button></div></div>';
+    html += '<div class="dashblock fo-demoblock"><h3>Prova med påhittade uppgifter</h3><p class="hjalp" style="margin:0 0 10px">Demoprojektet har discipliner, personer, möten, frågor, beslut och åtgärder så att du kan prova allt. Det är tydligt märkt Demo och sparas bara på den här datorn.</p>' +
+        '<button type="button" class="mknapp" id="foSkapaDemo">Skapa demoprojekt</button></div>';
+    yta.innerHTML = html;
+    yta.querySelectorAll("[data-projekt]").forEach(b => b.addEventListener("click", () => {
+        foOppnaProjekt(b.dataset.projekt);
+        foFilter = { snabb: "alla", sok: "", disc: "", plats: "", lage: "", mote: "", sort: "std", visaMak: false };
+        foGaTill("oversikt");
+    }));
+    const skapa = async () => {
+        const namn = document.getElementById("foNyttNamn").value.trim();
+        if (!namn) { document.getElementById("foNyttNamn").focus(); return status("Skriv projektets namn.", true); }
+        const iMoln = !!(document.getElementById("foNyttMoln") || {}).checked;
+        try {
+            const id = await foSkapaProjekt(namn, null, iMoln);
+            foOppnaProjekt(id);
+            foFlik.org = "disc";
+            foGaTill("org");
+            status("Projektet " + namn + " är skapat. Börja med discipliner och personer.");
+        } catch (e) { console.warn(e); status("Projektet kunde inte skapas i molnet. Kontrollera nätet och att Firestore-reglerna för Forma är publicerade.", true); }
+    };
+    document.getElementById("foSkapa").addEventListener("click", skapa);
+    document.getElementById("foNyttNamn").addEventListener("keydown", (e) => { if (e.key === "Enter") skapa(); });
+    document.getElementById("foSkapaDemo").addEventListener("click", async () => {
+        const k = foKonto(), n = foDelaNamn(k ? k.namn : "");
+        const p = foDemoProjekt(k ? { fornamn: n.fornamn, efternamn: n.efternamn, epost: (k.epost || "").toLowerCase(), uid: k.uid } : null);
+        const id = await foSkapaProjekt(p.namn, p, false);
+        foOppnaProjekt(id);
+        foGaTill("oversikt");
+        status("Demoprojektet är skapat. Alla uppgifter är påhittade.");
+    });
+    document.getElementById("foImport").addEventListener("click", () => {
+        const inp = document.createElement("input");
+        inp.type = "file"; inp.accept = ".json,application/json";
+        inp.addEventListener("change", async () => {
+            const fil = inp.files[0]; if (!fil) return;
+            try {
+                const x = JSON.parse(await fil.text());
+                if (x.format !== "wimo-forma" || !x.projekt) throw new Error("fel format");
+                const p = foLaga(x.projekt);
+                const id = await foSkapaProjekt(p.namn + " (importerat)", p, false);
+                foOppnaProjekt(id); foGaTill("oversikt");
+                status("Projektet importerades och sparas på den här datorn.");
+            } catch (e) { status("Filen är inte en export från Wimo Forma.", true); }
+        });
+        inp.click();
+    });
+}
+
+/* ======================= Hjälp ======================= */
+function foHjalp() {
+    modal("Hjälp för Wimo Forma", "Projekteringens frågor, svar, beslut och åtgärder", '<div class="fo-hjalp">' +
+        '<h4>Byta mellan Plan och Forma</h4><p>Klicka på Wimo-loggan uppe till vänster och välj modul. Modulerna har var sin data och påverkar inte varandra.</p>' +
+        '<h4>Ställa en fråga</h4><p>Skriv frågan i rutan överst i Aktiva frågor och tryck <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. Bara texten behövs. Klistra in skärmklipp med <kbd>Ctrl</kbd>+<kbd>V</kbd>. Varje fråga får ett nummer som aldrig återanvänds.</p>' +
+        '<h4>Lägen</h4><p><b>Obesvarad</b> → <b>Besvarad</b> när svaret sparas → <b>Klar</b> när frågeställaren är nöjd. Är svaret inte tillräckligt väljer frågeställaren <b>Svaret är ofullständigt</b>, och frågan går tillbaka till ansvarig.</p>' +
+        '<h4>Tillägg, ändring och kvittering</h4><p>Allt som skrivs sparas som versioner. Ett tillägg i slutet är ett tillägg; allt annat är en ändring i sak. Ändringar i en publicerad fråga eller ett publicerat svar ska kvitteras av motparten. Kvittering betyder att man tagit del av ändringen, inte att man godkänner den.</p>' +
+        '<h4>Beslut</h4><p>Ett svar blir aldrig automatiskt ett beslut. Administratör och projekteringsledare fastställer beslut från frågan. Ett beslut ändras aldrig — det ersätts eller kompletteras av ett nytt.</p>' +
+        '<h4>Möten</h4><p>Markera frågor för nästa möte med <b>+ Möte</b>. Under Möten finns urvalet per forum, förslag på frågor som borde tas upp och en storskärmsvy för mötesrummet.</p>' +
+        '<h4>Kortkommandon</h4><ul class="detalj"><li><span class="et"><kbd>N</kbd></span><span>Ny fråga</span></li><li><span class="et"><kbd>Ctrl</kbd>+<kbd>K</kbd> eller <kbd>/</kbd></span><span>Sök i projektet</span></li>' +
+        '<li><span class="et"><kbd>Esc</kbd></span><span>Stäng frågan</span></li></ul></div>', [{ txt: "Stäng", primar: true, fn: stangModal }]);
+}

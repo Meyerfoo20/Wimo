@@ -29,6 +29,7 @@ const TP_KOLUMNER = [
 const tpKolMin = (kol) => kol.reduce((s, k) => s + (parseInt(k.bredd, 10) || 150), 0);
 const tpKolumner = () => TP_KOLUMNER.filter(k => (!k.valbar || !tpVy.dolda.has(k.id)) && (k.kraver !== "bas" || (typeof tpAktivBas === "function" && tpAktivBas())));
 const tpRedig = () => tpKolumner().filter(k => k.redig).map(k => k.id);
+const TP_MIN_RADER = 10;       // tabellen visar alltid minst så här många rader (tomma att skriva i)
 const TP_VECKOR = 16;          // minsta antal veckor i kalendern
 // bredd per dag i kalendern (px) för dag-, vecko- och månadsvyn
 const TP_ZOOM = { dag: { dw: 34, veckor: 10, namn: "Dag" }, vecka: { dw: 20, veckor: 16, namn: "Vecka" }, manad: { dw: 7, veckor: 52, namn: "Månad" } };
@@ -96,11 +97,29 @@ function stangTidplan() {
     if (tpRedigerar)
         tpAvsluta(true);
     el.classList.add("dold");
+    document.body.classList.remove("tp-fullvy");
     let annan = false;
     try { annan = dashOppen() || startOppen() || ganttOppen() || backupOppen() || hjalpOppen() || dagbokOppen() || forslagOppen(); } catch (e) { }
     if (!annan)
         document.body.classList.remove("dashlage");
 }
+
+/* ---------- fullvy: tidplanen över hela fönstret, utan sidomeny och sidhuvud ---------- */
+const TP_FULL_IN = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>';
+const TP_FULL_UT = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5V6H2.5M13.5 6H10V2.5M10 13.5V10h3.5M2.5 10H6v3.5"/></svg>';
+function tpFullvyPa() { return document.body.classList.contains("tp-fullvy"); }
+function tpFullvy(pa) {
+    document.body.classList.toggle("tp-fullvy", !!pa);
+    if (tidplanOppen()) ritaTidplan();
+}
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !tpFullvyPa() || e.defaultPrevented) return;
+    // Esc stänger först det som ligger överst: dialoger, menyer, redigering och markeringar
+    if (tpRedigerar || tpDrag || tpMark.size || document.querySelector("#overlay, .overlay, .p4d-pop, .tp-fargval, .dv-pop, .datumval")) return;
+    const ae = document.activeElement;
+    if (ae && ae.closest && ae.closest("[data-tpper]") && (tpValdPeriod || tpValdaStaplar.size)) return;
+    tpFullvy(false);
+}, true);
 
 function tidplanOppen() { const el = document.getElementById("tidplan"); return !!el && !el.classList.contains("dold"); }
 
@@ -238,6 +257,7 @@ function tpMarkGor(gor) {
     if (gor === "klistra") return tpKlistraInRader(valda.length ? valda[valda.length - 1].a.id : null);
     if (gor === "radera") return tpRaderaMarkerade();
     if (gor === "indrag" || gor === "utdrag") return tpIndrag(valda.map(r => r.a.id), gor === "indrag" ? 1 : -1);
+    if (gor === "under" && valda.length === 1) { tpMark.clear(); return tpRadGor(valda[0].a.id, "under"); }
     if ((gor === "ovan" || gor === "nedan") && valda.length) return tpRadGor(gor === "ovan" ? valda[0].a.id : valda[valda.length - 1].a.id, gor === "ovan" ? "infoga" : "infogaNedan");
 }
 
@@ -588,7 +608,8 @@ function tpCell(a, k, nr, r) {
         const ihop = r.grupp && tpVy.ihop.has(a.id);
         return '<div class="tp-c tp-e" tabindex="-1" data-tpfalt="namn">' +
             (r.grupp ? '<button type="button" class="tp-ihop' + (ihop ? " ihop" : "") + '" data-tpihop tabindex="-1" aria-expanded="' + !ihop + '" title="' + (ihop ? "Visa" : "Fäll ihop") + ' underaktiviteterna" aria-label="' + (ihop ? "Visa" : "Fäll ihop") + ' underaktiviteterna">' + TP_PIL_H + "</button>" : "") +
-            '<span class="tp-namntext"' + (String(v).length > 18 ? ' title="' + esc(v) + '"' : "") + '>' + esc(v) + "</span></div>";
+            '<span class="tp-namntext"' + (String(v).length > 18 ? ' title="' + esc(v) + '"' : "") + '>' + esc(v) + "</span>" +
+            (tpKanAndra() ? '<button type="button" class="tp-nyunder" data-tpgor="under" tabindex="-1" title="Lägg till en underaktivitet under ' + esc(v || "raden") + ' (Ctrl+Alt+Enter)" aria-label="Lägg till underaktivitet">+</button>' : "") + "</div>";
     }
     if (k.id === "plan" || k.id === "avvik") {
         const barn = r.barnKarta || tpBarn(), kal = tpKal();
@@ -627,9 +648,16 @@ function tpCell(a, k, nr, r) {
 
 function tpAxel() {
     const iMan = d2iso(mandag(iso2d(IDAG)));
-    const fran = tpVy.fran || plus(iMan, -7), dpv = tpDpv();
+    // vy = där man har bläddrat till. Kalendern börjar ändå en vecka före den första stapeln,
+    // så att man alltid kan scrolla bakåt till planens början.
+    const vy = tpVy.fran || plus(iMan, -7), dpv = tpDpv();
+    let fran = vy;
+    tpAktiviteter(state).forEach(a => (a.perioder || []).forEach(q => {
+        const s = plus(d2iso(mandag(iso2d(tpStart(q)))), -7);
+        if (s < fran) fran = s;
+    }));
     const minV = (TP_ZOOM[tpVy.zoom] || TP_ZOOM.vecka).veckor;
-    let sista = plus(fran, minV * 7 - 1);
+    let sista = plus(vy, minV * 7 - 1);
     tpAktiviteter(state).forEach(a => (a.perioder || []).forEach(q => {
         const s = plus(tpSlut(q), 14);
         if (s > sista) sista = s;
@@ -641,7 +669,7 @@ function tpAxel() {
             dagar.push(plus(fran, w * 7 + d));
     const index = {};
     dagar.forEach((d, i) => { index[d] = i; });
-    return { fran, dagar, index, veckor, dpv };
+    return { fran, vy, dagar, index, veckor, dpv };
 }
 
 // Kolumn för ett datum, även utanför axeln. Med fem dagar i veckan hamnar helgen på fredagen.
@@ -674,6 +702,12 @@ function tpBemText(q) {
     return mx ? (mx === mn ? mx : mx + "–" + mn) + " pers" : "";
 }
 
+// Texten efter en stapel: periodens eget namn, annars aktivitetens.
+function tpStapelNamn(a, q) {
+    const eget = q && typeof q.namn === "string" ? q.namn.trim() : "";
+    return eget || (a && a.namn) || "";
+}
+
 function tpStaplar(a, ax, r) {
     const kal = tpKal();
     let html = typeof tpUfBasStaplar === "function" ? tpUfBasStaplar(a, ax, r) : "";
@@ -684,7 +718,8 @@ function tpStaplar(a, ax, r) {
             const k0 = tpKol(ax, sp.fran), k1 = tpKol(ax, sp.till);
             const titel = (a.namn || "Grupp") + "\n" + dagEtikett(sp.fran) + " – " + dagEtikett(sp.till) + "\n" + kal.arbetsdagar(sp.fran, sp.till) + " arbetsdagar" +
                 (tpKanAndra() ? "\nDra för att flytta hela gruppen" : "");
-            html += '<div class="tp-summa" data-tpgrupp="' + esc(a.id) + '" style="left:' + (k0 * TP_DW) + "px;width:" + ((k1 - k0 + 1) * TP_DW) + 'px" title="' + esc(titel) + '"><span></span></div>';
+            html += '<div class="tp-summa" data-tpgrupp="' + esc(a.id) + '" style="left:' + (k0 * TP_DW) + "px;width:" + ((k1 - k0 + 1) * TP_DW) + 'px" title="' + esc(titel) + '"><span></span>' +
+                (a.namn ? '<span class="tp-stnamn" aria-hidden="true">' + esc(a.namn) + "</span>" : "") + "</div>";
         }
     }
     return html + (a.perioder || []).map(q => {
@@ -700,7 +735,8 @@ function tpStaplar(a, ax, r) {
         }
         const kd = Math.round((iso2d(slut) - iso2d(start)) / 864e5) + 1;
         const bem = tpBemText(q), pd = tpPeriodPersondagar(kal, q).tot;
-        const titel = (a.namn || "Aktivitet") + "\n" + dagEtikett(start) + " – " + dagEtikett(slut) + "\n" + q.arbDagar + " arbetsdagar · " + kd + " kalenderdagar" +
+        const stNamn = tpStapelNamn(a, q), egetNamn = !!(q.namn && String(q.namn).trim());
+        const titel = (egetNamn ? q.namn + " · " : "") + (a.namn || "Aktivitet") + "\n" + dagEtikett(start) + " – " + dagEtikett(slut) + "\n" + q.arbDagar + " arbetsdagar · " + kd + " kalenderdagar" +
             (pd ? "\n" + bem + " · " + tpTimmarText(pd) + " persondagar · " + tpTimmarText(pd * kal.inst.arbTimmarPerDag) + " h" : "") +
             (pauser.length ? "\nLedigt: " + [...new Set(pauser.map(x => x.skal).filter(x => x !== "helg"))].join(", ") : "") +
             (start !== q.start ? "\nStarten " + kortDatum(q.start) + " är en ledig dag, perioden börjar " + kortDatum(start) : "") +
@@ -720,7 +756,8 @@ function tpStaplar(a, ax, r) {
             '<span class="tp-hand v" data-tphand="start" aria-hidden="true"></span>' +
             (etikett ? '<span class="tp-dgr">' + etikett + "</span>" : "") +
             '<span class="tp-hand h" data-tphand="slut" aria-hidden="true"></span>' +
-            (koppla ? '<span class="tp-koppla" data-tpkoppla title="Dra till en annan stapel för att skapa ett samband" aria-hidden="true"></span>' : "") + "</button>";
+            (koppla ? '<span class="tp-koppla" data-tpkoppla title="Dra till en annan stapel för att skapa ett samband" aria-hidden="true"></span>' : "") +
+            (stNamn && (egetNamn || !(r && r.grupp)) ? '<span class="tp-stnamn' + (egetNamn ? " eget" : "") + '" aria-hidden="true">' + esc(stNamn) + "</span>" : "") + "</button>";
     }).join("");
 }
 
@@ -760,7 +797,7 @@ function ritaTidplan() {
     if (typeof tpTvForbered === "function") tpTvForbered();
     TP_DW = TP_ZOOM[tpVy.zoom].dw;
     const kal0 = el.querySelector(".tp-kalender");
-    if (kal0) tpScroll = kal0.scrollLeft;
+    if (kal0 && tpScroll !== null) tpScroll = kal0.scrollLeft;
     const fokusStapel = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.tpper;
     const fokus = document.activeElement && document.activeElement.closest && document.activeElement.closest("#tidplan [data-tprad]");
     const fokusId = fokus && fokus.dataset.tprad, fokusFalt = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.tpfalt;
@@ -781,6 +818,10 @@ function ritaTidplan() {
         '<div class="tp-c tp-nr">' + (rader.length + 1) + "</div>" +
         '<div class="tp-c tp-e" tabindex="-1" data-tpfalt="namn"><span class="tp-tom">Ny aktivitet</span></div>' +
         kolumner.slice(2).map(() => '<div class="tp-c"></div>').join("") + "</div>" : "";
+    // tomma rader så att tabellen alltid har minst TP_MIN_RADER rader att skriva i
+    const fyll = kan ? Math.max(0, TP_MIN_RADER - rader.length - 1) : 0;
+    const fyllRader = Array.from({ length: fyll }, (_, i) => '<div class="tp-rad tp-nyrad tp-fyllrad" data-tpfyll aria-hidden="true">' +
+        '<div class="tp-c tp-nr">' + (rader.length + 2 + i) + "</div>" + kolumner.slice(1).map(() => '<div class="tp-c"></div>').join("") + "</div>").join("");
     const kalRad = (r) => '<div class="tp-kalrad' + (r ? " tpc-" + tpFarg(r.a) + (r.grupp ? " tp-grupprad" : "") : "") + '" data-tpspar="' + (r ? esc(r.a.id) : "ny") + '">' + (r ? tpStaplar(r.a, ax, r) : "") + "</div>";
     const kalObj = tpKal();
     const lediga = ax.dagar.map((d, i) => ({ d, i, skal: kalObj.ledigtSkal(d) })).filter(x => x.skal);
@@ -804,6 +845,8 @@ function ritaTidplan() {
         '<button type="button" data-tpgor="uppfoljning" aria-haspopup="dialog" aria-pressed="' + !!(tpVy.bas || tpVy.avst) + '" class="' + (tpVy.bas || tpVy.avst ? "vald" : "") + '" title="Baslinje och avstämningslinje">Uppföljning</button>' +
         (kan ? '<button type="button" data-tpgor="kalender" title="Arbetsdagar, helgdagar, lediga dagar och semester">Kalender</button>' : "") +
             '<button type="button" data-tpgor="skrivut" title="Skriv ut eller spara som PDF (Ctrl+P)">Skriv ut</button>' +
+            '<button type="button" data-tpgor="fullvy" aria-pressed="' + tpFullvyPa() + '" class="tp-fullknapp' + (tpFullvyPa() ? " vald" : "") + '" title="' + (tpFullvyPa() ? "Stäng fullvyn (Esc)" : "Visa tidplanen över hela skärmen") + '">' +
+            (tpFullvyPa() ? TP_FULL_UT + "Stäng fullvy" : TP_FULL_IN + "Fullvy") + "</button>" +
             (typeof tpTvKnapp === "function" ? tpTvKnapp() : "") + "</div>" +
         '<div class="tp-nav" role="group" aria-label="Kalenderns period">' +
         '<button type="button" data-tpnav="-4" title="4 veckor bakåt" aria-label="4 veckor bakåt">' + TP_PIL_V + "</button>" +
@@ -819,18 +862,19 @@ function ritaTidplan() {
             '<span class="tp-markdel" aria-hidden="true"></span>' +
             '<button type="button" class="mknapp" data-tpmark="ovan" title="Ctrl+Enter">Infoga ovanför</button>' +
             '<button type="button" class="mknapp" data-tpmark="nedan" title="Ctrl+Skift+Enter">Infoga nedanför</button>' +
+            (tpMark.size === 1 ? '<button type="button" class="mknapp" data-tpmark="under" title="Ctrl+Alt+Enter">+ Underaktivitet</button>' : "") +
             '<button type="button" class="mknapp tp-fara" data-tpmark="radera" title="Ctrl+Delete">Radera</button>' +
             '<button type="button" class="p4d-lank" data-tpmark="avmarkera" title="Esc">Avmarkera</button></div>' : "") +
         '<div class="tp-yta z-' + tpVy.zoom + (kan ? "" : " tp-las") + '" style="--tp-kol:' + kolumner.map(k => k.bredd).join(" ") + ";--tp-kolmin:" + tpKolMin(kolumner) + "px;--tp-tab:" + tabBredd + '">' +
         '<div class="tp-tabell" role="grid" aria-label="Aktiviteter">' +
         '<div class="tp-rad tp-huvud" role="row">' + kolumner.map(k => '<div class="tp-c' + (["kalkTimmar", "plan", "avvik"].indexOf(k.id) >= 0 ? " tp-tal" : "") + '"' + (k.titel ? ' title="' + esc(k.titel) + '"' : "") + ">" + esc(k.namn) + "</div>").join("") + "</div>" +
-        radHtml + nyRad + "</div>" +
+        radHtml + nyRad + fyllRader + "</div>" +
         '<button type="button" class="tp-tabknapp" data-tptab aria-expanded="' + !tpVy.tabSmal + '" title="' + (tpVy.tabSmal ? "Visa hela tabellen" : "Smalare tabell – mer plats för kalendern") + '" aria-label="' + (tpVy.tabSmal ? "Visa hela tabellen" : "Gör tabellen smalare") + '">' + (tpVy.tabSmal ? TP_PIL_H : TP_PIL_V) + "</button>" +
         '<div class="tp-kalender" aria-label="Kalender">' +
         '<div class="tp-kalinre" style="width:' + bredd + "px;--dw:" + TP_DW + "px;--dpv:" + ax.dpv + '">' +
         lediga.map(x => '<div class="tp-ledig' + (x.skal === "helg" ? " helg" : "") + '" style="left:' + (x.i * TP_DW) + 'px" title="' + esc(dagEtikett(x.d) + " · " + (x.skal === "helg" ? "Ledig" : x.skal)) + '"></div>').join("") +
         tpKalHuvud(ax) +
-        rader.map(r => kalRad(r)).join("") + (kan ? kalRad(null) : "") +
+        rader.map(r => kalRad(r)).join("") + (kan ? kalRad(null) : "") + '<div class="tp-kalrad tp-fyllkal" data-tpspar="ny"></div>'.repeat(fyll) +
         (typeof tpSbPilar === "function" ? tpSbPilar(ax, rader, 36, tpVy.zoom === "vecka" ? 36 : 52) : "") +
         (typeof tpUfAvstamning === "function" ? tpUfAvstamning(ax, rader, 36, tpVy.zoom === "vecka" ? 36 : 52) : "") +
         (idagX >= 0 && idagX <= bredd && !(tpVy.avst && !tpVy.avstDatum) ? '<div class="tp-idag" style="left:' + idagX + 'px" title="Idag"></div>' : "") +
@@ -844,6 +888,7 @@ function ritaTidplan() {
         "<dt><kbd>Tab</kbd></dt><dd>Spara och gå åt höger</dd>" +
         "<dt><kbd>Esc</kbd></dt><dd>Avbryt</dd>" +
         "<dt><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Flytta raden (eller dra i namnet)</dd>" +
+        "<dt><kbd>+</kbd> vid namnet</dt><dd>Lägg till en underaktivitet (även <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Enter</kbd>)</dd>" +
         "<dt><kbd>Alt</kbd> <kbd>Skift</kbd> <kbd>→</kbd> <kbd>←</kbd></dt><dd>Gör till underaktivitet / lyft ut ur gruppen</dd>" +
         "<dt>Pilen vid en grupp</dt><dd>Fäll ihop och visa underaktiviteterna</dd>" +
         "<dt>Kolumnen Klart</dt><dd>Skriv hur många procent som är klart, t.ex. <kbd>60</kbd></dd>" +
@@ -881,15 +926,22 @@ function tpScrolla() {
     const kal = document.querySelector("#tidplan .tp-kalender");
     if (!kal)
         return;
+    const ax = tpAxel();
     if (tpScroll === null) {
         // har man bläddrat till en vecka börjar vyn där, annars en vecka före idag
-        const ax = tpAxel(), k = tpVy.fran ? 0 : tpKol(ax, IDAG);
+        const k = tpVy.fran ? tpKol(ax, ax.vy) + ax.dpv : tpKol(ax, IDAG);
         kal.scrollLeft = Math.max(0, Math.floor(k / ax.dpv - 1) * ax.dpv * TP_DW);
         tpScroll = kal.scrollLeft;
     }
-    else
-        kal.scrollLeft = tpScroll;
+    else {
+        // kalendern har fått fler veckor till vänster (en stapel flyttades före starten): behåll samma vy
+        const forut = tpAxFran && tpAxFran !== ax.fran ? tpKol(ax, tpAxFran) * TP_DW : 0;
+        kal.scrollLeft = tpScroll + forut;
+        tpScroll = kal.scrollLeft;
+    }
+    tpAxFran = ax.fran;
 }
+let tpAxFran = null;           // kalenderns första dag vid förra ritningen
 
 /* ---------- redigering i cellerna ---------- */
 
@@ -1019,6 +1071,15 @@ function tpRadGor(id, gor) {
             tpBorja(cell);
         }
     }
+    else if (gor === "under") {
+        const patch = opTpNyAktivitet(state, { namn: "", under: id });
+        tpVy.ihop.delete(id);
+        tpVySpara();
+        if (tpKor(patch, "Ny underaktivitet under " + (a.namn || "raden"))) {
+            const cell = tpFokus(patch.andringar[0].id, "namn");
+            if (cell) tpBorja(cell);
+        }
+    }
     else if (gor === "radera" && tpMark.size > 1 && tpMark.has(id))
         tpRaderaMarkerade();
     else if (gor === "radera") {
@@ -1044,6 +1105,7 @@ function tpRadGor(id, gor) {
         }
         const mk = e.target.closest("[data-tpmark]");
         if (mk) return tpMarkGor(mk.dataset.tpmark);
+        if (e.target.closest("[data-tpfyll]")) { const c = tpFokus("ny", "namn"); if (c) tpBorja(c); return; }
         const ihop = e.target.closest("[data-tpihop]");
         if (ihop) { const r = ihop.closest("[data-tprad]"); if (r) tpVaxlaIhop(r.dataset.tprad); return; }
         const nr = e.target.closest(".tp-tabell .tp-nr");
@@ -1099,6 +1161,7 @@ function tpRadGor(id, gor) {
                 return tpIndrag(ids, e.key === "ArrowRight" ? 1 : -1);
             }
             if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); return tpRadGor(id, e.key === "ArrowUp" ? "upp" : "ned"); }
+            if ((e.ctrlKey || e.metaKey) && e.altKey && e.key === "Enter") { e.preventDefault(); return tpRadGor(id, "under"); }
             if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); return tpRadGor(id, e.shiftKey ? "infogaNedan" : "infoga"); }
             if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
                 e.preventDefault();
@@ -1194,6 +1257,7 @@ let tpDrag = null;
             if (gor.dataset.tpgor === "angra") tpAngra();
             else if (gor.dataset.tpgor === "gorom") tpGorOm();
             else if (gor.dataset.tpgor === "kalender") tpKalenderDialog();
+            else if (gor.dataset.tpgor === "fullvy") tpFullvy(!tpFullvyPa());
             else if (gor.dataset.tpgor === "skrivut" && typeof tpUtskriftDialog === "function") tpUtskriftDialog();
             else if (gor.dataset.tpgor === "helger") { tpVy.helger = !tpVy.helger; tpVySpara(); ritaTidplan(); }
             else if (gor.dataset.tpgor === "kolumner") tpKolumnVal(gor);
@@ -1224,7 +1288,7 @@ let tpDrag = null;
             const kal = yta.querySelector(".tp-kalender");
             const ax0 = tpAxel(), syns = ax0.dagar[Math.round((kal ? kal.scrollLeft : 0) / TP_DW / ax0.dpv) * ax0.dpv] || iMan;
             tpVy.fran = plus(syns, +nav.dataset.tpnav * 7);
-            tpScroll = 0;
+            tpScroll = null;
         }
         ritaTidplan();
     });
@@ -1523,6 +1587,7 @@ let tpRadDrag = null, tpRadDragKlart = false;
     yta.addEventListener("pointerdown", (e) => {
         if (e.button !== 0 || !tpKanAndra())
             return;
+        if (e.target.closest(".tp-nyunder, .tp-ihop")) return;
         const cell = e.target.closest('.tp-tabell .tp-e[data-tpfalt="namn"]');
         const rad = cell && cell.closest("[data-tprad]");
         if (!rad || rad.dataset.tprad === "ny" || cell.classList.contains("redigerar"))

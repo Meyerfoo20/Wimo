@@ -1670,7 +1670,7 @@
                   " · konto skapat " + esc(datumText(anvandare.metadata && anvandare.metadata.creationTime)) +
                   (arAdmin() ? ' · <span class="p4-ks-tagg admin">Huvudadmin</span>' : "") + "</p>" +
               "</div>" +
-              '<button type="button" class="navknapp" data-ks="tillbaka">← Till tavlan</button>' +
+              '<button type="button" class="navknapp" data-ks="tillbaka">' + (document.body.classList.contains("modul-forma") ? "← Till Forma" : "← Till tavlan") + '</button>' +
             "</div>" +
 
             '<div class="p4-ks-siffror" id="ksSiffror"></div>' +
@@ -1705,7 +1705,7 @@
                     '<div class="p4-ks-knappar"><a class="mknapp" href="https://myaccount.google.com/security" target="_blank" rel="noopener">Öppna Google-kontot</a></div>') +
               "</section>" +
 
-              '<section class="p4-ks-kort">' +
+              '<section class="p4-ks-kort p4-ks-planbara">' +
                 "<h2>Gå med i ett projekt</h2>" +
                 '<p class="hjalp">Har du fått en projektkod? Skriv in den här så skickas en ansökan till projektadmin för projektet.</p>' +
                 '<div class="falt"><label for="ksKod">Projektkod</label><div class="p4-ks-gamed"><input class="f p4-kodfalt" id="ksKod" autocomplete="off" spellcheck="false" maxlength="12" placeholder="T.ex. K7M4QX">' +
@@ -1893,7 +1893,7 @@
         const b = e.target.closest("#p4KontoSida [data-ks]");
         if (b) {
             const vad = b.dataset.ks;
-            if (vad === "tillbaka") stangKontosida();
+            if (vad === "tillbaka") { if (document.body.classList.contains("modul-forma") && typeof foGaTill === "function") { document.body.classList.remove("p4-kontovy"); foGaTill(foVy || "oversikt"); } else stangKontosida(); }
             else if (vad === "synka") { lage = "synkar"; uppdateraUI(); schemalaggPush(0); }
             else if (vad === "namn") sparaNamn();
             else if (vad === "losen") bytLosenord();
@@ -2074,6 +2074,7 @@
     }
 
     function hanteraBehorighet(d) {
+        setTimeout(() => window.dispatchEvent(new CustomEvent("wimo-konto", { detail: { inloggad: !!anvandare } })), 0);
         const forraRoll = behorighet.roll;
         behorighet = { roll: (d && d.roll) || "user", status: (d && d.status) || "vantar", skapa: !!(d && d.skapa === true),
             ansokan: (d && d.ansokan) || "", ansokanNamn: (d && d.ansokanNamn) || "" };
@@ -2093,6 +2094,7 @@
 
     function startaApp() {
         appStartad = true;
+        setTimeout(() => window.dispatchEvent(new CustomEvent("wimo-konto", { detail: { inloggad: true } })), 0);
         // Samma konto som senast: visa den lokala kopian direkt och synka i bakgrunden.
         // Annars visas ingenting förrän kontots projekt är hämtade.
         const kand = moln.uid === anvandare.uid;
@@ -2111,6 +2113,7 @@
     }
     function stoppaApp() {
         appStartad = false;
+        window.dispatchEvent(new CustomEvent("wimo-konto", { detail: { inloggad: false } }));
         synkKlar = false;
         clearTimeout(pushTimer);
         if (lyssnare) { lyssnare(); lyssnare = null; }
@@ -2168,6 +2171,73 @@
             : "En administratör behöver godkänna " + (anvandare.email || "ditt konto") + " innan du kommer åt Wimo. Sidan öppnas av sig själv så fort det är klart — du behöver inte ladda om.";
         $("p4Vantar").classList.toggle("nekad", nekad);
     }
+
+    // ---------- Wimo Forma: egna projekt i forma/{id} ----------
+    // Formas data är helt skild från Plan. Ett Forma-projekt är ett dokument med
+    // { namn, medlemmar, admins, data (JSON), rev } och bilagor i forma/{id}/filer/{fil}.
+    // Sparning sker i en transaktion som nekas om någon annan hunnit spara (rev),
+    // så att appen kan lägga sina ändringar ovanpå den nyare versionen.
+    const formaSamling = () => fb.fs.collection(fb.db, "forma");
+    const formaDoc = (id) => fb.fs.doc(fb.db, "forma", id);
+    const formaRedo = () => !!(fb && anvandare && behorighet.status === "godkand");
+    const formaLas = (d) => {
+        const x = d.data() || {};
+        let data = null;
+        try { data = x.data ? JSON.parse(x.data) : null; } catch (e) { data = null; }
+        return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data };
+    };
+    window.p4FormaMoln = {
+        redo: formaRedo,
+        uid: () => anvandare ? anvandare.uid : "",
+        arAdmin: () => arAdmin(),
+        farSkapa: () => kanSkapaProjekt(),
+        personer: () => allaAnvandare.map((a) => ({ uid: a.uid, namn: a.namn || "", epost: a.epost || "" })),
+        lista(cb, fel) {
+            if (!formaRedo()) return () => { };
+            const q = arAdmin() ? formaSamling() : fb.fs.query(formaSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
+            return fb.fs.onSnapshot(q, (snap) => cb(snap.docs.map((d) => { const x = d.data() || {};
+                return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [] }; })), fel || ((e) => console.warn("Forma lista:", e)));
+        },
+        lyssna(id, cb, fel) {
+            if (!formaRedo()) return () => { };
+            return fb.fs.onSnapshot(formaDoc(id), (d) => cb(d.exists() ? formaLas(d) : null), fel || ((e) => console.warn("Forma projekt:", e)));
+        },
+        async skapa(id, namn, data) {
+            await fb.fs.setDoc(formaDoc(id), { namn: String(namn || "Projekt").slice(0, 200), medlemmar: [anvandare.uid], admins: [anvandare.uid],
+                data: JSON.stringify(data), rev: 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+            return 1;
+        },
+        // Sparar om rev fortfarande stämmer. Annars kastas { konflikt, fjarr } med den nyare versionen.
+        async spara(id, data, rev, namn) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const x = formaLas(d);
+                if (x.rev !== rev) throw { konflikt: true, fjarr: x };
+                t.update(formaDoc(id), { namn: String(namn || x.namn).slice(0, 200), data: JSON.stringify(data), rev: rev + 1,
+                    andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+                return rev + 1;
+            });
+        },
+        async medlemmar(id, medlemmar, admins) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const x = d.data() || {};
+                t.update(formaDoc(id), { medlemmar: medlemmar, admins: admins, rev: (x.rev || 0) + 1, data: x.data || "{}",
+                    andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+            });
+        },
+        async radera(id) { await fb.fs.deleteDoc(formaDoc(id)); },
+        async sparaFil(pid, fid, obj) {
+            await fb.fs.setDoc(fb.fs.doc(fb.db, "forma", pid, "filer", fid), { namn: String(obj.namn || "fil").slice(0, 200), typ: String(obj.typ || "").slice(0, 100),
+                storlek: obj.storlek || 0, data: obj.data, skapad: fb.fs.serverTimestamp(), av: anvandare.uid });
+        },
+        async hamtaFil(pid, fid) {
+            const d = await fb.fs.getDoc(fb.fs.doc(fb.db, "forma", pid, "filer", fid));
+            return d.exists() ? d.data() : null;
+        }
+    };
 
     // ---------- admin: alla användare ----------
     // Bara huvudadmin läser alla konton.

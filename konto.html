@@ -19,22 +19,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
 
-  <link rel="stylesheet" href="css/bas.css?v=20261123a">
-  <link rel="stylesheet" href="css/dialoger.css?v=20261123a">
-  <link rel="stylesheet" href="css/vyer.css?v=20261123a">
-  <link rel="stylesheet" href="css/utskrift.css?v=20261123a">
-  <link rel="stylesheet" href="css/skal.css?v=20261123a">
-  <link rel="stylesheet" href="css/konto.css?v=20261123a">
-  <link rel="stylesheet" href="css/datumval.css?v=20261123a">
-  <link rel="stylesheet" href="css/gantt.css?v=20261123a">
-  <link rel="stylesheet" href="css/dagbok.css?v=20261123a">
-  <link rel="stylesheet" href="css/forslag.css?v=20261123a">
-  <link rel="stylesheet" href="css/tidplan.css?v=20261123a">
-  <link rel="stylesheet" href="css/tema.css?v=20261123a">
-  <link rel="stylesheet" href="css/backup.css?v=20261123a">
-  <link rel="stylesheet" href="css/hjalp.css?v=20261123a">
-  <link rel="stylesheet" href="css/hindernotis.css?v=20261123a">
-  <link rel="stylesheet" href="css/mobil.css?v=20261123a">
+  <link rel="stylesheet" href="css/bas.css?v=20261123i">
+  <link rel="stylesheet" href="css/dialoger.css?v=20261123i">
+  <link rel="stylesheet" href="css/vyer.css?v=20261123i">
+  <link rel="stylesheet" href="css/utskrift.css?v=20261123i">
+  <link rel="stylesheet" href="css/skal.css?v=20261123i">
+  <link rel="stylesheet" href="css/konto.css?v=20261123i">
+  <link rel="stylesheet" href="css/datumval.css?v=20261123i">
+  <link rel="stylesheet" href="css/gantt.css?v=20261123i">
+  <link rel="stylesheet" href="css/dagbok.css?v=20261123i">
+  <link rel="stylesheet" href="css/forslag.css?v=20261123i">
+  <link rel="stylesheet" href="css/tidplan.css?v=20261123i">
+  <link rel="stylesheet" href="css/tema.css?v=20261123i">
+  <link rel="stylesheet" href="css/backup.css?v=20261123i">
+  <link rel="stylesheet" href="css/hjalp.css?v=20261123i">
+  <link rel="stylesheet" href="css/hindernotis.css?v=20261123i">
+  <link rel="stylesheet" href="css/forma.css?v=20261123i">
+  <link rel="stylesheet" href="css/mobil.css?v=20261123i">
 </head>
 <body class="p4-laddar">
   <!-- Laddning medan inloggningen kontrolleras -->
@@ -98,19 +99,28 @@
   <header class="p4-header">
     <div class="p4-header-inre">
       <button class="p4-meny" id="p4Meny" type="button" aria-label="Öppna menyn" aria-expanded="false"><span></span><span></span><span></span></button>
-      <a class="p4-brand" href="#" id="p4Brand" title="Till tavlan">
+      <a class="p4-brand" href="#" id="p4Brand" title="Byt modul: Wimo Plan eller Wimo Forma" role="button" aria-haspopup="menu" aria-expanded="false">
         <img class="p4-ord p4-logotyp" src="img/wimo.png?v=1" alt="Wimo" width="660" height="160">
+        <span class="p4-modulnamn" id="p4ModulNamn">Plan</span><span class="p4-caret p4-modulcaret" aria-hidden="true"></span>
         <img id="logga" class="logga dold" alt="">
       </a>
       <button class="projektknapp" id="projektknapp" title="Byt eller hantera projekt"><span class="p4-pre">Projekt</span><span id="projektnamnText">Projekt</span><span class="p4-hindermark dold" id="projektHinder" role="img" aria-label="Öppna hinder">⚠</span><span class="p4-caret" aria-hidden="true"></span></button>
+      <button class="projektknapp fo-bara" id="foProjektknapp" type="button" title="Byt Forma-projekt"><span class="p4-pre">Projekt</span><span id="foProjektText">Välj projekt</span><span class="fo-demochip dold" id="foDemo">Demo</span><span class="p4-caret" aria-hidden="true"></span></button>
       <nav class="flikar" id="flikar" aria-label="Tavlor"></nav>
       <div class="p4-header-hoger">
         <span class="status" id="status" role="status" aria-live="polite"></span>
+        <span class="fo-synk fo-bara" id="foSynk" role="status"></span>
         <button class="p4-tema" id="p4Tema" type="button" title="Byt till mörkt läge" aria-label="Byt till mörkt läge" aria-pressed="false">
           <svg class="ik-mane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
           <svg class="ik-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M2 12h2.2M19.8 12H22M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
         </button>
-        <label class="p4-sok" title="Sök bland posterna på tavlan ( / )">
+        <label class="p4-sok fo-sok fo-bara" title="Sök frågor, beslut, åtgärder och personer ( Ctrl+K )">
+          <span class="p4-ik ik-sok" aria-hidden="true"></span>
+          <input id="foSok" type="search" placeholder="Sök fråga, beslut, person" autocomplete="off" aria-label="Sök i Forma-projektet">
+          <kbd>Ctrl K</kbd>
+        </label>
+        <button class="p4-btn p4-btn-primar fo-bara fo-nyknapp dold" id="foNyFraga" type="button" title="Ny fråga ( N )">+ Ny fråga</button>
+        <label class="p4-sok plan-bara" title="Sök bland posterna på tavlan ( / )">
           <span class="p4-ik ik-sok" aria-hidden="true"></span>
           <input id="p4Sok" type="search" placeholder="Sök på tavlan" autocomplete="off" aria-label="Sök på tavlan">
           <kbd>/</kbd>
@@ -127,16 +137,18 @@
 
   <div class="p4-skal">
     <nav class="p4-sidebar" id="p4Sidebar" aria-label="Huvudmeny">
+      <div class="fo-nav" id="foNav"></div>
+      <div class="plan-nav">
       <div class="p4-navgrupp">
         <div class="p4-navrubrik">Översikt</div>
         <button class="p4-nav aktiv" type="button" data-nav="tavla"><span class="p4-ik ik-tavla"></span><span>Tavlan</span></button>
+        <button class="p4-nav" type="button" data-nav="gantt"><span class="p4-ik ik-gantt"></span><span>Gantt-schema</span></button>
         <button class="p4-nav" type="button" data-nav="dash"><span class="p4-ik ik-dash"></span><span>Projektöversikt</span><span class="p4-badge dold" id="p4AtgBadge" title="Kräver åtgärd"></span></button>
-        <button class="p4-nav" type="button" data-nav="tidplan"><span class="p4-ik ik-tidplan"></span><span>Tidplan</span></button>
         <button class="p4-nav" type="button" data-nav="start"><span class="p4-ik ik-lista"></span><span>Att göra</span><span class="p4-badge p4-badge-ljus dold" id="p4AgBadge" title="Öppna punkter"></span></button>
         <button class="p4-nav" type="button" data-nav="backup"><span class="p4-ik ik-backup"></span><span>Back up</span><span class="p4-badge p4-badge-ljus dold" id="p4BuBadge" title="Back-up jobb som är redo"></span></button>
-        <button class="p4-nav" type="button" data-nav="gantt"><span class="p4-ik ik-gantt"></span><span>Gantt-schema</span></button>
         <button class="p4-nav" type="button" data-nav="dagbok"><span class="p4-ik ik-dagbok"></span><span>Dagbok</span></button>
         <button class="p4-nav" type="button" data-nav="anteckningar"><span class="p4-ik ik-anteckning"></span><span>Anteckningar</span></button>
+        <button class="p4-nav" type="button" data-nav="tidplan"><span class="p4-ik ik-tidplan"></span><span>Tidplan</span></button>
       </div>
       <div class="p4-navgrupp">
         <div class="p4-navrubrik">Uppföljning</div>
@@ -155,6 +167,8 @@
         <button class="p4-nav" type="button" data-nav="hjalp"><span class="p4-ik ik-hjalp"></span><span>Hjälp</span></button>
         <button class="p4-nav" type="button" data-nav="forslag"><span class="p4-ik ik-forslag"></span><span>Förslag</span></button>
         <button class="p4-nav dold" type="button" id="p4Installera"><span class="p4-ik ik-installera"></span><span>Installera appen</span></button>
+      </div>
+
       </div>
 
       <div class="p4-backup" id="p4Backup">
@@ -263,6 +277,7 @@
       <div id="backup" class="dold" aria-label="Back up"></div>
       <div id="hjalp" class="dold" aria-label="Hjälp"></div>
       <div id="forslag" class="dold" aria-label="Förslag"></div>
+      <div id="forma" class="fo-yta" aria-label="Wimo Forma"></div>
     </main>
   </div>
 
@@ -297,52 +312,62 @@
   <div id="utskriftsfot"></div>
 
   <!-- Domänlogik (core) -->
-  <script src="js/core/konstanter.js?v=20261123a"></script>
-  <script src="js/core/datum.js?v=20261123a"></script>
-  <script src="js/core/kalender.js?v=20261123a"></script>
-  <script src="js/core/tpberakning.js?v=20261123a"></script>
-  <script src="js/core/kort.js?v=20261123a"></script>
-  <script src="js/core/operationer.js?v=20261123a"></script>
-  <script src="js/core/avrop.js?v=20261123a"></script>
-  <script src="js/core/resurser.js?v=20261123a"></script>
-  <script src="js/core/franvaro.js?v=20261123a"></script>
-  <script src="js/core/foretag.js?v=20261123a"></script>
-  <script src="js/core/projekt.js?v=20261123a"></script>
+  <script src="js/core/konstanter.js?v=20261123i"></script>
+  <script src="js/core/datum.js?v=20261123i"></script>
+  <script src="js/core/kalender.js?v=20261123i"></script>
+  <script src="js/core/tpberakning.js?v=20261123i"></script>
+  <script src="js/core/kort.js?v=20261123i"></script>
+  <script src="js/core/operationer.js?v=20261123i"></script>
+  <script src="js/core/avrop.js?v=20261123i"></script>
+  <script src="js/core/resurser.js?v=20261123i"></script>
+  <script src="js/core/franvaro.js?v=20261123i"></script>
+  <script src="js/core/foretag.js?v=20261123i"></script>
+  <script src="js/core/projekt.js?v=20261123i"></script>
 
   <!-- Gränssnitt, lagring och dialoger -->
-  <script src="js/app/grund.js?v=20261123a"></script>
-  <script src="js/app/tavla.js?v=20261123a"></script>
-  <script src="js/app/flytt.js?v=20261123a"></script>
-  <script src="js/app/guide.js?v=20261123a"></script>
-  <script src="js/app/redigera.js?v=20261123a"></script>
-  <script src="js/app/avropsmallar.js?v=20261123a"></script>
-  <script src="js/app/utfall-vader.js?v=20261123a"></script>
-  <script src="js/app/utskrift.js?v=20261123a"></script>
-  <script src="js/app/register.js?v=20261123a"></script>
-  <script src="js/app/oversikt.js?v=20261123a"></script>
-  <script src="js/app/projekt.js?v=20261123a"></script>
-  <script src="js/app/gantt.js?v=20261123a"></script>
-  <script src="js/app/backup.js?v=20261123a"></script>
-  <script src="js/app/hjalp.js?v=20261123a"></script>
-  <script src="js/app/dagbok.js?v=20261123a"></script>
-  <script src="js/app/forslag.js?v=20261123a"></script>
-  <script src="js/app/tidplan.js?v=20261123a"></script>
-  <script src="js/app/tidplan-resurser.js?v=20261123a"></script>
-  <script src="js/app/tidplan-uppfoljning.js?v=20261123a"></script>
-  <script src="js/app/tidplan-samband.js?v=20261123a"></script>
-  <script src="js/app/tidplan-tavla.js?v=20261123a"></script>
-  <script src="js/app/tidplan-utskrift.js?v=20261123a"></script>
-  <script src="js/app/anteckningar.js?v=20261123a"></script>
-  <script src="js/app/hindernotis.js?v=20261123a"></script>
+  <script src="js/app/grund.js?v=20261123i"></script>
+  <script src="js/app/tavla.js?v=20261123i"></script>
+  <script src="js/app/flytt.js?v=20261123i"></script>
+  <script src="js/app/guide.js?v=20261123i"></script>
+  <script src="js/app/redigera.js?v=20261123i"></script>
+  <script src="js/app/avropsmallar.js?v=20261123i"></script>
+  <script src="js/app/utfall-vader.js?v=20261123i"></script>
+  <script src="js/app/utskrift.js?v=20261123i"></script>
+  <script src="js/app/register.js?v=20261123i"></script>
+  <script src="js/app/oversikt.js?v=20261123i"></script>
+  <script src="js/app/projekt.js?v=20261123i"></script>
+  <script src="js/app/gantt.js?v=20261123i"></script>
+  <script src="js/app/backup.js?v=20261123i"></script>
+  <script src="js/app/hjalp.js?v=20261123i"></script>
+  <script src="js/app/dagbok.js?v=20261123i"></script>
+  <script src="js/app/forslag.js?v=20261123i"></script>
+  <script src="js/app/tidplan.js?v=20261123i"></script>
+  <script src="js/app/tidplan-resurser.js?v=20261123i"></script>
+  <script src="js/app/tidplan-uppfoljning.js?v=20261123i"></script>
+  <script src="js/app/tidplan-samband.js?v=20261123i"></script>
+  <script src="js/app/tidplan-tavla.js?v=20261123i"></script>
+  <script src="js/app/tidplan-utskrift.js?v=20261123i"></script>
+  <script src="js/app/anteckningar.js?v=20261123i"></script>
+  <script src="js/app/hindernotis.js?v=20261123i"></script>
 
   <!-- Det nya skalet: navigering, sök, kortkommandon och säkerhetskopia -->
-  <script src="js/skal.js?v=20261123a"></script>
+  <script src="js/skal.js?v=20261123i"></script>
 
   <!-- Egen datumväljare för alla datumfält -->
-  <script src="js/app/datumval.js?v=20261123a"></script>
+  <script src="js/app/datumval.js?v=20261123i"></script>
+
+  <!-- Wimo Forma: egen modul med egen data -->
+  <script src="js/forma/fo-karna.js?v=20261123i"></script>
+  <script src="js/forma/fo-lagring.js?v=20261123i"></script>
+  <script src="js/forma/fo-delar.js?v=20261123i"></script>
+  <script src="js/forma/fo-vyer.js?v=20261123i"></script>
+  <script src="js/forma/fo-fraga.js?v=20261123i"></script>
+  <script src="js/forma/fo-org.js?v=20261123i"></script>
+  <script src="js/forma/fo-skal.js?v=20261123i"></script>
 
   <!-- Konto och molnsynk (Firebase) -->
-  <script src="js/konto/firebase-config.js?v=20261123a"></script>
-  <script src="js/konto/konto.js?v=20261123a"></script>
+  <script src="js/konto/firebase-config.js?v=20261123i"></script>
+  <script src="js/konto/konto.js?v=20261123i"></script>
+  <script>foStarta();</script>
 </body>
 </html>

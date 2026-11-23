@@ -273,6 +273,8 @@ function tpuStaplar(l, r, o) {
             const k0 = Math.max(0, tpuKol(l, sp.fran)), k1 = Math.min(l.dagar.length - 1, Math.floor(tpuKol(l, sp.till)));
             if (k1 >= k0 && tpuKol(l, sp.till) >= 0 && tpuKol(l, sp.fran) < l.dagar.length)
                 ut.push('<i class="tpu-gspann" style="left:' + tpuMm(k0 * l.dw) + ";width:" + tpuMm((k1 - k0 + 1) * l.dw) + ";--c:" + TPU_FARG[tpFarg(a)][0] + '"></i>');
+            if (a.namn && tpuKol(l, sp.till) < l.dagar.length - 1)
+                ut.push('<span class="tpu-stnamn ovre" style="left:' + tpuMm((k1 + 1) * l.dw + .8) + '">' + esc(a.namn) + "</span>");
         }
     }
     (a.perioder || []).forEach(q => {
@@ -290,6 +292,9 @@ function tpuStaplar(l, r, o) {
             else if (pt && pt.dag >= qd[0]) fyll = Math.max(0, Math.min(w, (tpuKol(l, pt.dag) - k0 + pt.del) * l.dw));
         }
         ut.push('<span class="tpu-st' + (r.grupp ? " i-grupp" : "") + (s < 0 ? " klippt-v" : "") + (e >= l.dagar.length ? " klippt-h" : "") + '" style="left:' + tpuMm(k0 * l.dw) + ";width:" + tpuMm(w) + ";--c:" + f[0] + ";--f:" + f[1] + ";--k:" + f[2] + '">' + (fyll ? '<i class="tpu-fyll" style="width:' + tpuMm(fyll) + '"></i>' : "") + "<b>" + esc(txt) + "</b></span>");
+        const nm = typeof tpStapelNamn === "function" ? tpStapelNamn(a, q) : "", eget = !!(q.namn && String(q.namn).trim());
+        if (nm && e < l.dagar.length - 1 && (eget || !r.grupp))
+            ut.push('<span class="tpu-stnamn' + (r.grupp ? " i-grupp" : "") + '" style="left:' + tpuMm((k1 + 1) * l.dw + .8) + '">' + esc(nm) + "</span>");
     });
     return ut.join("");
 }

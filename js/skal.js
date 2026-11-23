@@ -119,7 +119,7 @@
             markeraNav();
         });
     });
-    $("p4Brand").addEventListener("click", function (e) { e.preventDefault(); stangSidor(); markeraNav(); });
+    $("p4Brand").addEventListener("click", function (e) { e.preventDefault(); if (typeof foModulMeny === "function" && foModulMeny() !== false) return; stangSidor(); markeraNav(); });
     $("flikar").addEventListener("click", function (e) {
         if (e.target.closest(".flik"))
             stangSidor();
@@ -296,6 +296,8 @@
     $("p4Genvagar").addEventListener("click", function () { stangMeny(); visaGenvagar(); });
     document.addEventListener("keydown", function (e) {
         if (e.ctrlKey || e.metaKey || e.altKey)
+            return;
+        if (document.body.classList.contains("modul-forma"))
             return;
         if (["p4-utloggad", "p4-laddar", "p4-vantar"].some(function (k) { return document.body.classList.contains(k); }))
             return;

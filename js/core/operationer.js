@@ -1227,14 +1227,18 @@ function tpSyskon(p, foralder) {
 
 const TP_FALT = ["namn", "ansvarig", "farg", "kalkTimmar", "klart", "samband", "foralder", "ordning", "perioder"];
 
-// o: { namn, ansvarig, kalkTimmar, efter: id | null, fore: id | null }. Utan efter/fore hamnar raden sist.
+// o: { namn, ansvarig, kalkTimmar, efter: id | null, fore: id | null, under: id | null }.
+// Utan efter/fore hamnar raden sist. Med under blir raden sista underaktiviteten till den raden.
 function opTpNyAktivitet(p, o, klocka, genId) {
     if (!p || !p.tidplan)
         return { ok: false, fel: "tidplan saknas", andringar: [], fore: [], historik: [] };
     o = o || {};
     const namn = typeof o.namn === "string" ? o.namn.trim() : "";
-    const ref = tpAktiviteter(p).find(a => a.id === (o.efter || o.fore)) || null;
-    const foralder = ref ? (ref.foralder || null) : null;
+    const over = o.under ? tpAktiviteter(p).find(a => a.id === o.under) || null : null;
+    if (o.under && !over)
+        return { ok: false, fel: "raden finns inte", andringar: [], fore: [], historik: [] };
+    const ref = over ? null : tpAktiviteter(p).find(a => a.id === (o.efter || o.fore)) || null;
+    const foralder = over ? over.id : ref ? (ref.foralder || null) : null;
     const rader = tpSyskon(p, foralder);
     let ordning;
     if (!ref)
