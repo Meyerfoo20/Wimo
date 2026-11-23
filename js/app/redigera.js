@@ -1158,7 +1158,14 @@ function datumKalender(valda, klar, rubrik, ankare) {
         if (ankare) ankare.focus();
     }
     ruta._stang = stang;
-    const utanfor = e => { if (!ruta.contains(e.target) && e.target !== ankare) stang(); };
+    // klick utanför sparar det man har valt (som Klar); Esc ångrar
+    const fore = [...set].sort().join();
+    const utanfor = e => {
+        if (ruta.contains(e.target) || e.target === ankare) return;
+        stang();
+        const nu = [...set].sort();
+        if (nu.join() !== fore) klar(nu);
+    };
     const tangent = e => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); stang(); } };
     const slapp = () => { dragVal = null; };
     const uppdatera = (b, pa) => {

@@ -213,8 +213,18 @@ function snabbPost(dag) {
     document.getElementById("sbUeKal").addEventListener("click", () => {
         datumKalender(valdaDagar(), lista => {
             ueDatum = lista.length ? lista : null;
-            const sd = document.getElementById("sbDag");
-            if (ueDatum && [...sd.options].some(o => o.value === ueDatum[0])) sd.value = ueDatum[0];
+            // fälten Dag och Till och med visar det man valde i kalendern
+            if (ueDatum) {
+                const sd = document.getElementById("sbDag"), st = document.getElementById("sbTill");
+                const forsta = ueDatum[0], sista = ueDatum[ueDatum.length - 1];
+                if (![...sd.options].some(o => o.value === forsta))
+                    sd.insertAdjacentHTML("afterbegin", '<option value="' + forsta + '">' + dagEtikett(forsta) + '</option>');
+                sd.value = forsta;
+                st.innerHTML = tillOptioner(forsta, sista);
+                if (sista !== forsta && ![...st.options].some(o => o.value === sista))
+                    st.insertAdjacentHTML("beforeend", '<option value="' + sista + '">' + dagEtikett(sista) + '</option>');
+                st.value = sista === forsta ? "" : sista;
+            }
             visaFlera();
         }, "Dagar för UE", document.getElementById("sbUeKal"));
     });
