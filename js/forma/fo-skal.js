@@ -29,6 +29,9 @@ function foUppdateraBehorighet() {
 /* ---------- modulväxlaren ---------- */
 function foVaxlaModul(modul, tyst) {
     const forma = modul === "forma" && foFarForma();
+    // Ett aktivt val (eller att modulen redan öppnats) ersätter startvalet,
+    // så att kontohändelser senare (t.ex. vid projektbyte) aldrig byter modul.
+    if (!tyst || forma) foStartModul = null;
     document.body.classList.toggle("modul-forma", forma);
     document.body.classList.remove("p4-kontovy");
     try { localStorage.setItem(FO_LS_MODUL, forma ? "forma" : "plan"); } catch (e) { }
@@ -118,7 +121,8 @@ function foSattAdress(ersatt) {
 window.addEventListener("popstate", () => {
     if (location.hash.startsWith("#forma")) {
         if (!foFarForma()) return;
-        if (!foModulAktiv()) { foVaxlaModul("forma", true); return; }
+        // Bakåt/framåt i webbläsaren byter aldrig modul: står man i Plan stannar man där.
+        if (!foModulAktiv()) { history.replaceState(null, "", location.pathname + location.search); return; }
         foLasAdress(); foRita();
     }
 });
@@ -305,10 +309,14 @@ function foStarta() {
     foStartaMolnLista();
     if (modul === "forma" && foFarForma()) foVaxlaModul("forma", true);
 }
-// Modulen man hade senast öppnas när kontot är klart, om man är huvudadmin.
+// Modulen man hade senast öppnas EN gång, när kontot är klart första gången och man är huvudadmin.
+// Efter det byts modul bara när man själv väljer i menyn uppe till vänster.
 let foStartModul = "plan";
 window.addEventListener("wimo-konto", () => {
     const far = foUppdateraBehorighet();
-    if (far && foStartModul === "forma" && !foModulAktiv()) foVaxlaModul("forma", true);
+    const redo = !!(window.p4FormaMoln && window.p4FormaMoln.redo());
+    const start = foStartModul;
+    if (redo) foStartModul = null;
+    if (far && start === "forma" && !foModulAktiv()) foVaxlaModul("forma", true);
     if (!far && location.hash.startsWith("#forma")) history.replaceState(null, "", location.pathname + location.search);
 });

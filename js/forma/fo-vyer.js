@@ -199,14 +199,15 @@ function foFragaTabell(lista) {
             const vem = (foDiscText(p, f.fran) || "–") + " → " + (foPartText(p, f.ansvarig) || "ingen ansvarig");
             const under = f.svar ? '<span class="fo-svarrad">' + esc(f.svar.text.split("\n")[0].slice(0, 140)) + '</span>'
                 : '<span>' + esc(vem) + (f.svarSenast && foAktiv(f) ? " · svar senast " + foDatumKort(f.svarSenast) : "") + '</span>';
-            return '<tr data-fraga="' + f.id + '" data-rad="' + f.id + '" class="' + (f.id === foFragaOppen ? "vald " : "") + (ok.length ? "okvitt " : "") + (f.makulerad ? "mak" : "") + '" tabindex="0">' +
-                '<td class="fo-nrkol">' + (nytt ? '<span class="fo-nyprick" title="Ändrad sedan du tittade senast"></span>' : "") + '<b>' + f.nr + '</b></td>' +
+            const motenTxt = f.moten.map(id => esc((foForum(p, id) || { kort: "?" }).kort)).join(" · ");
+            return '<tr data-fraga="' + f.id + '" data-rad="' + f.id + '" class="' + (f.id === foFragaOppen ? "vald " : "") + (ok.length ? "okvitt " : "") + (nytt ? "olast " : "") + (f.makulerad ? "mak" : "") + '" tabindex="0">' +
+                '<td class="fo-nrkol"><b>' + f.nr + '</b>' + (nytt ? '<span class="fo-tagg t-ny" title="Ändrad sedan du tittade senast">Ny</span>' : "") + '</td>' +
                 '<td class="fo-fragekol"><span class="fo-fragetext">' + esc(f.text) + '</span><small>' + under +
-                (f.paverkar ? ' <span class="fo-paverkar" title="' + esc(FO_PAVERKAR_TEXT) + '"></span>' : "") +
-                (f.bilagor.length ? ' <span class="fo-gemtal" title="' + f.bilagor.length + ' bilagor">' + f.bilagor.length + '</span>' : "") + '</small></td>' +
-                '<td class="fo-lagekol">' + (ok.length ? '<span class="fo-lage revision"><i aria-hidden="true"></i>Att kvittera</span>' : foLageChip(f)) +
-                (sen ? '<span class="fo-forsenad">Försenad</span>' : "") +
-                (f.moten.length ? '<span class="fo-motemark">' + f.moten.map(id => esc((foForum(p, id) || { kort: "?" }).kort)).join(" · ") + '</span>' : "") + '</td>' +
+                (f.bilagor.length ? ' <span class="fo-gemtal" title="' + f.bilagor.length + (f.bilagor.length === 1 ? " bilaga" : " bilagor") + '"><i class="fo-gem" aria-hidden="true"></i>' + f.bilagor.length + '</span>' : "") + '</small></td>' +
+                '<td class="fo-lagekol"><div class="fo-taggrad">' + (ok.length ? '<span class="fo-lage revision">Att kvittera</span>' : foLageChip(f)) +
+                (sen ? '<span class="fo-tagg t-sen">Försenad</span>' : "") +
+                (f.paverkar ? '<span class="fo-tagg t-varn" title="' + esc(FO_PAVERKAR_TEXT) + '">Tid/kostnad</span>' : "") +
+                (f.moten.length ? '<span class="fo-tagg t-mote" title="Tas upp på möte">Möte ' + motenTxt + '</span>' : "") + '</div></td>' +
                 '<td class="fo-snabbkol">' + (kanKlar ? '<button type="button" class="fo-minknapp klar" data-klar="' + f.id + '" title="Markera frågan som klar">Klar</button>' : "") +
                 (foKanSkriva(p, jag) && forum.length && foAktiv(f) ? '<button type="button" class="fo-minknapp fo-hover' + (f.moten.length ? " pa" : "") + '" data-motesval="' + f.id + '" title="Markera för möte">' +
                     (f.moten.length ? "På möte" : "+ Möte") + '</button>' : "") + '</td></tr>';
@@ -396,7 +397,7 @@ function foMotesTabell(lista, fo, kan, iUrval) {
                 (ok.length ? '<span class="fo-revmark">' + foRevNamn(ok[ok.length - 1].nr) + '</span>' : "") + '</td>' +
                 '<td class="fo-fragekol"><span class="fo-fragetext">' + esc(f.text) + '</span>' + (f.svar ? '<small>Svar: ' + esc(f.svar.text.slice(0, 160)) + (f.svar.text.length > 160 ? "…" : "") + '</small>' : "") + '</td>' +
                 '<td class="fo-partkol"><b>' + esc(foDiscText(p, f.fran) || "–") + '</b> <span class="fo-pil" aria-hidden="true">→</span> <b>' + esc(foPartText(p, f.ansvarig) || "–") + '</b></td>' +
-                '<td class="fo-lagekol">' + foLageChip(f) + (foForsenad(f) ? '<span class="fo-forsenad">Försenad</span>' : "") + '</td>' +
+                '<td class="fo-lagekol"><div class="fo-taggrad">' + foLageChip(f) + (foForsenad(f) ? '<span class="fo-tagg t-sen">Försenad</span>' : "") + '</div></td>' +
                 '<td class="fo-snabbkol">' + (kan ? (iUrval ? '<button type="button" class="fo-minknapp klar" data-behandlad="' + f.id + '">Behandlad</button>' +
                     '<button type="button" class="fo-minknapp" data-ururval="' + f.id + '" title="Ta bort ur urvalet">Ta bort</button>'
                     : '<button type="button" class="fo-minknapp" data-tillurval="' + f.id + '">+ Till urvalet</button>') : "") + '</td></tr>';
@@ -464,8 +465,8 @@ function foVyAtgarder(yta) {
             const sen = a.status === "oppen" && a.senast && a.senast < idag;
             const kalla = (a.kopplingar || []).filter(k => k.typ !== "atgard").map(k => '<button type="button" class="p4d-lank" data-kalla="' + k.typ + ':' + k.id + '">' + esc(foObjNamn(p, k)) + '</button>').join(", ");
             return '<tr data-rad="' + a.id + '" class="' + (a.status !== "oppen" ? "utford" : "") + (sen ? " fo-sen" : "") + '"><td class="fo-nrkol"><b>Å-' + a.nr + '</b></td>' +
-                '<td><span class="fo-fragetext">' + esc(a.text) + '</span>' + (kalla ? '<small>Källa: ' + kalla + '</small>' : "") + (a.makulerad ? '<small>Avbruten: ' + esc(a.makulerad.orsak) + '</small>' : "") + '</td>' +
-                '<td>' + esc(foPartText(p, a.ansvarig) || "–") + '</td><td class="dat">' + (a.senast ? foDatumKort(a.senast) : "–") + (sen ? ' <span class="fo-forsenad">Försenad</span>' : "") + '</td>' +
+                '<td><span class="fo-fragetext">' + esc(a.text) + '</span>' + (kalla ? '<small>Från ' + kalla + '</small>' : "") + (a.makulerad ? '<small>Avbruten: ' + esc(a.makulerad.orsak) + '</small>' : "") + '</td>' +
+                '<td>' + esc(foPartText(p, a.ansvarig) || "–") + '</td><td class="dat">' + (a.senast ? foDatumKort(a.senast) : "–") + (sen ? ' <span class="fo-tagg t-sen">Försenad</span>' : "") + '</td>' +
                 '<td>' + (a.status === "makulerad" ? '<span class="fo-lage mak"><i></i>Avbruten</span>' : '<button type="button" class="fstat ' + (a.status === "klar" ? "klar" : "ej") + '" data-atgstat="' + a.id + '"' +
                     (kan ? "" : " disabled") + ' title="' + (a.status === "klar" ? "Öppna igen" : "Markera som klar") + '">' + (a.status === "klar" ? "✓ Klar" : "Öppen") + '</button>') + '</td>' +
                 '<td class="fo-snabbkol">' + (kan ? '<button type="button" class="fo-minknapp" data-atgandra="' + a.id + '">Ändra</button>' : "") + '</td></tr>';
@@ -537,7 +538,7 @@ function foVyBeslut(yta) {
             const ers = b.ersattAv ? foBeslut(p, b.ersattAv) : null, ersatter = b.ersatter ? foBeslut(p, b.ersatter) : null;
             return '<tr data-rad="' + b.id + '" data-beslut="' + b.id + '" tabindex="0" class="' + (b.status === "ersatt" ? "utford" : "") + '"><td class="fo-nrkol"><b>' + esc(b.nr) + '</b></td>' +
                 '<td><span class="fo-fragetext">' + esc(b.text) + '</span>' + (ersatter ? '<small>' + (b.satt === "kompletterar" ? "Kompletterar " : "Ersätter ") + esc(ersatter.nr) + '</small>' : "") +
-                (b.paverkar ? '<small><span class="fo-paverkar">Tid/kostnad</span></small>' : "") + '</td>' +
+                (b.paverkar ? ' <span class="fo-tagg t-varn">Tid/kostnad</span>' : "") + '</td>' +
                 '<td>' + (f ? '<button type="button" class="p4d-lank" data-tillfraga="' + f.id + '">Fråga ' + f.nr + '</button>' : fo ? esc(fo.namn) : "–") + '</td>' +
                 '<td>' + esc(foPersonNamn(p, b.fattare) || "–") + '</td><td class="dat">' + foDatumKort(b.datum) + '</td>' +
                 '<td>' + (b.status === "gallande" ? '<span class="fo-lage besvarad"><i></i>Gällande</span>' : '<span class="fo-lage mak"><i></i>Ersatt' + (ers ? " av " + esc(ers.nr) : "") + '</span>') + '</td></tr>';
