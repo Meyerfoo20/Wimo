@@ -607,3 +607,100 @@ body.modul-forma #p4Backup { display: none !important; }
 .fo-fragetabell .fo-nrkol { padding-left: 20px; }
 .fo-nyprick { left: 8px; top: 19px; }
 .fo-lagekol .fo-forsenad { display: flex; width: fit-content; }
+
+/* ======================================================================
+   Samma formspråk som Wimo Plan
+   Etiketter och rutor är små "poster": tunn kant runt om, färgad kant till
+   vänster och nedtill, rakt hörn där de möts. Inga färgade ränder på rader,
+   inga prickar eller symboler som bara bär färg – texten säger vad det är.
+   ====================================================================== */
+
+/* lägesetiketter */
+.fo-lage, .fo-tagg, .fo-paverkar, .fo-efteravslut {
+  --cc: var(--text-muted); --cf: var(--bg-main); --ck: var(--border-color);
+  display: inline-flex; align-items: center; gap: 0; height: 24px; padding: 0 9px 0 8px;
+  border: 1.5px solid var(--ck); border-left: 3px solid var(--cc); border-bottom: 3px solid var(--cc);
+  border-radius: 7px 7px 7px 0; background: var(--cf);
+  color: color-mix(in srgb, var(--cc) 55%, var(--text-main));
+  font-size: 12px; font-weight: 700; line-height: 1; white-space: nowrap; vertical-align: middle; text-decoration: none;
+}
+.fo-lage i { display: none; }
+.fo-lage.obesvarad { --cc: var(--varning-stark, var(--varning)); --cf: var(--varning-fyll); --ck: var(--varning-kant); }
+.fo-lage.besvarad { --cc: var(--ovrigt); --cf: var(--ovrigt-fyll); --ck: var(--ovrigt-kant); }
+.fo-lage.ofullstandig { --cc: var(--ue); --cf: var(--ue-fyll); --ck: var(--ue-kant); }
+.fo-lage.klar { --cc: var(--produktion); --cf: var(--produktion-fyll); --ck: var(--produktion-kant); }
+.fo-lage.revision { --cc: var(--leverans); --cf: var(--leverans-fyll); --ck: var(--leverans-kant); }
+.fo-lage.mak { --cc: var(--border-strong); --cf: var(--bg-main); --ck: var(--border-color); color: var(--text-faint); text-decoration: line-through; }
+
+/* små etiketter: försenad, möte, tid/kostnad, ny */
+.fo-tagg, .fo-paverkar, .fo-efteravslut { height: 20px; padding: 0 7px 0 6px; font-size: 11px; border-width: 1px; border-left-width: 2px; border-bottom-width: 2px; border-radius: 5px 5px 5px 0; }
+.fo-paverkar::before, .fo-forsenad::before, .fo-motemark::before { content: none !important; display: none !important; }
+.fo-tagg.t-sen, .fo-efteravslut { --cc: var(--leverans); --cf: var(--leverans-fyll); --ck: var(--leverans-kant); }
+.fo-tagg.t-varn, .fo-paverkar { --cc: var(--varning-stark, var(--varning)); --cf: var(--varning-fyll); --ck: var(--varning-kant); }
+.fo-tagg.t-mote { --cc: var(--avrop); --cf: var(--avrop-fyll); --ck: var(--avrop-kant); }
+.fo-tagg.t-ny { --cc: var(--accent-main); --cf: var(--bg-card); --ck: var(--border-color); margin-left: 6px; vertical-align: 1px; }
+.fo-taggrad { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.fo-fragetabell .fo-paverkar { font-size: 11px; }
+
+/* gem med antal bilagor */
+.fo-gemtal { display: inline-flex; align-items: center; gap: 2px; color: var(--text-muted); font-weight: 600; }
+.fo-gemtal::before { content: none; }
+.fo-gemtal .fo-gem { width: 12px; height: 12px; }
+
+/* raderna: inga färgade ränder, valt och oläst syns i själva raden */
+.fo-tabell tbody tr.vald, .fo-tabell tbody tr.okvitt, .fo-tabell tbody tr.vald.okvitt, .fo-tabell tbody tr.fo-sen { box-shadow: none; }
+.fo-tabell tbody tr.vald { background: var(--accent-light); }
+.fo-tabell tbody tr.olast .fo-fragetext { font-weight: 800; }
+.fo-nyprick { display: none; }
+.fo-nrkol { width: 74px; }
+
+/* senaste händelser: ny händelse = fet text, ingen prick */
+.fo-handelser li.ny .fo-htext::before { content: none; }
+.fo-handelser li.ny .fo-htext { font-weight: 700; }
+
+/* flikar: som Plans knappgrupper, ingen skugga */
+.fo-flikar { border-radius: var(--r-m); }
+.fo-flik { border-radius: var(--r-s); }
+.fo-flik.vald { box-shadow: none; outline: 1px solid var(--border-color); outline-offset: -1px; }
+
+/* rutor i frågan: fråga, svar och kvittering som poster */
+.fo-text { border: 1.5px solid var(--border-color); border-left: 3px solid var(--border-strong); border-bottom: 3px solid var(--border-strong); border-radius: var(--r-s) var(--r-s) var(--r-s) 0; }
+.fo-text.fo-svar { border-color: var(--ovrigt-kant); border-left-color: var(--ovrigt); border-bottom-color: var(--ovrigt); }
+.fo-text.fo-dampad { border-left-width: 1.5px; border-bottom-width: 1.5px; border-radius: var(--r-s); }
+.fo-revruta { border: 1.5px solid var(--leverans-kant); border-left: 3px solid var(--leverans); border-bottom: 3px solid var(--leverans); border-radius: var(--r-m) var(--r-m) var(--r-m) 0; }
+.fo-revmark { border-radius: 5px 5px 5px 0; }
+
+/* aktivt projekt: färgad kant som korten på tavlan, ingen inre rand */
+.fo-projektkort.aktiv { box-shadow: var(--shadow-elevated); border: 1.5px solid var(--avrop-kant); border-left: 3px solid var(--avrop); border-bottom: 3px solid var(--avrop); border-bottom-left-radius: 0; }
+.fo-nytt { border-radius: 5px 5px 5px 0; }
+.fo-lage + .fo-tagg, .fo-tagg + .fo-tagg, .fo-lage + .fo-paverkar { margin-left: 5px; }
+.fo-taggrad > * { margin-left: 0 !important; }
+.fo-tagg.t-ny { --cc: var(--accent-pop); --cf: color-mix(in srgb, var(--accent-pop) 10%, var(--bg-card)); --ck: color-mix(in srgb, var(--accent-pop) 40%, var(--border-color)); }
+/* länkar i en tabellrad (t.ex. "Från Fråga 3") står i texten */
+.fo-tabell small .p4d-lank, .fo-tabell td > .p4d-lank { padding: 0; font-size: inherit; color: var(--text-main); text-decoration: underline; text-underline-offset: 2px; vertical-align: baseline; border-radius: 0; }
+.fo-tabell small .p4d-lank:hover, .fo-tabell td > .p4d-lank:hover { color: var(--accent-main); background: none; }
+/* med frågan öppen i sidopanelen: tabellen visar nummer och fråga, läget står i panelen */
+body.modul-forma.fo-panelopen .fo-fragetabell th:nth-child(n+3),
+body.modul-forma.fo-panelopen .fo-fragetabell td:nth-child(n+3) { display: none; }
+@media (max-width: 1180px) { body.modul-forma.fo-panelopen .fo-fragetabell th:nth-child(n+3), body.modul-forma.fo-panelopen .fo-fragetabell td:nth-child(n+3) { display: table-cell; } }
+/* svarsraden kortas till en rad utan att tabellen blir bredare än rutan */
+.fo-fragetabell small > span:first-child { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; min-width: 0; }
+
+/* samma kantbredd hela varvet runt (färgen till vänster och nedtill behålls) */
+.fo-lage { border-width: 2px !important; }
+.fo-tagg, .fo-paverkar, .fo-efteravslut { border-width: 1.5px !important; }
+.fo-text, .fo-revruta, .fo-projektkort.aktiv { border-width: 2px !important; }
+.fo-text.fo-dampad { border-width: 1.5px !important; }
+
+/* ==== alla kort i Forma: 2 px runt om, beige kant till vänster och nedtill, rakt hörn där de möts ==== */
+body.modul-forma { --fo-kort-kant: #cfc5b1; }
+html[data-tema="mork"] body.modul-forma { --fo-kort-kant: #5a5449; }
+:is(#forma, #foPanel) :is(.kpi, .dashblock, .fo-tabellram, .fo-nyfraga, .fo-projektkort, .fo-tomt) {
+  border: 2px solid var(--border-color) !important;
+  border-left-color: var(--fo-kort-kant) !important;
+  border-bottom-color: var(--fo-kort-kant) !important;
+  border-bottom-left-radius: 0 !important;
+}
+#forma .fo-projektkort.aktiv { border-color: var(--avrop-kant) !important; border-left-color: var(--avrop) !important; border-bottom-color: var(--avrop) !important; }
+/* frågerutan i panelen: samma beige som korten */
+#foPanel .fo-text:not(.fo-svar) { border-left-color: var(--fo-kort-kant); border-bottom-color: var(--fo-kort-kant); }

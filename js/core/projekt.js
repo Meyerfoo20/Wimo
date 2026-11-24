@@ -354,6 +354,8 @@ function rustaTidplan(p) {
         tp.aktiviteter = [];
     if (!Array.isArray(tp.resursTyper))
         tp.resursTyper = [];
+    if (!Array.isArray(tp.planer))
+        tp.planer = [];
     if (!tp.kalender || typeof tp.kalender !== "object")
         tp.kalender = {};
     if (!Array.isArray(tp.kalender.ledigaDagar))

@@ -1215,8 +1215,17 @@ function opAndraPerson(person, falt, klocka, genId) {
    Raderna visas i fältet ordning, inte efter datum. Ordningen är ett tal:
    en ny rad mellan två andra får medelvärdet, så inga andra rader ändras. */
 
-function tpAktiviteter(p) {
+// Ett projekt kan ha flera tidplaner. Alla aktiviteter ligger i samma lista; a.tpid säger vilken
+// tidplan aktiviteten hör till (saknas = projektets första tidplan). tpAktiviteter ger den öppna
+// tidplanens aktiviteter, så att varje tidplan är helt fristående.
+let TP_PLAN = "";
+function tpSattPlan(id) { TP_PLAN = typeof id === "string" ? id : ""; }
+function tpAktivPlan() { return TP_PLAN; }
+function tpAllaAktiviteter(p) {
     return p && p.tidplan && Array.isArray(p.tidplan.aktiviteter) ? p.tidplan.aktiviteter : [];
+}
+function tpAktiviteter(p) {
+    return tpAllaAktiviteter(p).filter(a => (a.tpid || "") === TP_PLAN);
 }
 
 // Syskonen (samma förälder) i användarens ordning.
@@ -1251,6 +1260,7 @@ function opTpNyAktivitet(p, o, klocka, genId) {
     const a = { id: "ta" + uid(genId), foralder: foralder, ordning: ordning, namn: namn,
         ansvarig: typeof o.ansvarig === "string" ? o.ansvarig.trim() : "", farg: "",
         kalkTimmar: typeof o.kalkTimmar === "number" && o.kalkTimmar >= 0 ? o.kalkTimmar : null, perioder: [] };
+    if (TP_PLAN) a.tpid = TP_PLAN;
     return { ok: true, fel: null,
         andringar: [{ typ: "lagg", objekt: "tpaktivitet", id: a.id, varde: a }],
         fore: [{ objekt: "tpaktivitet", id: a.id, varde: null }],

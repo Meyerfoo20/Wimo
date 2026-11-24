@@ -1586,6 +1586,8 @@
         rita();
     }
     window.p4OppnaKonto = oppnaKontosida;
+    // Skicka det som väntar till molnet direkt (används innan Wimo uppdateras och laddas om).
+    window.p4SparaNu = async () => { clearTimeout(pushTimer); try { await push(); } catch (e) { } };
     // Vem är inloggad, och får hen ändra i projektet? (Används av dagboken.)
     window.p4Jag = () => anvandare ? { uid: anvandare.uid, namn: anvandare.displayName || anvandare.email || "", epost: anvandare.email || "" } : null;
     window.p4KanProjekt = (pid) => !anvandare || arAdmin() || !arLas(pid);
@@ -2690,7 +2692,8 @@
 
     // ---------- medlemmar och behörigheter ----------
     const ROLLNAMN = { admin: "Projektadmin", red: "Kan redigera", las: "Bara läsa" };
-    const TAVLANAMN = [["", "Som projektet"], ["admin", "Admin"], ["red", "Redigera"], ["las", "Läsa"], ["ingen", "Ingen åtkomst"]];
+    // Per tavla väljer man bland fyra lägen. Listan visar alltid det som gäller: utan eget val följer tavlan rollen i projektet.
+    const TAVLANAMN = [["admin", "Admin"], ["red", "Kan redigera"], ["las", "Kan läsa"], ["ingen", "Ingen åtkomst"]];
     const arHuvud = (a) => (a && a.roll) === "admin";
     const rollI = (m, uid) => m.projektAdmin.includes(uid) ? "admin" : m.lasare.includes(uid) ? "las" : "red";
 
@@ -2712,10 +2715,18 @@
             ["red", "las", "admin"].map((r) => '<option value="' + r + '"' + (r === roll ? " selected" : "") + ">" + ROLLNAMN[r] + "</option>").join("") +
             "</select>";
     }
-    // Väljare för en tavla.
-    function tavlaval(uid, tid, varde, av) {
-        return '<select class="f p4-ks-tbeh" data-tu="' + esc(uid) + '" data-tt="' + esc(tid) + '"' + (av ? " disabled" : "") + ">" +
-            TAVLANAMN.map(([v, t]) => '<option value="' + v + '"' + (v === (varde || "") ? " selected" : "") + ">" + t + "</option>").join("") + "</select>";
+    // Väljare för en tavla. roll = personens roll i projektet ("red" | "las"); utan eget val visas den.
+    function tavlaval(uid, tid, varde, av, roll) {
+        const std = roll === "las" ? "las" : "red", vald = varde || std;
+        return '<select class="f p4-ks-tbeh" data-tu="' + esc(uid) + '" data-tt="' + esc(tid) + '" data-roll="' + std + '"' +
+            (varde && varde !== std ? ' data-egen="1"' : "") + (av ? " disabled" : "") + ' aria-label="Behörighet på tavlan">' +
+            TAVLANAMN.map(([v, t]) => '<option value="' + v + '"' + (v === vald ? " selected" : "") + ">" + t + "</option>").join("") + "</select>";
+    }
+    // Rollen i projektet för raden en tavelväljare står i (rollväljaren om den finns, annars den sparade rollen).
+    function tavlaRoll(sel) {
+        const li = sel.closest(".p4-ks-medbeh"), r = li && li.querySelector(".p4-ks-beh");
+        const v = r ? r.value : sel.dataset.roll;
+        return v === "las" ? "las" : "red";
     }
     // Rollen och tavlorna gäller bara när personen är med i projektet; projektadmin styrs inte per tavla.
     function synkaRad(li) {
@@ -2727,7 +2738,12 @@
     }
     document.addEventListener("change", (e) => {
         const li = e.target.closest && e.target.closest(".p4-ks-medbeh");
-        if (li) synkaRad(li);
+        if (!li) return;
+        // ny roll i projektet: tavlor utan eget val följer med
+        if (e.target.matches(".p4-ks-beh")) li.querySelectorAll(".p4-ks-tbeh:not([data-egen])").forEach((s) => { s.value = tavlaRoll(s); });
+        // valt samma som rollen = inget eget val på tavlan
+        if (e.target.matches(".p4-ks-tbeh")) { if (e.target.value === tavlaRoll(e.target)) delete e.target.dataset.egen; else e.target.dataset.egen = "1"; }
+        synkaRad(li);
     });
 
     // Godkänn (kräver minst ett projekt) eller ändra vilka projekt en användare är med i (huvudadmin).
@@ -2845,7 +2861,7 @@
             const tavelrutor = (full ? tavlor : mina).length > 0
                 ? '<div class="p4-ks-tavlor' + (!med || roll === "admin" ? " dold" : "") + '">' +
                     (full ? tavlor : mina).map((t) => '<label class="p4-ks-tavla"><span>' + esc(t.namn) + "</span>" +
-                        tavlaval(a.uid, t.id, egen[t.id], jag) + "</label>").join("") + "</div>"
+                        tavlaval(a.uid, t.id, egen[t.id], jag, roll) + "</label>").join("") + "</div>"
                 : "";
             return '<li class="p4-ks-medbeh">' +
                 (full
@@ -2860,7 +2876,7 @@
             '<p class="hjalp" style="margin-top:0">' + (full
                 ? (arAdmin() ? "" : "Listan visar personerna i projekten du är admin för. Nya personer kommer in med projektkoden ovan. ") +
                   "Bocka i vilka som ska vara med i projektet och välj roll. <b>Projektadmin</b> får allt i projektet och väljer själv vilka som är med. " +
-                  "Under varje person kan du ge en egen behörighet per tavla: <b>Admin</b> för tavlan, <b>Redigera</b>, <b>Läsa</b> eller <b>Ingen åtkomst</b> (tavlan syns inte alls)."
+                  "Under varje person står tavlorna. De följer rollen i projektet, men du kan välja något annat på en tavla: <b>Admin</b>, <b>Kan redigera</b>, <b>Kan läsa</b> eller <b>Ingen åtkomst</b> (tavlan syns inte alls)."
                 : "Du är admin för " + mina.map((t) => "<b>" + esc(t.namn) + "</b>").join(", ") + ". Välj vilka av projektets medlemmar som ska komma åt " +
                   (mina.length === 1 ? "tavlan" : "tavlorna") + " och vad de får göra där.") + "</p>" +
             (godkanda.length || !full ? (lista.length ? '<ul class="p4-ks-valista p4-ks-medlista">' + lista.map(rad).join("") + "</ul>"
@@ -2877,7 +2893,7 @@
                     const u = x.dataset.tu, t = x.dataset.tt;
                     if (!full && !mina.some((mt) => mt.id === t)) return;
                     nyTb[u] = nyTb[u] || {};
-                    if (x.value) nyTb[u][t] = x.value; else delete nyTb[u][t];
+                    if (x.value && x.value !== tavlaRoll(x)) nyTb[u][t] = x.value; else delete nyTb[u][t];
                     if (!Object.keys(nyTb[u]).length) delete nyTb[u];
                 });
                 let ny;

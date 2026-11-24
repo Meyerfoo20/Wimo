@@ -270,7 +270,7 @@ function tpTvDialog() {
 
 function tpTvKortInfo(k) {
     if (!k || !k.tp || !k.tp.aid) return "";
-    const a = state.tidplan && (state.tidplan.aktiviteter || []).find(x => x.id === k.tp.aid);
+    const a = tpAllaAktiviteter(state).find(x => x.id === k.tp.aid);
     if (!a) return '<div class="tp-tvfran"><span>Kom från tidplanen (aktiviteten finns inte längre)</span></div>';
     const q = (a.perioder || []).find(x => x.id === k.tp.qid), l = q ? tpTvLage(a, q) : null;
     return '<div class="tp-tvfran"><span>Från tidplanen: <b>' + esc(a.namn || "Aktivitet") + "</b>" + (l && l.typ === "andrad" ? ' · <span class="tp-tvskiljer">tidplanen har ' + kortDatum(l.v.start) + (l.v.slut !== l.v.start ? "–" + kortDatum(l.v.slut) : "") + "</span>" : "") + "</span>" +
@@ -282,6 +282,7 @@ document.addEventListener("click", (e) => {
     if (!b) return;
     const aid = b.dataset.tvoppna;
     stangModal();
-    oppnaTidplan();
+    const a = tpAllaAktiviteter(state).find(x => x.id === aid);
+    oppnaTidplan({ plan: a ? a.tpid || "" : "" });
     if (typeof tpFokus === "function") setTimeout(() => tpFokus(aid, "namn"), 30);
 });

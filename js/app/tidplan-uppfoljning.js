@@ -12,7 +12,10 @@
    ====================================================================== */
 
 const TP_MAX_BASLINJER = 10;
-const tpBaslinjer = () => (state && state.tidplan && Array.isArray(state.tidplan.baslinjer)) ? state.tidplan.baslinjer : [];
+// Baslinjerna hör till en tidplan (b.tpid, saknas = projektets första).
+const tpBasAlla = () => (state && state.tidplan && Array.isArray(state.tidplan.baslinjer)) ? state.tidplan.baslinjer : [];
+const tpBaslinjer = () => tpBasAlla().filter(b => (b.tpid || "") === tpAktivPlan());
+const tpBasAndra = () => tpBasAlla().filter(b => (b.tpid || "") !== tpAktivPlan());
 const tpAktivBas = () => tpVy.bas ? tpBaslinjer().find(b => b.id === tpVy.bas) || null : null;
 const tpAvstDatum = () => tpVy.avstDatum || IDAG;
 const tpUfTid = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.getDate() + "/" + (d.getMonth() + 1) + " " + d.getFullYear() + " kl. " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
@@ -135,7 +138,8 @@ function tpUfSparaBaslinje(namn) {
     const lista = tpBaslinjer().slice();
     if (lista.length >= TP_MAX_BASLINJER) { status("Högst " + TP_MAX_BASLINJER + " baslinjer. Ta bort en gammal först.", true); return null; }
     const bas = tpNyBaslinje(tpAktiviteter(state), namn, new Date().toISOString());
-    const fore = tpBaslinjer().slice(), efter = lista.concat([bas]);
+    if (tpAktivPlan()) bas.tpid = tpAktivPlan();
+    const fore = tpBasAlla().slice(), efter = tpBasAndra().concat(lista, [bas]);
     tp.baslinjer = efter;
     tpHistLagg({ txt: "Sparade baslinjen " + namn, angra: () => { tp.baslinjer = fore; }, gor: () => { tp.baslinjer = efter; } });
     tpVy.bas = bas.id;
@@ -145,7 +149,8 @@ function tpUfSparaBaslinje(namn) {
 }
 
 function tpUfAndraBaslinjer(ny, txt) {
-    const tp = state.tidplan, fore = tpBaslinjer().slice();
+    const tp = state.tidplan, fore = tpBasAlla().slice();
+    ny = tpBasAndra().concat(ny);
     tp.baslinjer = ny;
     tpHistLagg({ txt, angra: () => { tp.baslinjer = fore; }, gor: () => { tp.baslinjer = ny; } });
     spara();

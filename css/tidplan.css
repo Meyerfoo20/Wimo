@@ -972,3 +972,161 @@ body.tp-fullvy #tidplan .tp-hero { margin-bottom: 14px; }
 body.tp-fullvy #tidplan .tp-hero .g-rubrik { font-size: 22px; }
 @media (max-width: 760px) { body.tp-fullvy #tidplan { padding: 12px; } }
 @media print { body.tp-fullvy #tidplan { position: static; overflow: visible; padding: 0; } }
+
+/* ==== flera tidplaner: listan ==== */
+.tp-planlista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.tp-plankort {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-elevated);
+  transition: border-color .15s;
+}
+.tp-plankort:hover { border-color: var(--border-strong); }
+.tp-planoppna {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 20px 22px 18px;
+  border: 0;
+  background: none;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.tp-planoppna:focus-visible { outline: 2px solid var(--accent-pop); outline-offset: 2px; }
+.tp-plannamn { margin-bottom: 6px; font-family: var(--font-display, inherit); font-size: 20px; font-weight: 800; letter-spacing: -.01em; line-height: 1.2; }
+.tp-planinfo { color: var(--text-muted); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.tp-planinst { position: absolute; right: 14px; bottom: 14px; }
+.tp-plannykort {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 150px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--r-l);
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  cursor: pointer;
+}
+.tp-plannykort span { font-size: 16px; font-weight: 700; }
+.tp-plannykort small { color: var(--text-muted); font-size: 13px; }
+.tp-plannykort:hover { border-color: var(--text-main); background: var(--bg-card); }
+.tp-tillbaka { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 6px -4px; padding: 2px 4px; color: var(--text-muted); font-weight: 600; }
+.tp-tillbaka:hover { color: var(--text-main); }
+
+/* dialogen: ny tidplan / inställningar */
+.tp-plval { margin-top: 18px; }
+.tp-plrub { margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.tp-plkol { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.tp-plkol .kryssrad, .tp-plval > .kryssrad { margin: 0; padding: 6px 0; }
+.tp-plzoom { margin-top: 10px; max-width: 260px; }
+@media (max-width: 560px) { .tp-plkol { grid-template-columns: 1fr; } }
+/* rubriken (tidplanens namn) trycks aldrig ihop: verktygen går ner på en egen rad i stället */
+.tp-hero .p4-hero-text { flex: 0 1 auto; min-width: min(100%, 320px); }
+.tp-hero .g-rubrik { overflow-wrap: anywhere; }
+.tp-hero .g-meta { white-space: nowrap; }
+.tp-plval .kryssrad { display: flex; align-items: flex-start; gap: 10px; }
+.tp-plval .kryssrad input { margin-top: 3px; }
+.tp-plval .kryssrad > span { display: flex; flex-direction: column; gap: 1px; }
+.tp-plval .kryssrad small { color: var(--text-muted); font-size: 12.5px; font-weight: 500; }
+.tp-plzoom { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+
+/* listan med tidplaner: en rad per tidplan, uppifrån och ned */
+.tp-planlista { display: flex; flex-direction: column; gap: 8px; }
+.tp-plankort { flex-direction: row; align-items: center; min-height: 0; }
+.tp-planoppna { flex-direction: row; align-items: center; gap: 18px; padding: 16px 20px; min-width: 0; }
+.tp-plannamn { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-planinfo { flex: none; white-space: nowrap; }
+.tp-planinfo + .tp-planinfo { min-width: 190px; }
+.tp-planinst { position: static; flex: none; margin-right: 14px; }
+.tp-plannykort { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 0; padding: 14px 20px; }
+.tp-plannykort span { font-size: 15px; }
+@media (max-width: 760px) {
+  .tp-planoppna { flex-wrap: wrap; gap: 2px 14px; }
+  .tp-plannamn { flex-basis: 100%; }
+  .tp-planinfo + .tp-planinfo { min-width: 0; }
+}
+/* raderna har samma kant som korten: 2 px runt om, mörkare beige till vänster och nedtill, rakt hörn där de möts */
+:root { --tp-kort-kant: #cfc5b1; }
+html[data-tema="mork"] { --tp-kort-kant: #5a5449; }
+.tp-plankort {
+  border: 2px solid var(--border-color);
+  border-left-color: var(--tp-kort-kant);
+  border-bottom-color: var(--tp-kort-kant);
+  border-radius: var(--r-l) var(--r-l) var(--r-l) 0;
+}
+.tp-plankort:hover { border-color: var(--border-strong); border-left-color: var(--text-muted); border-bottom-color: var(--text-muted); }
+.tp-plannykort { border-radius: var(--r-l) var(--r-l) var(--r-l) 0; }
+/* Inställningar: bara text, kanten (som korten) kommer fram vid hover */
+.tp-plankort .tp-planinst {
+  height: 34px;
+  padding: 0 12px;
+  border: 2px solid transparent;
+  border-radius: var(--r-m) var(--r-m) var(--r-m) 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.tp-plankort .tp-planinst:hover, .tp-plankort .tp-planinst:focus-visible {
+  border-color: var(--border-color);
+  border-left-color: var(--tp-kort-kant);
+  border-bottom-color: var(--tp-kort-kant);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+/* ==== högerklicksmeny på raderna ==== */
+.tp-hmeny {
+  position: fixed;
+  z-index: 80;
+  min-width: 260px;
+  padding: 6px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-left-color: var(--tp-kort-kant);
+  border-bottom-color: var(--tp-kort-kant);
+  border-radius: var(--r-m) var(--r-m) var(--r-m) 0;
+  box-shadow: var(--shadow-elevated);
+}
+.tp-hmeny-val {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.tp-hmeny-val kbd { padding: 0; border: 0; background: none; box-shadow: none; color: var(--text-faint); font: inherit; font-size: 12px; font-weight: 500; }
+.tp-hmeny-val:hover, .tp-hmeny-val:focus-visible { background: var(--bg-main); outline: none; }
+.tp-hmeny-val.fara { color: var(--leverans); }
+.tp-hmeny-val.fara:hover, .tp-hmeny-val.fara:focus-visible { background: var(--leverans-fyll); }
+.tp-hmeny-linje { height: 1px; margin: 5px 4px; background: var(--border-color); }
+.tp-rad.tp-menyrad > .tp-c, .tp-kalrad.tp-menyrad { background: var(--accent-light); }

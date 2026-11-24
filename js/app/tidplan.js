@@ -43,11 +43,16 @@ const TP_PIL_H = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" st
 // fran = kalenderns första måndag (null = veckan före idag), zoom, helger, ihop = hopfällda grupper,
 // dolda = dolda kolumner, tab = tabellens bredd i px, resurser = resurspanelen ("ihop" | "normal" | "stor").
 const tpVy = { fran: null, zoom: "vecka", helger: false, ihop: new Set(), dolda: new Set(), tabSmal: false, resurser: "normal", bas: null, avst: false, avstDatum: null, samband: true, pid: null };
+// Visningen sparas per tidplan. Har tidplanens inställningar ändrats sedan sist (visaRev) gäller de.
+const tpVyNyckel = () => "wimo_tidplanvy_" + state.id + (tpAktivPlan() ? "_" + tpAktivPlan() : "");
 function tpVyLas() {
-    if (!state || tpVy.pid === state.id) return;
+    if (!state || tpVy.pid === state.id + "|" + tpAktivPlan()) return;
     let v = {};
-    try { v = JSON.parse(localStorage.getItem("wimo_tidplanvy_" + state.id) || "{}") || {}; } catch (e) { }
-    tpVy.pid = state.id;
+    try { v = JSON.parse(localStorage.getItem(tpVyNyckel()) || "{}") || {}; } catch (e) { }
+    const meta = typeof tpPlanMeta === "function" ? tpPlanMeta(tpAktivPlan()) : null;
+    if (meta && meta.visa && (v.visaRev || 0) < (meta.visaRev || 0)) v = Object.assign({}, v, meta.visa, { visaRev: meta.visaRev, ihop: v.ihop });
+    tpVy.visaRev = v.visaRev || 0;
+    tpVy.pid = state.id + "|" + tpAktivPlan();
     tpVy.fran = null;
     tpVy.zoom = TP_ZOOM[v.zoom] ? v.zoom : "vecka";
     tpVy.helger = !!v.helger;
@@ -63,7 +68,7 @@ function tpVyLas() {
 function tpVySpara() {
     if (!state) return;
     try {
-        localStorage.setItem("wimo_tidplanvy_" + state.id, JSON.stringify({ zoom: tpVy.zoom, helger: tpVy.helger, ihop: [...tpVy.ihop],
+        localStorage.setItem(tpVyNyckel(), JSON.stringify({ visaRev: tpVy.visaRev || 0, zoom: tpVy.zoom, helger: tpVy.helger, ihop: [...tpVy.ihop],
             dolda: [...tpVy.dolda], tabSmal: tpVy.tabSmal, resurser: tpVy.resurser, bas: tpVy.bas, avst: tpVy.avst, avstDatum: tpVy.avstDatum, samband: tpVy.samband }));
     } catch (e) { }
 }
@@ -76,7 +81,11 @@ let tpVantar = false;          // en omritning väntar tills redigeringen är kl
 
 /* ---------- öppna / stänga sidan ---------- */
 
-function oppnaTidplan() {
+// Utan val visas listan med projektets tidplaner. { plan: id } öppnar en tidplan direkt.
+function oppnaTidplan(val) {
+    tpSakerstallPlan();
+    if (val && typeof val.plan === "string") { tpValjPlan(val.plan); tpListaVisas = false; }
+    else tpListaVisas = true;
     try { stangStart(); } catch (e) { }
     try { stangDash(); } catch (e) { }
     try { stangGantt(); } catch (e) { }
@@ -115,7 +124,7 @@ function tpFullvy(pa) {
 document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape" || !tpFullvyPa() || e.defaultPrevented) return;
     // Esc stänger först det som ligger överst: dialoger, menyer, redigering och markeringar
-    if (tpRedigerar || tpDrag || tpMark.size || document.querySelector("#overlay, .overlay, .p4d-pop, .tp-fargval, .dv-pop, .datumval")) return;
+    if (tpRedigerar || tpDrag || tpMark.size || document.querySelector("#overlay, .overlay, .p4d-pop, .tp-fargval, .dv-pop, .datumval, #tpHmeny")) return;
     const ae = document.activeElement;
     if (ae && ae.closest && ae.closest("[data-tpper]") && (tpValdPeriod || tpValdaStaplar.size)) return;
     tpFullvy(false);
@@ -455,7 +464,7 @@ document.addEventListener("paste", (e) => {
 const TP_HIST_MAX = 100;
 const tpHistorik = new Map();   // projekt-id → { bak: [], fram: [] }
 function tpHist() {
-    const id = state && state.id;
+    const id = state && state.id + "|" + tpAktivPlan();
     if (!tpHistorik.has(id)) tpHistorik.set(id, { bak: [], fram: [] });
     return tpHistorik.get(id);
 }
@@ -771,7 +780,7 @@ function tpKalHuvud(ax) {
         else span(x, bw, "tp-kh-v" + (z === "dag" ? " ovre" : ""), "v" + veckonr(d) + " <small>" + kortDatum(d) + "</small>", "Vecka " + veckonr(d) + ", från " + kortDatum(d));
     }
     if (z === "dag")
-        ax.dagar.forEach((d, i) => span(i * TP_DW, TP_DW, "tp-kh-d" + (d === IDAG ? " idag" : ""), "<small>" + DAGKORT[(iso2d(d).getDay() + 6) % 7].charAt(0) + "</small>" + iso2d(d).getDate()));
+        ax.dagar.forEach((d, i) => span(i * TP_DW, TP_DW, "tp-kh-d" + (d === IDAG ? " idag" : ""), "<small>" + "MTOTFLS".charAt((iso2d(d).getDay() + 6) % 7) + "</small>" + iso2d(d).getDate()));
     if (z === "manad") {
         let start = 0;
         ax.dagar.forEach((d, i) => {
@@ -792,6 +801,8 @@ function ritaTidplan() {
         return;
     if (tpRedigerar || tpDrag) { tpVantar = true; return; }
     tpVantar = false;
+    tpSakerstallPlan();
+    if (tpListaVisas) { tpRitaPlanlista(el); return; }
     tpVyLas();
     if (typeof tpSbForbered === "function") tpSbForbered();
     if (typeof tpTvForbered === "function") tpTvForbered();
@@ -830,9 +841,11 @@ function ritaTidplan() {
     el.classList.toggle("tp-tabsmal", tpVy.tabSmal);
     el.innerHTML =
         '<div class="p4-hero tp-hero"><div class="p4-hero-text">' +
-        '<h1 class="g-rubrik">Tidplan</h1>' +
+        '<button type="button" class="p4d-lank tp-tillbaka" data-tpplanlista>' + TP_PIL_V + "Alla tidplaner</button>" +
+        '<h1 class="g-rubrik">' + esc(tpPlanNamn(tpAktivPlan())) + "</h1>" +
         '<div class="g-meta">' + esc(state.projekt || "Projekt") + " · " + alla + (alla === 1 ? " aktivitet" : " aktiviteter") +
-        (kan ? "" : " · bara läsbehörighet") + "</div></div>" +
+        (kan ? "" : " · bara läsbehörighet") +
+        (kan ? ' · <button type="button" class="p4d-lank" data-tpplaninst="' + esc(tpAktivPlan()) + '">Inställningar</button>' : "") + "</div></div>" +
         '<div class="tp-verktyg">' + (typeof tpSbKnapp === "function" ? tpSbKnapp() : "") +
         (kan ? '<div class="tp-nav" role="group" aria-label="Ångra och gör om">' +
             '<button type="button" data-tpgor="angra" title="Ångra (Ctrl+Z)' + (h1 ? ": " + esc(h1.txt) : "") + '"' + (h1 ? "" : " disabled") + ' aria-label="Ångra" class="tp-ikon">' + TP_ANGRA + "</button>" +
@@ -888,6 +901,7 @@ function ritaTidplan() {
         "<dt><kbd>Tab</kbd></dt><dd>Spara och gå åt höger</dd>" +
         "<dt><kbd>Esc</kbd></dt><dd>Avbryt</dd>" +
         "<dt><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Flytta raden (eller dra i namnet)</dd>" +
+        "<dt>Högerklick på en rad</dt><dd>Meny: infoga rad ovanför/nedanför, underaktivitet, flytta, kopiera, ta bort</dd>" +
         "<dt><kbd>+</kbd> vid namnet</dt><dd>Lägg till en underaktivitet (även <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Enter</kbd>)</dd>" +
         "<dt><kbd>Alt</kbd> <kbd>Skift</kbd> <kbd>→</kbd> <kbd>←</kbd></dt><dd>Gör till underaktivitet / lyft ut ur gruppen</dd>" +
         "<dt>Pilen vid en grupp</dt><dd>Fäll ihop och visa underaktiviteterna</dd>" +

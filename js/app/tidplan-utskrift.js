@@ -361,9 +361,9 @@ function tpuForklaring(l) {
 
 function tpuHuvud(o, sida, antal) {
     const urval = kortDatum(o.fran) + " " + o.fran.slice(0, 4) + " – " + kortDatum(o.till) + " " + o.till.slice(0, 4) + " · v" + veckonr(o.fran) + "–" + veckonr(o.till);
-    document.getElementById("utskriftsfot").textContent = (state.projekt || "Projekt") + " – Tidplan · " + urval + " · utskriven " + tidStampel();
+    document.getElementById("utskriftsfot").textContent = (state.projekt || "Projekt") + " – " + tpPlanNamn(tpAktivPlan()) + " · " + urval + " · utskriven " + tidStampel();
     return '<div class="uhuvud tpu-huvud">' + (o.logga && state.logotyp ? '<img class="ulogga" src="' + state.logotyp + '" alt="">' : "") +
-        '<div class="utext"><div class="utitel">' + esc(state.projekt || "Projekt") + " – Tidplan</div>" +
+        '<div class="utext"><div class="utitel">' + esc(state.projekt || "Projekt") + " – " + esc(tpPlanNamn(tpAktivPlan())) + "</div>" +
         '<div class="umeta">' + esc(urval) + " · utskriven " + tidStampel() + "</div></div>" +
         '<div class="tpu-sidnr">Sida ' + sida + " av " + antal + "</div></div>";
 }
