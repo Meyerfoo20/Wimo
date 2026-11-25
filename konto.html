@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Versionen för uppdateringskollen. Samma värde ska stå i version.json. -->
-  <meta name="wimo-version" content="20261125j">
+  <meta name="wimo-version" content="20261125u">
   <title>Wimo</title>
   <script>try { if (localStorage.getItem("wimo-tema") === "mork") document.documentElement.setAttribute("data-tema", "mork"); } catch (e) { }</script>
   <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png?v=1">
@@ -21,23 +21,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
 
-  <link rel="stylesheet" href="css/bas.css?v=20261125j">
-  <link rel="stylesheet" href="css/dialoger.css?v=20261125j">
-  <link rel="stylesheet" href="css/vyer.css?v=20261125j">
-  <link rel="stylesheet" href="css/utskrift.css?v=20261125j">
-  <link rel="stylesheet" href="css/skal.css?v=20261125j">
-  <link rel="stylesheet" href="css/konto.css?v=20261125j">
-  <link rel="stylesheet" href="css/datumval.css?v=20261125j">
-  <link rel="stylesheet" href="css/gantt.css?v=20261125j">
-  <link rel="stylesheet" href="css/dagbok.css?v=20261125j">
-  <link rel="stylesheet" href="css/forslag.css?v=20261125j">
-  <link rel="stylesheet" href="css/tidplan.css?v=20261125j">
-  <link rel="stylesheet" href="css/tema.css?v=20261125j">
-  <link rel="stylesheet" href="css/backup.css?v=20261125j">
-  <link rel="stylesheet" href="css/hjalp.css?v=20261125j">
-  <link rel="stylesheet" href="css/hindernotis.css?v=20261125j">
-  <link rel="stylesheet" href="css/forma.css?v=20261125j">
-  <link rel="stylesheet" href="css/mobil.css?v=20261125j">
+  <link rel="stylesheet" href="css/bas.css?v=20261125u">
+  <link rel="stylesheet" href="css/dialoger.css?v=20261125u">
+  <link rel="stylesheet" href="css/vyer.css?v=20261125u">
+  <link rel="stylesheet" href="css/utskrift.css?v=20261125u">
+  <link rel="stylesheet" href="css/skal.css?v=20261125u">
+  <link rel="stylesheet" href="css/konto.css?v=20261125u">
+  <link rel="stylesheet" href="css/datumval.css?v=20261125u">
+  <link rel="stylesheet" href="css/gantt.css?v=20261125u">
+  <link rel="stylesheet" href="css/dagbok.css?v=20261125u">
+  <link rel="stylesheet" href="css/forslag.css?v=20261125u">
+  <link rel="stylesheet" href="css/tidplan.css?v=20261125u">
+  <link rel="stylesheet" href="css/tema.css?v=20261125u">
+  <link rel="stylesheet" href="css/backup.css?v=20261125u">
+  <link rel="stylesheet" href="css/hjalp.css?v=20261125u">
+  <link rel="stylesheet" href="css/hindernotis.css?v=20261125u">
+  <link rel="stylesheet" href="css/forma.css?v=20261125u">
+  <link rel="stylesheet" href="css/mobil.css?v=20261125u">
 </head>
 <body class="p4-laddar">
   <!-- Laddning medan inloggningen kontrolleras -->
@@ -122,7 +122,7 @@
           <kbd>Ctrl K</kbd>
         </label>
         <button class="fo-klocka fo-bara" id="foKlocka" type="button" aria-label="Aviseringar" title="Aviseringar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="fo-klockatal dold" id="foKlockaTal"></span></button>
-        <button class="p4-btn p4-btn-primar fo-bara fo-nyknapp dold" id="foNyFraga" type="button" title="Ny fråga ( N )">+ Ny fråga</button>
+        <span class="fo-nygrupp fo-bara dold" id="foNyGrupp"><button class="p4-btn p4-btn-primar fo-nyknapp" id="foNyFraga" type="button" title="Ny fråga ( N )">+ Ny fråga</button><button class="p4-btn p4-btn-primar fo-nymer" id="foNyMer" type="button" aria-haspopup="menu" aria-expanded="false" title="Fler sätt att registrera" aria-label="Fler sätt att registrera"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
         <label class="p4-sok plan-bara" title="Sök bland posterna på tavlan ( / )">
           <span class="p4-ik ik-sok" aria-hidden="true"></span>
           <input id="p4Sok" type="search" placeholder="Sök på tavlan" autocomplete="off" aria-label="Sök på tavlan">
@@ -315,70 +315,70 @@
   <div id="utskriftsfot"></div>
 
   <!-- Domänlogik (core) -->
-  <script src="js/core/konstanter.js?v=20261125j"></script>
-  <script src="js/core/datum.js?v=20261125j"></script>
-  <script src="js/core/kalender.js?v=20261125j"></script>
-  <script src="js/core/tpberakning.js?v=20261125j"></script>
-  <script src="js/core/kort.js?v=20261125j"></script>
-  <script src="js/core/operationer.js?v=20261125j"></script>
-  <script src="js/core/avrop.js?v=20261125j"></script>
-  <script src="js/core/resurser.js?v=20261125j"></script>
-  <script src="js/core/franvaro.js?v=20261125j"></script>
-  <script src="js/core/foretag.js?v=20261125j"></script>
-  <script src="js/core/projekt.js?v=20261125j"></script>
+  <script src="js/core/konstanter.js?v=20261125u"></script>
+  <script src="js/core/datum.js?v=20261125u"></script>
+  <script src="js/core/kalender.js?v=20261125u"></script>
+  <script src="js/core/tpberakning.js?v=20261125u"></script>
+  <script src="js/core/kort.js?v=20261125u"></script>
+  <script src="js/core/operationer.js?v=20261125u"></script>
+  <script src="js/core/avrop.js?v=20261125u"></script>
+  <script src="js/core/resurser.js?v=20261125u"></script>
+  <script src="js/core/franvaro.js?v=20261125u"></script>
+  <script src="js/core/foretag.js?v=20261125u"></script>
+  <script src="js/core/projekt.js?v=20261125u"></script>
 
   <!-- Gränssnitt, lagring och dialoger -->
-  <script src="js/app/grund.js?v=20261125j"></script>
-  <script src="js/app/tavla.js?v=20261125j"></script>
-  <script src="js/app/flytt.js?v=20261125j"></script>
-  <script src="js/app/guide.js?v=20261125j"></script>
-  <script src="js/app/redigera.js?v=20261125j"></script>
-  <script src="js/app/avropsmallar.js?v=20261125j"></script>
-  <script src="js/app/utfall-vader.js?v=20261125j"></script>
-  <script src="js/app/utskrift.js?v=20261125j"></script>
-  <script src="js/app/register.js?v=20261125j"></script>
-  <script src="js/app/oversikt.js?v=20261125j"></script>
-  <script src="js/app/projekt.js?v=20261125j"></script>
-  <script src="js/app/gantt.js?v=20261125j"></script>
-  <script src="js/app/backup.js?v=20261125j"></script>
-  <script src="js/app/hjalp.js?v=20261125j"></script>
-  <script src="js/app/dagbok.js?v=20261125j"></script>
-  <script src="js/app/forslag.js?v=20261125j"></script>
-  <script src="js/app/tidplan.js?v=20261125j"></script>
-  <script src="js/app/tidplan-resurser.js?v=20261125j"></script>
-  <script src="js/app/tidplan-uppfoljning.js?v=20261125j"></script>
-  <script src="js/app/tidplan-samband.js?v=20261125j"></script>
-  <script src="js/app/tidplan-tavla.js?v=20261125j"></script>
-  <script src="js/app/tidplan-utskrift.js?v=20261125j"></script>
-  <script src="js/app/tidplan-planer.js?v=20261125j"></script>
-  <script src="js/app/tidplan-meny.js?v=20261125j"></script>
-  <script src="js/app/anteckningar.js?v=20261125j"></script>
-  <script src="js/app/hindernotis.js?v=20261125j"></script>
+  <script src="js/app/grund.js?v=20261125u"></script>
+  <script src="js/app/tavla.js?v=20261125u"></script>
+  <script src="js/app/flytt.js?v=20261125u"></script>
+  <script src="js/app/guide.js?v=20261125u"></script>
+  <script src="js/app/redigera.js?v=20261125u"></script>
+  <script src="js/app/avropsmallar.js?v=20261125u"></script>
+  <script src="js/app/utfall-vader.js?v=20261125u"></script>
+  <script src="js/app/utskrift.js?v=20261125u"></script>
+  <script src="js/app/register.js?v=20261125u"></script>
+  <script src="js/app/oversikt.js?v=20261125u"></script>
+  <script src="js/app/projekt.js?v=20261125u"></script>
+  <script src="js/app/gantt.js?v=20261125u"></script>
+  <script src="js/app/backup.js?v=20261125u"></script>
+  <script src="js/app/hjalp.js?v=20261125u"></script>
+  <script src="js/app/dagbok.js?v=20261125u"></script>
+  <script src="js/app/forslag.js?v=20261125u"></script>
+  <script src="js/app/tidplan.js?v=20261125u"></script>
+  <script src="js/app/tidplan-resurser.js?v=20261125u"></script>
+  <script src="js/app/tidplan-uppfoljning.js?v=20261125u"></script>
+  <script src="js/app/tidplan-samband.js?v=20261125u"></script>
+  <script src="js/app/tidplan-tavla.js?v=20261125u"></script>
+  <script src="js/app/tidplan-utskrift.js?v=20261125u"></script>
+  <script src="js/app/tidplan-planer.js?v=20261125u"></script>
+  <script src="js/app/tidplan-meny.js?v=20261125u"></script>
+  <script src="js/app/anteckningar.js?v=20261125u"></script>
+  <script src="js/app/hindernotis.js?v=20261125u"></script>
 
   <!-- Det nya skalet: navigering, sök, kortkommandon och säkerhetskopia -->
-  <script src="js/skal.js?v=20261125j"></script>
+  <script src="js/skal.js?v=20261125u"></script>
 
   <!-- Egen datumväljare för alla datumfält -->
-  <script src="js/app/datumval.js?v=20261125j"></script>
+  <script src="js/app/datumval.js?v=20261125u"></script>
 
   <!-- Wimo Forma: egen modul med egen data -->
-  <script src="js/forma/fo-karna.js?v=20261125j"></script>
-  <script src="js/forma/fo-avis.js?v=20261125j"></script>
-  <script src="js/forma/fo-lagring.js?v=20261125j"></script>
-  <script src="js/forma/fo-delar.js?v=20261125j"></script>
-  <script src="js/forma/fo-vyer.js?v=20261125j"></script>
-  <script src="js/forma/fo-fraga.js?v=20261125j"></script>
-  <script src="js/forma/fo-org.js?v=20261125j"></script>
-    <script src="js/forma/fo-lista.js?v=20261125j"></script>
-    <script src="js/forma/fo-rapport.js?v=20261125j"></script>
-    <script src="js/forma/fo-flode.js?v=20261125j"></script>
-    <script src="js/forma/fo-avis-ui.js?v=20261125j"></script>
-  <script src="js/forma/fo-skal.js?v=20261125j"></script>
+  <script src="js/forma/fo-karna.js?v=20261125u"></script>
+  <script src="js/forma/fo-avis.js?v=20261125u"></script>
+  <script src="js/forma/fo-lagring.js?v=20261125u"></script>
+  <script src="js/forma/fo-delar.js?v=20261125u"></script>
+  <script src="js/forma/fo-vyer.js?v=20261125u"></script>
+  <script src="js/forma/fo-fraga.js?v=20261125u"></script>
+  <script src="js/forma/fo-org.js?v=20261125u"></script>
+    <script src="js/forma/fo-lista.js?v=20261125u"></script>
+    <script src="js/forma/fo-rapport.js?v=20261125u"></script>
+    <script src="js/forma/fo-flode.js?v=20261125u"></script>
+    <script src="js/forma/fo-avis-ui.js?v=20261125u"></script>
+  <script src="js/forma/fo-skal.js?v=20261125u"></script>
 
   <!-- Konto och molnsynk (Firebase) -->
-  <script src="js/konto/firebase-config.js?v=20261125j"></script>
-  <script src="js/konto/konto.js?v=20261125j"></script>
+  <script src="js/konto/firebase-config.js?v=20261125u"></script>
+  <script src="js/konto/konto.js?v=20261125u"></script>
   <script>foStarta();</script>
-  <script src="js/version.js?v=20261125j"></script>
+  <script src="js/version.js?v=20261125u"></script>
 </body>
 </html>

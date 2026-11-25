@@ -152,6 +152,7 @@ async function foPush() {
     if (foPushar || !foKo.length || !foMoln()) return;
     const pid = foPid;
     foPushar = true;
+    try { await foRensaVidBehov(); } catch (e) { console.warn("Forma rensning:", e); }
     const skickade = foKo.length;
     try {
         foRev = await window.p4FormaMoln.spara(pid, foP, foRev, foP.namn);
@@ -165,11 +166,35 @@ async function foPush() {
             return foPush();
         }
         console.warn("Forma sparning:", e);
+        if (e && e.trasig) status("Projektet i molnet sparades av en nyare version av Wimo. Uppdatera sidan innan du fortsätter. Dina ändringar finns kvar på den här datorn.", true);
+        if (e && e.forStor) status("Projektet är för stort för molnet och det finns inga fler avslutade frågor utan stjärna att rensa. Ändringarna finns kvar på den här datorn. Kontakta Wimo.", true);
         foSynkLage = navigator.onLine === false ? "offline" : "fel";
         setTimeout(() => { if (foKo.length) foPlaneraPush(); }, 8000);
     } finally { foPushar = false; }
     foVisaSynk();
     if (foKo.length) foPlaneraPush();
+}
+/* Molnet tar högst 900 000 tecken per projekt. Stora projekt komprimeras. Räcker inte det rensas
+   de äldsta avslutade frågorna (klara eller makulerade) som inte är stjärnmärkta, tills projektet
+   ligger under FO_RENSA_TILL. Rensningen är en vanlig ändring och syns i projektloggen. */
+const FO_RENSA_VID = 820000, FO_RENSA_TILL = 700000;
+async function foRensaVidBehov() {
+    if (!foP || !window.p4FormaMoln.storlek) return;
+    let storlek = await window.p4FormaMoln.storlek(foP);
+    if (storlek <= FO_RENSA_VID) return;
+    const kandidater = foP.fragor.filter(f => !f.stjarna && !foAktiv(f))
+        .sort((a, b) => String(a.andrad || a.skapad).localeCompare(String(b.andrad || b.skapad)));
+    let totalt = 0;
+    while (storlek > FO_RENSA_TILL && kandidater.length) {
+        const ids = kandidater.splice(0, 20).map(f => f.id);
+        const n = foGor("rensaFragor", { ids: ids }, true);
+        if (n) totalt += n;
+        storlek = await window.p4FormaMoln.storlek(foP);
+    }
+    if (totalt) {
+        status(totalt + " gamla avslutade frågor utan stjärna rensades så att projektet ryms i molnet. Stjärnmärk frågor som alltid ska sparas.", true);
+        if (typeof foRita === "function") foRita();
+    }
 }
 function foRebase(fjarr) {
     if (!fjarr || !fjarr.data) return;
@@ -193,6 +218,12 @@ function foLyssnaProjekt() {
             status("Forma-projektet är borttaget eller så har du inte längre åtkomst.", true);
             foTaBortLokalt(pid);
             if (typeof foRita === "function") foRita();
+            return;
+        }
+        if (x.trasig) {
+            // Datan kunde inte läsas (sparad av en nyare version). Skriv aldrig över den med en tom kopia.
+            foSynkLage = "fel"; foVisaSynk();
+            status("Projektet sparades av en nyare version av Wimo. Uppdatera sidan.", true);
             return;
         }
         foMolnMeta = { medlemmar: x.medlemmar, admins: x.admins };

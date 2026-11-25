@@ -172,6 +172,21 @@ function foPersonNamn(p, id) {
     return x ? ((x.fornamn + " " + x.efternamn).trim() || x.epost || "Namnlös") : "";
 }
 function foDiscText(p, id) { const d = foDisc(p, id); return d ? d.kod : ""; }
+// Färgad disciplinkod: färgen följer disciplinens plats i projektet (samma färg överallt, ljust och mörkt läge).
+function foDiscFarg(p, id) { const i = p.discipliner.findIndex(d => d.id === id); return i < 0 ? 0 : i % 6 + 1; }
+function foDiscChip(p, id, medNamn) {
+    const d = foDisc(p, id);
+    if (!d) return "";
+    return '<span class="fo-dkod" data-dfarg="' + foDiscFarg(p, id) + '">' + esc(d.kod) + '</span>' + (medNamn ? " " + esc(d.namn) : "");
+}
+// Avatarer får en färg utifrån initialerna, så samma person känns igen i hela Forma.
+function foFargaAvatarer(rot) {
+    (rot || document).querySelectorAll(".fo-avatar:not([data-afarg])").forEach(el => {
+        const t = el.textContent || "";
+        let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+        el.setAttribute("data-afarg", String(h % 6 + 1));
+    });
+}
 // Ansvarig/mottagare är antingen en disciplin { disc } eller en person { person }.
 function foPartText(p, part, lang) {
     if (!part) return "";
@@ -198,6 +213,77 @@ function foArPart(p, personId, part) {
 function foRoll(p, personId) { const x = foPerson(p, personId); return x ? x.roll : "lasare"; }
 function foKanLeda(p, personId) { return ["admin", "pl"].includes(foRoll(p, personId)); }
 function foKanSkriva(p, personId) { return ["admin", "pl", "projektor"].includes(foRoll(p, personId)); }
+
+// Vem får välja en fråga till beslutsloggen: frågeställarens eller mottagarens disciplin/person, projekteringsledare och superuser.
+function foKanLoggaFraga(p, personId, f) {
+    if (!personId) return true;
+    if (!foKanSkriva(p, personId) && !foSuper(p, personId)) return false;
+    if (foKanLeda(p, personId) || foSuper(p, personId) || foArStallare(p, personId, f) || foArMottagare(p, personId, f)) return true;
+    const mina = foPersonDisc(p, personId);
+    return mina.includes(f.fran) || foMottagare(f).some(m => m.disc && mina.includes(m.disc));
+}
+// Disciplin för en åtgärd: ansvarig disciplin, annars ansvarig persons första disciplin.
+function foAtgardDisc(p, a) {
+    if (!a.ansvarig) return "";
+    if (a.ansvarig.disc) return a.ansvarig.disc;
+    return a.ansvarig.person ? (foPersonDisc(p, a.ansvarig.person)[0] || "") : "";
+}
+// Beskedet i källfrågan har reviderats efter att åtgärden skapades (eller senast bedömdes).
+function foAtgardInaktuell(p, a) {
+    if (a.svarRev === null || a.svarRev === undefined || !a.kalla || a.kalla.typ !== "fraga") return false;
+    const f = foFraga(p, a.kalla.id);
+    return !!f && (f.revs || []).length > a.svarRev;
+}
+
+// Mötesforum som går att välja på frågor (mappar som markerats som forum).
+function foForumValbara(p) { return p.forum.filter(f => f.aktiv && f.valbar !== false); }
+function foForumSokvag(p, fo) { const l = []; for (let x = fo, n = 0; x && n < 20; n++) { l.unshift(x.namn); x = x.forelder ? foForum(p, x.forelder) : null; } return l.join(" / "); }
+// Protokollbevakning: utgår från mötesdatum. Extra möten och revideringar nollställer inte bevakningen.
+// Forma vet inte om mötet hållits – den säger "behöver följas upp", aldrig "protokoll saknas".
+function foBevakning(p, fo, idag) {
+    const b = fo.bevakning;
+    if (!b || !b.pa) return null;
+    const ord = (p.protokoll || []).filter(x => x.forum === fo.id && !x.makulerad && !x.extra).sort((a, c) => (c.datum || "").localeCompare(a.datum || ""));
+    const senast = ord[0] ? ord[0].datum : "";
+    if (b.pausTill && b.pausTill >= idag) return { senast, lage: "pausad", text: "Pausad till " + b.pausTill };
+    if (!senast) return { senast, lage: "folj", text: "Inget protokoll registrerat ännu" };
+    const grans = new Date(senast); grans.setDate(grans.getDate() + b.dagar + b.marginal);
+    const g = grans.toISOString().slice(0, 10);
+    return g < idag ? { senast, lage: "folj", text: "Behöver följas upp – senaste protokoll " + senast } : { senast, lage: "ok", text: "Inom intervallet – nästa väntas senast " + g };
+}
+
+// Aktuellt ansvar för en person: underlag för Ersätt och för avaktivering.
+function foAnsvarFor(p, id) {
+    const ar = (part) => part && part.person === id;
+    const akt = p.fragor.filter(foAktiv);
+    return {
+        stallare: akt.filter(f => foStallarePerson(f) === id),
+        mottagare: akt.filter(f => foMottagare(f).some(ar)),
+        bedoma: akt.filter(f => foStallarePerson(f) === id && f.lage === "besvarad"),
+        atgarder: p.atgarder.filter(x => x.status === "oppen" && ar(x.ansvarig)),
+        avis: p.discipliner.filter(d => (d.avis || []).includes(id))
+    };
+}
+// Anslutningsstatus (skild från befattning och behörighet): kontakt | inbjuden | aktiv | inaktiv
+function foAnslutning(p, x, medlemmar) {
+    if (x.aktiv === false) return "inaktiv";
+    if (x.uid && (!medlemmar || medlemmar.includes(x.uid))) return "aktiv";
+    if (x.inbjudan && x.inbjudan.utgar > Date.now()) return "inbjuden";
+    return "kontakt";
+}
+const FO_ANSLUTNING = { kontakt: "Endast kontakt", inbjuden: "Inbjuden", aktiv: "Aktiv", inaktiv: "Inaktiv" };
+// Uppmärksamhetssignaler för projekteringsledaren (inga hinder).
+function foOrgVarningar(p) {
+    const ut = [], inaktiv = (id) => { const x = foPerson(p, id); return !x || x.aktiv === false; };
+    const utanAvis = p.discipliner.filter(d => d.aktiv && !(d.avis || []).some(id => !inaktiv(id)));
+    if (utanAvis.length) ut.push((utanAvis.length === 1 ? "Disciplinen " + utanAvis[0].kod + " saknar" : utanAvis.length + " discipliner saknar") + " utsedd aviseringsmottagare" +
+        (utanAvis.length > 1 ? " (" + utanAvis.map(d => d.kod).join(", ") + ")" : "") + ". Alla i disciplinen aviseras tills någon utses.");
+    const fr = p.fragor.filter(f => foAktiv(f) && foMottagare(f).length && foMottagare(f).every(m => m.person && inaktiv(m.person)));
+    if (fr.length) ut.push(fr.length + (fr.length === 1 ? " öppen fråga saknar" : " öppna frågor saknar") + " aktiv mottagare (" + fr.slice(0, 5).map(f => f.nr).join(", ") + (fr.length > 5 ? " …" : "") + ").");
+    const at = p.atgarder.filter(x => x.status === "oppen" && x.ansvarig && x.ansvarig.person && inaktiv(x.ansvarig.person));
+    if (at.length) ut.push(at.length + (at.length === 1 ? " öppen åtgärd är tilldelad" : " öppna åtgärder är tilldelade") + " en person som lämnat projektet.");
+    return ut;
+}
 
 /* ---------- frågor: läge och urval ---------- */
 function foForsenad(f, idag) {
@@ -447,6 +533,52 @@ const FO_OPS = {
         x.uid = a.uid || "";
         return null;
     },
+    // Inbjudan: personlig (kopplad till kontaktpostens e-post), tidsbegränsad och återkallbar.
+    // Själva åtkomsten styrs av projektets inbjudningslista i molnet (se foBjudIn i fo-org.js).
+    bjudIn(p, a, ctx) {
+        const x = foPerson(p, a.id);
+        foKrav(x, "Kontakten finns inte.");
+        foKrav(x.epost, "Ange e-post på kontakten innan du bjuder in.");
+        foKrav(x.aktiv !== false, "Kontakten är inaktiverad.");
+        x.inbjudan = { tid: ctx.tid, av: ctx.av, utgar: a.utgar, epost: x.epost };
+        foLogg(p, ctx, "", foPersonNamn(p, x.id) + " bjöds in till projektet");
+    },
+    aterkallaInbjudan(p, a, ctx) {
+        const x = foPerson(p, a.id);
+        foKrav(x && x.inbjudan, "Det finns ingen inbjudan att återkalla.");
+        x.inbjudan = null;
+        foLogg(p, ctx, "", "Inbjudan till " + foPersonNamn(p, x.id) + " återkallades");
+    },
+    // Ersätt projektmedlem: överför aktuellt ansvar. Historik och författarskap ändras aldrig.
+    ersattPerson(p, a, ctx) {
+        const fran = foPerson(p, a.fran), till = foPerson(p, a.till);
+        foKrav(fran && till && fran.id !== till.id, "Välj två olika personer.");
+        foKrav(till.aktiv !== false, "Den som tar över måste vara aktiv i projektet.");
+        const val = a.delar || {}, ar = (part) => part && part.person === fran.id;
+        const nyPart = { person: till.id };
+        const namnT = foPersonNamn(p, till.id), namnF = foPersonNamn(p, fran.id);
+        let n = 0;
+        p.fragor.forEach(f => {
+            if (!foAktiv(f)) return;
+            let andrad = false;
+            if (val.stallare && foStallarePerson(f) === fran.id) { f.stallare = till.id; andrad = true; foHist(f, ctx, "Frågeställaransvaret överfört från " + namnF + " till " + namnT); }
+            if (val.mottagare && foMottagare(f).some(ar)) {
+                f.mottagare = foMottagare(f).map(m => ar(m) ? nyPart : m).filter((m, i, l) => l.findIndex(y => JSON.stringify(y) === JSON.stringify(m)) === i);
+                if (ar(f.ansvarig)) f.ansvarig = nyPart;
+                andrad = true; foHist(f, ctx, "Svarsansvaret överfört från " + namnF + " till " + namnT);
+            }
+            if (andrad) { f.andrad = ctx.tid; n++; }
+        });
+        if (val.atgarder) p.atgarder.forEach(x => {
+            if (x.status === "oppen" && ar(x.ansvarig)) { x.ansvarig = nyPart; x.andrad = ctx.tid; foHist(x, ctx, "Ansvaret överfört från " + namnF + " till " + namnT); n++; }
+        });
+        if (val.avis) p.discipliner.forEach(d => {
+            if ((d.avis || []).includes(fran.id)) { d.avis = d.avis.filter(id => id !== fran.id); if (!d.avis.includes(till.id)) d.avis.push(till.id); n++; }
+        });
+        if (val.disc) (fran.disc || []).forEach(d => { if (!(till.disc || []).includes(d)) { till.disc = (till.disc || []).concat(d); n++; } });
+        foLogg(p, ctx, "", "Ansvar överfört från " + namnF + " till " + namnT + " (" + n + " poster)");
+        return n;
+    },
     sparaIndelning(p, a, ctx) {
         const namn = String(a.namn || "").trim();
         foKrav(namn, "Ange indelningstypens namn, till exempel Byggnad.");
@@ -467,13 +599,44 @@ const FO_OPS = {
         foKrav(namn, "Ange mötesforumets namn, till exempel Projekteringsmöte.");
         let f = a.id && foForum(p, a.id);
         if (!f) { f = { id: a.id || foId(), aktiv: true, nastaMote: "" }; p.forum.push(f); }
+        // Fri mappstruktur: forelder pekar på en annan mapp. valbar = kan väljas som mötesforum på frågor.
+        let forelder = a.forelder !== undefined ? a.forelder || "" : f.forelder || "";
+        for (let x = forelder, n = 0; x && n < 50; n++) { foKrav(x !== f.id, "En mapp kan inte ligga i sig själv."); x = (foForum(p, x) || {}).forelder; }
         Object.assign(f, { namn: namn, kort: String(a.kort || "").trim().toUpperCase() || namn.slice(0, 2).toUpperCase(),
-            plats: a.plats || "", tid: a.tid || "", ledare: a.ledare || "", sekreterare: a.sekreterare || "", deltagare: a.deltagare || [] });
+            plats: a.plats || "", tid: a.tid || "", ledare: a.ledare || "", sekreterare: a.sekreterare || "", deltagare: a.deltagare || [],
+            forelder: forelder, valbar: a.valbar !== undefined ? !!a.valbar : f.valbar !== false });
+        if (a.bevakning !== undefined) f.bevakning = a.bevakning ? { pa: !!a.bevakning.pa, dagar: Math.max(1, +a.bevakning.dagar || 14), marginal: Math.max(0, +a.bevakning.marginal || 3),
+            ansvarig: a.bevakning.ansvarig || "", pausTill: a.bevakning.pausTill || "" } : null;
         if (a.nastaMote !== undefined) f.nastaMote = a.nastaMote;
         if (a.aktiv !== undefined) f.aktiv = !!a.aktiv;
         foLogg(p, ctx, "", "Mötesforumet " + namn + " sparades");
     },
 
+    // Protokoll: Forma är protokollcentral men lagrar inte filen än (dokumentmotorn är pausad).
+    // Protokollet registreras med mötesnummer, datum, status och en länk till var filen ligger (Teams, SharePoint …).
+    registreraProtokoll(p, a, ctx) {
+        const fo = foForum(p, a.forum);
+        foKrav(fo, "Välj mötesforum.");
+        if (!Array.isArray(p.protokoll)) p.protokoll = [];
+        let x = a.id && p.protokoll.find(y => y.id === a.id);
+        const ny = !x;
+        if (ny) { x = { id: a.id || foId(), forum: fo.id, skapad: ctx.tid, av: ctx.av, hist: [], kopplingar: [], version: 1 }; p.protokoll.push(x); }
+        else if (a.lank !== undefined && a.lank !== x.lank) x.version = (x.version || 1) + 1;
+        Object.assign(x, { forum: fo.id, nr: String(a.nr || "").trim(), datum: a.datum || foDag(ctx.tid), lank: String(a.lank || "").trim(), status: a.status === "utkast" ? "utkast" : "slutligt",
+            forare: a.forare || "", extra: !!a.extra, sammanstallning: a.sammanstallning !== undefined ? a.sammanstallning : x.sammanstallning || "", andrad: ctx.tid });
+        foKrav(x.nr || x.datum, "Ange mötesnummer eller datum.");
+        foHist(x, ctx, ny ? "Protokoll registrerat" : "Protokollet ändrat" + (x.version > 1 ? " (version " + x.version + ")" : ""));
+        foLogg(p, ctx, x.id, fo.namn + (x.nr ? " " + x.nr : "") + ": protokoll " + (ny ? "registrerat" : "ändrat"));
+        return x;
+    },
+    taBortProtokoll(p, a, ctx) {
+        const x = (p.protokoll || []).find(y => y.id === a.id);
+        foKrav(x, "Protokollet finns inte.");
+        foKrav(String(a.orsak || "").trim(), "Ange varför.");
+        x.makulerad = { orsak: a.orsak.trim(), tid: ctx.tid, av: ctx.av };
+        foHist(x, ctx, "Borttaget: " + a.orsak.trim());
+        foLogg(p, ctx, x.id, "Protokoll borttaget");
+    },
     /* ---------- projektflödet ---------- */
     // Inlägg för löpande information. Fästa inlägg ligger överst; kommentarerna är platta (ingen chatt i trådar).
     nyttInlagg(p, a, ctx) {
@@ -665,12 +828,15 @@ const FO_OPS = {
         const lamnat = a.lamnat && foPerson(p, a.lamnat) ? a.lamnat : ctx.av;
         const x = { id: a.post || foId(), typ: typ, tid: ctx.tid, av: ctx.av, lamnat: lamnat, text: text,
             ver: [{ text: text, tid: ctx.tid, av: ctx.av, typ: "ny" }], slutligt: false };
+        // Svar eller besked lämnat på ett möte (frivilligt): forum och mötesdatum sparas i historiken.
+        const mfo = a.mote && foForum(p, a.mote.forum);
+        if (mfo) x.mote = { forum: mfo.id, datum: a.mote.datum || foDag(ctx.tid) };
         f.dialog.push(x);
         (a.bilagor || []).forEach(b => f.bilagor.push(Object.assign({}, b, { del: "d:" + x.id })));
         const fore = f.lage, pa = lamnat !== ctx.av ? " (lämnat av " + (foPersonNamn(p, lamnat) || "–") + ", registrerat av " + (foPersonNamn(p, ctx.av) || "–") + ")" : "";
         if (typ === "svar") {
             if (f.lage !== "besvarad") f.lage = "besvarad";
-            foHist(f, ctx, "Svar lämnat" + pa + (fore === "klar" ? " – frågan återöppnades för ny bedömning" : ""));
+            foHist(f, ctx, "Svar lämnat" + (x.mote ? " på " + mfo.namn + " " + x.mote.datum : "") + pa + (fore === "klar" ? " – frågan återöppnades för ny bedömning" : ""));
         } else {
             if (foArStallare(p, lamnat, f) && (f.lage === "besvarad" || f.lage === "klar")) f.lage = "ofullstandig";
             foHist(f, ctx, "Följdfråga" + pa + (fore === "klar" && f.lage !== "klar" ? " – frågan återöppnades" : ""));
@@ -820,6 +986,7 @@ const FO_OPS = {
     makuleraFraga(p, a, ctx) {
         const f = foFraga(p, a.id);
         foKrav(f, "Frågan finns inte.");
+        foKrav(foFragaAgare(p, ctx.av, f) || f.av === ctx.av || foKanLeda(p, ctx.av), "Bara frågeställaren, den som registrerade frågan, projekteringsledare eller superuser kan makulera frågan.");
         foKrav(String(a.orsak || "").trim(), "Ange varför frågan makuleras.");
         f.makulerad = { orsak: a.orsak.trim(), tid: ctx.tid, av: ctx.av, lage: f.lage };
         f.andrad = ctx.tid;
@@ -829,10 +996,41 @@ const FO_OPS = {
     aterstallFraga(p, a, ctx) {
         const f = foFraga(p, a.id);
         foKrav(f && f.makulerad, "Frågan är inte makulerad.");
+        foKrav(foFragaAgare(p, ctx.av, f) || f.av === ctx.av || foKanLeda(p, ctx.av), "Bara frågeställaren, den som registrerade frågan, projekteringsledare eller superuser kan återställa frågan.");
         f.makulerad = null;
         f.andrad = ctx.tid;
         foHist(f, ctx, "Återställd från makulerad");
         foLogg(p, ctx, f.id, "Fråga " + f.nr + " återställdes");
+    },
+    // Inkludera i beslutsloggen: disciplinvis selektering. Ingen ny text, beslutsfattare eller motivering krävs.
+    // Selekteringen är inte ett formellt beslut.
+    beslutslogg(p, a, ctx) {
+        const f = foFraga(p, a.id);
+        foKrav(f, "Frågan finns inte.");
+        foKrav(foKanLoggaFraga(p, ctx.av, f), "Det är disciplinen som ställt eller besvarar frågan som väljer den till beslutsloggen.");
+        if (!!a.pa === !!(f.ilogg && f.ilogg.pa)) return null;
+        f.ilogg = a.pa ? { pa: true, av: ctx.av, tid: ctx.tid } : null;
+        foHist(f, ctx, a.pa ? "Inkluderad i beslutsloggen" : "Borttagen från beslutsloggen");
+        foLogg(p, ctx, f.id, "Fråga " + f.nr + (a.pa ? " inkluderad i" : " borttagen från") + " beslutsloggen");
+    },
+    // Stjärnmärkta frågor sparas alltid, även när projektet rensas för att rymmas i molnet.
+    stjarna(p, a, ctx) {
+        const f = foFraga(p, a.id);
+        foKrav(f, "Frågan finns inte.");
+        f.stjarna = !!a.pa;
+        foHist(f, ctx, a.pa ? "Stjärnmärkt (sparas alltid)" : "Stjärnmärkning borttagen");
+    },
+    // Tar bort gamla avslutade frågor (klara eller makulerade, utan stjärna) när projektet närmar sig molnets gräns.
+    // Numret återanvänds aldrig, och en kort rad om varje rensad fråga finns kvar i p.rensade.
+    rensaFragor(p, a, ctx) {
+        const ids = (a.ids || []).filter(id => { const f = foFraga(p, id); return f && !f.stjarna && !foAktiv(f); });
+        if (!ids.length) return null;
+        if (!Array.isArray(p.rensade)) p.rensade = [];
+        ids.forEach(id => { const f = foFraga(p, id); p.rensade.push({ id: f.id, nr: f.nr, text: f.text.slice(0, 80), tid: ctx.tid }); });
+        p.fragor = p.fragor.filter(f => !ids.includes(f.id));
+        [p.atgarder, p.beslut, p.flode || []].forEach(l => l.forEach(o => { if (Array.isArray(o.kopplingar)) o.kopplingar = o.kopplingar.filter(k => !(k.typ === "fraga" && ids.includes(k.id))); }));
+        foLogg(p, ctx, "", ids.length + " gamla avslutade frågor rensades för att projektet ska rymmas i molnet");
+        return ids.length;
     },
 
     /* ---------- kopplingar (dubbelriktade) ---------- */
@@ -957,8 +1155,13 @@ const FO_OPS = {
         const text = String(a.text || "").trim();
         foKrav(text, "Skriv vad som ska göras.");
         p.seq.atgard = Math.max(p.seq.atgard, p.atgarder.reduce((m, x) => Math.max(m, x.nr), 0)) + 1;
+        const kallaF = a.kalla && a.kalla.typ === "fraga" ? foFraga(p, a.kalla.id) : null;
         const x = { id: a.id, nr: p.seq.atgard, text: text, ansvarig: a.ansvarig || null, senast: a.senast || "", status: "oppen",
-            kalla: a.kalla || null, skapad: ctx.tid, andrad: ctx.tid, av: ctx.av, kopplingar: [], hist: [], makulerad: null };
+            kalla: a.kalla || null, skapad: ctx.tid, andrad: ctx.tid, av: ctx.av, kopplingar: [], hist: [], makulerad: null,
+            // uppföljningsansvarig: som standard den som skapar åtgärden
+            uppfoljare: a.uppfoljare !== undefined ? a.uppfoljare : (ctx.av || null), kontroll: !!a.kontroll, resultat: null,
+            // vilken svarsversion åtgärden bygger på (för att upptäcka reviderade besked)
+            svarRev: kallaF ? (kallaF.revs || []).length : null };
         foHist(x, ctx, "Åtgärden skapades");
         p.atgarder.push(x);
         if (a.kalla) {
@@ -975,6 +1178,9 @@ const FO_OPS = {
         if (a.text !== undefined && a.text.trim() && a.text.trim() !== x.text) { x.text = a.text.trim(); andr.push("Texten ändrades"); }
         if (a.ansvarig !== undefined && JSON.stringify(a.ansvarig) !== JSON.stringify(x.ansvarig)) { x.ansvarig = a.ansvarig; andr.push("Ansvarig: " + (foPartText(p, a.ansvarig) || "–")); }
         if (a.senast !== undefined && a.senast !== x.senast) { x.senast = a.senast; andr.push("Klar senast: " + (a.senast || "–")); }
+        if (a.uppfoljare !== undefined && a.uppfoljare !== x.uppfoljare) { x.uppfoljare = a.uppfoljare || null; andr.push("Följs upp av: " + (foPersonNamn(p, a.uppfoljare) || "–")); }
+        if (a.kontroll !== undefined && !!a.kontroll !== !!x.kontroll) { x.kontroll = !!a.kontroll; andr.push(a.kontroll ? "Kräver kontroll av uppföljningsansvarig" : "Kräver inte kontroll"); }
+        if (a.revOk && x.svarRev !== null) { const f = foFraga(p, (x.kalla || {}).id); if (f) { x.svarRev = (f.revs || []).length; andr.push("Bedömd mot det reviderade beskedet"); } }
         if (!andr.length) return null;
         x.andrad = ctx.tid;
         andr.forEach(t => foHist(x, ctx, t));
@@ -993,9 +1199,14 @@ const FO_OPS = {
             x.makulerad = null;
             foHist(x, ctx, "Återställd");
         } else {
-            if (x.status === a.status) return null;
-            x.status = a.status;
-            foHist(x, ctx, a.status === "klar" ? "Markerad som klar" : "Öppnad igen");
+            // Kräver åtgärden kontroll går den till "Väntar på kontroll" tills uppföljningsansvarig godkänner.
+            let ny = a.status;
+            if (ny === "klar" && x.kontroll && x.uppfoljare && ctx.av !== x.uppfoljare && x.status === "oppen") ny = "kontroll";
+            if (ny === "klar" && x.status === "kontroll") foKrav(!ctx.av || ctx.av === x.uppfoljare || foKanLeda(p, ctx.av), "Det är " + (foPersonNamn(p, x.uppfoljare) || "uppföljningsansvarig") + " som kontrollerar och avslutar åtgärden.");
+            if (x.status === ny) return null;
+            x.status = ny;
+            if ((ny === "klar" || ny === "kontroll") && (a.kommentar || (a.bilagor || []).length)) x.resultat = { text: String(a.kommentar || "").trim(), bilagor: a.bilagor || [], tid: ctx.tid, av: ctx.av };
+            foHist(x, ctx, ny === "klar" ? "Markerad som klar" + (a.kommentar ? ": " + String(a.kommentar).trim() : "") : ny === "kontroll" ? "Utförd – väntar på kontroll" + (a.kommentar ? ": " + String(a.kommentar).trim() : "") : "Öppnad igen");
         }
         x.andrad = ctx.tid;
         foLogg(p, ctx, x.id, "Åtgärd Å-" + x.nr + ": " + x.hist[x.hist.length - 1].text.toLowerCase());
@@ -1017,6 +1228,7 @@ function foObj(p, ref) {
     if (ref.typ === "beslut") return foBeslut(p, ref.id);
     if (ref.typ === "atgard") return foAtgard(p, ref.id);
     if (ref.typ === "inlagg") return foInlagg(p, ref.id);
+    if (ref.typ === "protokoll") return (p.protokoll || []).find(x => x.id === ref.id) || null;
     return null;
 }
 function foObjNamn(p, ref) {
@@ -1026,16 +1238,37 @@ function foObjNamn(p, ref) {
     if (ref.typ === "beslut") return "Beslut " + o.nr;
     if (ref.typ === "atgard") return "Åtgärd Å-" + o.nr;
     if (ref.typ === "inlagg") return "Inlägg av " + (foPersonNamn(p, o.av) || "okänd") + " i projektflödet";
+    if (ref.typ === "protokoll") return "Protokoll " + ((foForum(p, o.forum) || {}).kort || "") + (o.nr ? " " + o.nr : "") + " " + (o.datum || "");
     return "";
 }
 function foObjText(p, ref) { const o = foObj(p, ref); return o ? o.text : ""; }
 
 /* ---------- kör en operation ---------- */
 // Kastar Error om operationen inte går. Returnerar det operationen returnerade.
+/* Behörighet per ändring, i kärnan och inte bara i gränssnittet. Läsare får bara markera som
+   sett och kvittera det som riktats till dem. Projektets uppgifter, organisation och
+   inställningar ändras av administratör och projekteringsledare. */
+const FO_NY_SAMLING = { nyFraga: "fragor", nyttBeslut: "beslut", nyAtgard: "atgarder", nyttInlagg: "flode" };
+const FO_LASARE_FAR = ["sett", "kvittera", "kvitteraKrav", "kopplaKonto"];
+const FO_BARA_LEDA = ["bjudIn", "aterkallaInbjudan", "ersattPerson", "projektUppgifter", "installning", "sparaDisc", "flyttaDisc", "sparaForetag", "sparaKategori", "flyttaKategori",
+    "taBortKategori", "sparaPerson", "sparaIndelning", "sparaForum", "taBortProtokoll"];
+function foBehorOp(p, op, ctx) {
+    if (!ctx.av) return;
+    const x = foPerson(p, ctx.av);
+    if (!x) return;
+    foKrav(x.aktiv !== false || op.typ === "sett", "Ditt medlemskap i projektet är avslutat.");
+    if (x.roll === "lasare") foKrav(FO_LASARE_FAR.includes(op.typ), "Du har läsbehörighet i projektet och kan inte ändra projektinformation.");
+    // Egna kontaktuppgifter får man ändra, men inte sin egen roll.
+    const egen = op.typ === "sparaPerson" && op.a && op.a.id === ctx.av && (op.a.roll === undefined || op.a.roll === x.roll) && !op.a.superuser === !x.superuser;
+    if (FO_BARA_LEDA.includes(op.typ) && !egen) foKrav(foKanLeda(p, ctx.av), "Bara administratör och projekteringsledare kan ändra det här.");
+}
 function foKorOp(p, op) {
     const fn = FO_OPS[op.typ];
     if (!fn) throw new Error("Okänd ändring: " + op.typ);
     const ctx = { av: op.av || "", tid: op.tid || foNu() };
+    foBehorOp(p, op, ctx);
+    // Samma nya post två gånger (dubbelklick, eller samma ändring skickad igen) blir ingen dubblett.
+    if (FO_NY_SAMLING[op.typ] && op.a && op.a.id && (p[FO_NY_SAMLING[op.typ]] || []).some(x => x.id === op.a.id)) return null;
     const fore = typeof foAvisFore === "function" ? foAvisFore(p, op) : null;
     const svar = fn(p, op.a || {}, ctx);
     // Aviseringar räknas fram ur ändringen (samma resultat varje gång ändringen körs).

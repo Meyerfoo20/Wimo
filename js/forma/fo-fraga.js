@@ -19,6 +19,7 @@ function foStangPanel(tyst) {
 }
 
 function foRitaPanel() {
+    setTimeout(() => foFargaAvatarer(), 0);
     const p = foP, f = foFraga(p, foFragaOppen);
     let pan = document.getElementById("foPanel");
     if (!pan) {
@@ -98,7 +99,7 @@ function foPanelFraga(f, ok, kan, leda, jag) {
 
     // Uppgifter (sparas direkt)
     const lasa = !kan || !!f.makulerad;
-    const forum = p.forum.filter(x => x.aktiv || f.moten.includes(x.id));
+    const forum = p.forum.filter(x => (x.aktiv && x.valbar !== false) || f.moten.includes(x.id));
     const svaratStatus = part => foHarSvarat(p, f, part) ? '<i class="fo-harsvarat" title="Har svarat">svarat</i>' : '<i class="fo-ejsvarat" title="Har inte svarat">väntar</i>';
     h += '<section class="fo-del fo-uppgifter">' +
         '<div class="fo-litefalt"><span>Ska svara</span>' + foPartValjare("foPMott", foMottagare(f), { lasa: !kanMott, status: svaratStatus, tomText: "Välj vem som ska svara …", merText: "+ Fler mottagare …" }) + '</div>' +
@@ -133,6 +134,10 @@ function foPanelFraga(f, ok, kan, leda, jag) {
     if (!f.makulerad) {
         if (agare && (f.lage === "besvarad" || f.lage === "ofullstandig") && nSvar) knappar.push('<button type="button" class="p4-btn p4-btn-primar" data-lage="klar"' +
             (foOkvittSvar(f).length ? ' disabled title="Kvittera de ändrade svaren först"' : "") + '>Klar</button>');
+        if (agare && (f.lage === "besvarad" || f.lage === "ofullstandig") && nSvar && !foOkvittSvar(f).length) {
+            knappar.push('<button type="button" class="p4-btn p4-btn-ljus" data-lage="klaratg" title="Klarmarkera frågan och skapa en åtgärd för det som ska utföras">Klar och skapa åtgärd</button>');
+            knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPKopplaAtg" title="Koppla en åtgärd som redan finns">Koppla åtgärd</button>');
+        }
         if (agare && f.lage === "besvarad") knappar.push('<button type="button" class="p4-btn p4-btn-ljus" data-lage="ofullstandig">Svaret är ofullständigt</button>');
         if (agare && f.lage === "klar") knappar.push('<button type="button" class="p4-btn p4-btn-ljus" data-lage="besvarad">Återöppna</button>');
         if (foAktiv(f) && foKanPaminna(p, jag, f)) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPPaminn" title="Skickar ett mejl direkt till dem som ska svara">Påminn</button>');
@@ -141,6 +146,9 @@ function foPanelFraga(f, ok, kan, leda, jag) {
         if (kan) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPAtg">Ny åtgärd</button>');
         if (leda || superu) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPBeslut">Fastställ beslut</button>');
     }
+    if (!f.makulerad && foKanLoggaFraga(p, jag, f)) knappar.push('<button type="button" class="p4-btn p4-btn-ljus' + (f.ilogg ? " fo-pa" : "") + '" id="foPLogg" aria-pressed="' + !!f.ilogg + '" title="' +
+        (f.ilogg ? "Ta bort från beslutsloggen" : "Lyft fram frågan och svaret i beslutsloggen. Det är inte ett formellt beslut.") + '">' + (f.ilogg ? "I beslutsloggen ✓" : "Inkludera i beslutsloggen") + '</button>');
+    if (kan) knappar.push('<button type="button" class="p4-btn p4-btn-ljus' + (f.stjarna ? " fo-pa" : "") + '" id="foPStjarna" aria-pressed="' + !!f.stjarna + '" title="' + (f.stjarna ? "Ta bort stjärnan" : "Stjärnmärkta frågor sparas alltid. Gamla avslutade frågor utan stjärna kan rensas när projektet blir stort.") + '">' + (f.stjarna ? "★ Sparas alltid" : "☆ Spara alltid") + '</button>');
     if (leda || superu) knappar.push(f.makulerad ? '<button type="button" class="p4-btn p4-btn-ljus" id="foPAterstall">Återställ frågan</button>' : '<button type="button" class="fo-farlank" id="foPMak">Makulera frågan</button>');
     if (f.makulerad) h += '<div class="notis rod">Makulerad ' + foNarText(f.makulerad.tid) + " av " + esc(foPersonNamn(p, f.makulerad.av)) + ': ' + esc(f.makulerad.orsak) + '</div>';
     if (!f.makulerad && !agare && (f.lage === "besvarad" || f.lage === "ofullstandig")) h += '<p class="hjalp fo-bedoms">Det är frågeställaren ' + esc(foPersonNamn(p, foStallarePerson(f)) || "") + ' som bedömer svaret och klarmarkerar frågan.</p>';
@@ -180,6 +188,8 @@ function foSvarsruta(f, jag) {
         '<div id="foSvarBil"></div>' +
         (lamnat !== "" ? '<div class="fo-uppdragrad"><label class="fo-litefalt"><span>Beskedet lämnades av</span>' + foPersonSelect("foSvarLamnat", lamnat, "Välj person …") + '</label>' +
             '<p class="hjalp fo-litenhjalp">Till exempel ett muntligt besked. Det syns att du registrerade det och att det inte är bekräftat digitalt av personen.</p></div>' : "") +
+        (typ === "svar" && foKanSkriva(p, jag) ? '<details class="fo-svaratg"><summary>+ Åtgärd åt mig</summary><div class="fo-nyrad"><input class="f" id="foSvarAtg" placeholder="Vad behöver du göra? Till exempel Uppdatera dörruppställningen">' +
+            '<label class="fo-litefalt"><span>Klar senast</span><input class="f" type="date" id="foSvarAtgDat"></label></div></details>' : "") +
         '<div class="fo-skrivknappar"><button type="button" class="p4-btn p4-btn-primar" data-sparatext="ny" title="Ctrl+Enter">' + (typ === "svar" ? "Skicka svar" : "Skicka följdfråga") + '</button>' +
         foFilZon("foFilSvar", "Bifoga") + (lamnat === "" ? '<button type="button" class="p4d-lank fo-uppdraglank" id="foSvarUppdrag">Registrera åt någon annan</button>' : "") + '</div></div>';
 }
@@ -229,11 +239,11 @@ function foRevForeEfter(f, r) {
 }
 
 // Klarmarkering: väljer slutligt svar och bekräftar konsekvenser när det behövs.
-function foKlarDialog(f) {
+function foKlarDialog(f, efter) {
     const p = foP, sv = foSvarPoster(f), valda = foSlutliga(f).map(x => x.id);
     const behoverVal = !valda.length && sv.length > 1, kons = foKonsAktiva(f);
     if (!behoverVal && !kons.length) {
-        if (foGor("sattLage", { id: f.id, lage: "klar" })) status("Fråga " + f.nr + " är klar och flyttad till Klara frågor.");
+        if (foGor("sattLage", { id: f.id, lage: "klar" })) { status("Fråga " + f.nr + " är klar och flyttad till Klara frågor."); if (efter) efter(); }
         return;
     }
     const kropp = (sv.length > 1 ? '<div class="falt"><label>Slutligt besked</label><p class="hjalp" style="margin-top:0">Välj det eller de svar som tillsammans gäller. De visas i frågelistan.</p>' +
@@ -250,8 +260,10 @@ function foKlarDialog(f) {
             if (sv.length > 1 && !slutliga.length) { fel.innerHTML = '<div class="notis rod">Välj minst ett svar som slutligt besked.</div>'; return; }
             if (kons.length && !document.getElementById("foKlarKons").checked) { fel.innerHTML = '<div class="notis rod">Bekräfta att konsekvenserna har kommunicerats och hanterats.</div>'; return; }
             stangModal();
-            if (foGor("sattLage", { id: f.id, lage: "klar", slutliga: sv.length > 1 ? slutliga : undefined, bekraftaKonsekvens: kons.length ? true : undefined }))
+            if (foGor("sattLage", { id: f.id, lage: "klar", slutliga: sv.length > 1 ? slutliga : undefined, bekraftaKonsekvens: kons.length ? true : undefined })) {
                 status("Fråga " + f.nr + " är klar och flyttad till Klara frågor.");
+                if (efter) efter();
+            }
         } }
     ]);
 }
@@ -355,6 +367,11 @@ function foKopplaPanel(pan, f, kan, leda, jag) {
             if (!x) return;
             foSvarBilagor = []; delete foSvarLamnat[f.id]; delete foSvarTyp[f.id];
             nyT.value = "";
+            // Svar och åtgärd i samma arbetsmoment (frivilligt)
+            const atgT = document.getElementById("foSvarAtg");
+            const atg = atgT && atgT.value.trim() ? foGor("nyAtgard", { id: foId(), text: atgT.value.trim(), ansvarig: { person: foJagId() }, senast: document.getElementById("foSvarAtgDat").value, kalla: { typ: "fraga", id: f.id } }, true) : null;
+            foRita();
+            if (atg) { status("Svaret är skickat och åtgärd Å-" + atg.nr + " ligger i din att göra-lista."); return; }
             foRita();
             status(typ === "svar" ? "Svaret är skickat. Frågeställaren bedömer det." : "Följdfrågan är skickad.");
         };
@@ -419,6 +436,7 @@ function foKopplaPanel(pan, f, kan, leda, jag) {
     pan.querySelectorAll("[data-lage]").forEach(b => b.addEventListener("click", () => {
         const lage = b.dataset.lage;
         if (lage === "klar") return foKlarDialog(f);
+        if (lage === "klaratg") return foKlarDialog(f, () => foAtgardDialog(null, { typ: "fraga", id: f.id, ansvarig: (foMottagare(f)[0] || null) }));
         if (lage === "ofullstandig") {
             modal("Svaret är ofullständigt", "Fråga " + f.nr, '<div class="falt"><label for="foOfKom">Vad saknas? (frivilligt)</label><textarea class="f" id="foOfKom" rows="3"></textarea></div>' +
                 '<p class="hjalp">Frågan går tillbaka till ' + esc(foMottagareText(p, f) || "mottagaren") + ' för komplettering. Vill du fråga något specifikt kan du också skriva en följdfråga.</p>', [
@@ -435,6 +453,9 @@ function foKopplaPanel(pan, f, kan, leda, jag) {
     foKopplaKvitt(pan);
     ["#foPBeslut", "#foPBeslut2"].forEach(s => { const b = pan.querySelector(s); if (b) b.addEventListener("click", () => foBeslutDialog(f, null)); });
     pan.querySelectorAll("[data-visabeslut]").forEach(li => li.addEventListener("click", () => foBeslutVisa(foBeslut(p, li.dataset.visabeslut))));
+    const logg = pan.querySelector("#foPLogg"); if (logg) logg.addEventListener("click", () => { if (foGor("beslutslogg", { id: f.id, pa: !f.ilogg })) status(f.ilogg ? "Fråga " + f.nr + " är borttagen från beslutsloggen." : "Fråga " + f.nr + " ingår nu i beslutsloggen."); });
+    const kat = pan.querySelector("#foPKopplaAtg"); if (kat) kat.addEventListener("click", () => { foPanelFlik = "kopplat"; foRitaPanel(); });
+    const stj = pan.querySelector("#foPStjarna"); if (stj) stj.addEventListener("click", () => foGor("stjarna", { id: f.id, pa: !f.stjarna }));
     const mak = pan.querySelector("#foPMak"); if (mak) mak.addEventListener("click", () => foFragaOrsak("Makulera fråga " + f.nr,
         "Frågan döljs i listorna men finns kvar med nummer, filer och historik. Numret återanvänds aldrig, och frågan kan återställas.", "Makulera", o => foGor("makuleraFraga", { id: f.id, orsak: o })));
     const at = pan.querySelector("#foPAterstall"); if (at) at.addEventListener("click", () => foGor("aterstallFraga", { id: f.id }));

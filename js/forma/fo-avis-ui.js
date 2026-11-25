@@ -55,70 +55,139 @@ function foOppnaObj(pid, obj, fid) {
     if (typ === "beslut") { foGaTill("beslut"); return setTimeout(() => { const b = foBeslut(foP, id); if (b) foBeslutVisa(b); }, 30); }
     if (typ === "atgard") { foFlik.atg = "alla"; foGaTill("atgarder"); return setTimeout(() => foMarkeraRad(id), 30); }
     if (typ === "inlagg") { foGaTill("flode"); return setTimeout(() => foVisaInlagg(id), 30); }
+    if (typ === "forum") { foFlik.mote = id; return foGaTill("moten"); }
+    if (typ === "protokoll") { const x = (p.protokoll || []).find(y => y.id === id); if (x) foFlik.mote = x.forum; return foGaTill("moten"); }
     foGaTill("oversikt");
 }
 
 /* ---------- arbetsytan som lista ---------- */
-function foArbRad(pid, p, x) {
+// Personlig prioritering: stjärnor på uppgifter. Påverkar bara den egna översikten.
+let foPrio = null;
+function foPrioNyckel() { const k = foKonto(); return "wimo_forma_prio_" + ((k && (k.uid || k.epost)) || "lokal"); }
+function foPrioLas() {
+    if (foPrio) return foPrio;
+    foPrio = foLasLs(foPrioNyckel(), {});
+    if (foMoln() && window.p4FormaMoln.privatLas) window.p4FormaMoln.privatLas().then(d => {
+        if (d && d.prio && typeof d.prio === "object") { foPrio = Object.assign({}, d.prio, foPrio); foSkrivLs(foPrioNyckel(), foPrio); if (foVy === "min") foRita(); }
+    }).catch(() => { });
+    return foPrio;
+}
+function foPrioSpara() {
+    foSkrivLs(foPrioNyckel(), foPrio);
+    if (foMoln() && window.p4FormaMoln.privatSattFalt) window.p4FormaMoln.privatSattFalt({ prio: foPrio }).catch(e => console.warn(e));
+}
+function foArbNyckel(pid, x) { return pid + "|" + x.kat + "|" + (x.fid || x.aid || x.kid || (x.obj ? x.obj.id : "") || x.nr); }
+function foArbRad(pid, p, x, opt) {
+    opt = opt || {};
     const t = [];
+    if (opt.projekt) t.push('<span class="fo-arbproj">' + esc(opt.projekt) + '</span>');
     if (x.forsenad) t.push('<b class="rodtal">Försenad' + (x.dagarSen ? " " + x.dagarSen + (x.dagarSen === 1 ? " arbetsdag" : " arbetsdagar") : "") + '</b>');
-    else if (x.sistaDag) t.push('<b class="fo-orangetal">Sista svarsdag idag</b>');
-    else if (x.senast) t.push((x.kat === "atgard" ? "Klar senast " : "Svar senast ") + foDatumKort(x.senast) + " v. " + foVecka(x.senast));
+    else if (x.sistaDag) t.push('<b class="fo-orangetal">Sista dag idag</b>');
+    else if (x.senast) t.push((x.kat === "atgard" || x.kat === "invAtgard" ? "Klar senast " : "Svar senast ") + foDatumKort(x.senast) + " v. " + foVecka(x.senast));
     if (x.bradskande) t.push('<b class="rodtal">Brådskande</b>');
     if (x.vad) t.push(esc(x.vad));
     if (x.ejSlutligt) t.push("välj slutligt svar");
-    if (x.mottagare) t.push("väntar på " + esc(x.mottagare));
-    const nr = x.kat === "atgard" ? x.nr : x.nr ? x.nr : "";
+    if (x.mottagare) t.push((x.kat && x.kat.startsWith("inv") ? "hos " : "väntar på ") + esc(x.mottagare));
+    const nr = x.nr ? x.nr : "";
+    const nyckel = foArbNyckel(pid, x), prio = opt.stjarna && !!(foPrioLas()[nyckel]);
+    const svar = x.svar ? '<span class="fo-arbsvar"><b>' + esc(foPersonNamn(p, x.svar.av) || "–") + '</b> · ' + foNarText(x.svar.tid) + (x.svar.bilagor ? " · " + x.svar.bilagor + (x.svar.bilagor === 1 ? " bilaga" : " bilagor") : "") +
+        '<span>' + esc(String(x.svar.text).slice(0, 220)) + (x.svar.text.length > 220 ? "…" : "") + '</span></span>' : "";
     return '<li data-arb="' + esc(pid) + '|' + esc(x.fid || "") + '|' + esc(x.aid || "") + '|' + esc(x.obj ? x.obj.typ + ":" + x.obj.id : "") + '"><span class="fo-agnr">' + esc(String(nr)) + '</span>' +
-        '<span class="fo-agtext">' + esc(String(x.text || "").slice(0, 200)) + '<small>' + t.join(" · ") + '</small></span></li>';
+        '<span class="fo-agtext">' + esc(String(x.text || "").slice(0, 200)) + svar + '<small>' + t.join(" · ") + '</small></span>' +
+        (opt.stjarna ? '<button type="button" class="fo-prioknapp' + (prio ? " pa" : "") + '" data-prio="' + esc(nyckel) + '" aria-pressed="' + prio + '" title="' + (prio ? "Ta bort från mina prioriterade" : "Prioritera (syns bara för dig)") + '">' + (prio ? "★" : "☆") + '</button>' : "") + '</li>';
 }
-function foArbHtml(pid, p, lista, max) {
-    const ordning = ["eskalera", "kvittera", "svara", "komplettera", "bedoma", "atgard"];
+function foArbHtml(pid, p, lista, max, opt) {
+    const ordning = ["eskalera", "kvittera", "svara", "komplettera", "bedoma", "kontrollera", "atgard", "protokoll", "invSvar", "invKompl", "invAtgard", "invKvitt"];
+    const rub = Object.assign({}, FO_ARB_RUB, typeof FO_INV_RUB !== "undefined" ? FO_INV_RUB : {});
     return ordning.filter(k => lista.some(x => x.kat === k)).map(k => {
         const l = lista.filter(x => x.kat === k);
-        return '<div class="fo-aggrupp"><h4>' + FO_ARB_RUB[k] + ' <span class="antal">' + l.length + '</span></h4><ul class="atglista fo-aglista">' +
-            l.slice(0, max || 8).map(x => foArbRad(pid, p, x)).join("") + '</ul>' + (l.length > (max || 8) ? '<p class="hjalp">och ' + (l.length - (max || 8)) + ' till</p>' : "") + '</div>';
+        return '<div class="fo-aggrupp"><h4>' + rub[k] + ' <span class="antal">' + l.length + '</span></h4><ul class="atglista fo-aglista">' +
+            l.slice(0, max || 8).map(x => foArbRad(x.pid || pid, x.p || p, x, Object.assign({}, opt, { projekt: opt && opt.visaProjekt ? x.pnamn : "" }))).join("") + '</ul>' +
+            (l.length > (max || 8) ? '<p class="hjalp">och ' + (l.length - (max || 8)) + ' till</p>' : "") + '</div>';
     }).join("");
 }
 function foKopplaArb(rot) {
-    rot.querySelectorAll("[data-arb]").forEach(li => li.addEventListener("click", () => {
+    rot.querySelectorAll("[data-arb]").forEach(li => li.addEventListener("click", (e) => {
+        if (e.target.closest("[data-prio]")) return;
         const [pid, fid, aid, obj] = li.dataset.arb.split("|");
         if (aid) return foOppnaObj(pid, { typ: "atgard", id: aid });
         if (fid) return foOppnaObj(pid, { typ: "fraga", id: fid });
         if (obj) { const [typ, id] = obj.split(":"); return foOppnaObj(pid, { typ, id }); }
     }));
+    rot.querySelectorAll("[data-prio]").forEach(b => b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const k = b.dataset.prio, pr = foPrioLas();
+        if (pr[k]) delete pr[k]; else pr[k] = foNu();
+        foPrioSpara(); foRita();
+    }));
 }
 
-/* ---------- Min översikt: vad behöver jag göra, i alla projekt? ---------- */
+/* ---------- Min översikt: vad behöver jag göra, i alla projekt? ----------
+   Tre områden: Att göra, Inväntar och Nytt. Allt räknas fram ur projekten –
+   samma underlag som klockan och det dagliga mejlet. */
+let foMinFilter = { proj: "", omr: "gora" };
+function foStartsidaNyckel() { const k = foKonto(); return "wimo_forma_start_" + ((k && (k.uid || k.epost)) || "lokal"); }
 function foVyMin(yta) {
     const rita = () => {
-        const proj = foAllaNu().map(x => ({ x, jag: foJagIdI(x.p) })).map(o => Object.assign(o, { l: foArbetsyta(o.x.p, o.jag) }));
-        const alla = [].concat(...proj.map(o => o.l));
-        const n = k => alla.filter(k).length;
-        let html = '<div class="fo-sidtopp"><div class="fo-sidrub"><div class="fo-ogon">Alla dina projekt</div><h1>Min översikt</h1></div>' +
-            '<div class="fo-sidknappar"><button class="navknapp" type="button" id="foMinUppd">Uppdatera</button><button class="navknapp" type="button" id="foMinInst">Aviseringsinställningar</button></div></div>';
+        const alla = foAllaNu().map(x => ({ x, jag: foJagIdI(x.p) }));
+        const proj = alla.filter(o => !foMinFilter.proj || o.x.id === foMinFilter.proj);
+        const med = (o, l) => l.map(y => Object.assign(y, { pid: o.x.id, p: o.x.p, pnamn: o.x.namn }));
+        const gora = [].concat(...proj.map(o => med(o, foArbetsyta(o.x.p, o.jag))));
+        const inv = [].concat(...proj.map(o => med(o, foInvantar(o.x.p, o.jag))));
+        const nytt = foMinaAviseringar().filter(x => !(FO_AVIS_TYPER[x.a.typ] || {}).agera && (!foMinFilter.proj || x.pid === foMinFilter.proj)).slice(0, 30);
+        const pr = foPrioLas(), prio = gora.concat(inv).filter(x => pr[foArbNyckel(x.pid, x)]);
+        const n = k => gora.filter(k).length;
+        const flerProj = alla.length > 1;
+        let html = '<div class="fo-sidtopp"><div class="fo-sidrub"><div class="fo-ogon">' + (foMinFilter.proj ? esc((alla.find(o => o.x.id === foMinFilter.proj) || { x: { namn: "" } }).x.namn) : "Alla dina projekt") + '</div><h1>Min översikt</h1></div>' +
+            '<div class="fo-sidknappar"><button class="navknapp" type="button" id="foMinUppd">Uppdatera</button><button class="navknapp" type="button" id="foMinInst">Inställningar</button></div></div>';
         html += '<div class="kpirad fo-kpirad fo-kpifem">' +
-            '<div class="kpi' + (n(x => x.forsenad) ? " rod" : "") + '"><span class="kpital">' + n(x => x.forsenad) + '</span><span class="kpirub">Försenade</span><span class="kpiunder">svar och åtgärder</span></div>' +
-            '<div class="kpi' + (n(x => x.sistaDag) ? " orange" : "") + '"><span class="kpital">' + n(x => x.sistaDag) + '</span><span class="kpirub">Sista dag idag</span></div>' +
-            '<div class="kpi"><span class="kpital">' + n(x => x.kat === "svara" || x.kat === "komplettera") + '</span><span class="kpirub">Att besvara</span></div>' +
-            '<div class="kpi"><span class="kpital">' + n(x => x.kat === "bedoma") + '</span><span class="kpirub">Svar att bedöma</span></div>' +
-            '<div class="kpi' + (n(x => x.kat === "kvittera") ? " orange" : "") + '"><span class="kpital">' + n(x => x.kat === "kvittera") + '</span><span class="kpirub">Att kvittera</span></div></div>';
-        if (!alla.length) html += '<div class="dashblock fo-attgora"><p class="fo-klart">Inget väntar på dig i dina projekt just nu.</p></div>';
-        proj.filter(o => o.l.length).forEach(o => {
-            html += '<div class="dashblock fo-minproj"><h3><button type="button" class="p4d-lank" data-minproj="' + esc(o.x.id) + '">' + esc(o.x.namn) + '</button>' +
-                (o.x.p.demo ? ' <span class="fo-demochip">Demo</span>' : "") + ' <span class="antal">' + o.l.length + '</span></h3>' + foArbHtml(o.x.id, o.x.p, o.l, 6) + '</div>';
-        });
-        const utan = proj.filter(o => !o.jag);
+            '<button type="button" class="kpi' + (n(x => x.forsenad) ? " rod" : "") + '" data-minomr="gora"><span class="kpital">' + n(x => x.forsenad) + '</span><span class="kpirub">Försenade</span><span class="kpiunder">svar och åtgärder</span></button>' +
+            '<button type="button" class="kpi" data-minomr="gora"><span class="kpital">' + n(x => x.kat === "svara" || x.kat === "komplettera") + '</span><span class="kpirub">Att besvara</span></button>' +
+            '<button type="button" class="kpi" data-minomr="gora"><span class="kpital">' + n(x => x.kat === "bedoma") + '</span><span class="kpirub">Svar att bedöma</span></button>' +
+            '<button type="button" class="kpi' + (n(x => x.kat === "kvittera") ? " orange" : "") + '" data-minomr="gora"><span class="kpital">' + n(x => x.kat === "kvittera") + '</span><span class="kpirub">Att kvittera</span></button>' +
+            '<button type="button" class="kpi" data-minomr="inv"><span class="kpital">' + inv.length + '</span><span class="kpirub">Inväntar</span><span class="kpiunder">från andra</span></button></div>';
+        // projektfilter och områden
+        html += '<div class="fo-snabbrad">' + [["gora", "Att göra", gora.length], ["inv", "Inväntar", inv.length], ["nytt", "Nytt", nytt.filter(x => x.ny).length]].map(([k, t, a]) =>
+            '<button type="button" class="fo-snabb' + (foMinFilter.omr === k ? " vald" : "") + '" data-minomr="' + k + '" aria-pressed="' + (foMinFilter.omr === k) + '">' + t + ' <span>' + a + '</span></button>').join("") +
+            (flerProj ? '<label class="fo-litefalt fo-minproj-val"><span class="sr">Projekt</span><select class="f" id="foMinProj"><option value="">Alla projekt (' + alla.length + ')</option>' +
+                alla.map(o => '<option value="' + esc(o.x.id) + '"' + (foMinFilter.proj === o.x.id ? " selected" : "") + '>' + esc(o.x.namn) + ' (' + foArbetsyta(o.x.p, o.jag).length + ')</option>').join("") + '</select></label>' : "") + '</div>';
+        if (prio.length) html += '<div class="dashblock fo-minprio"><h3>Mina prioriterade <span class="antal">' + prio.length + '</span></h3><ul class="atglista fo-aglista">' +
+            prio.map(x => foArbRad(x.pid, x.p, x, { stjarna: true, projekt: flerProj ? x.pnamn : "" })).join("") + '</ul></div>';
+        const tom = (t) => '<div class="dashblock"><p class="fo-klart">' + t + '</p></div>';
+        if (foMinFilter.omr === "gora") html += gora.length ? '<div class="dashblock fo-minlista">' + foArbHtml("", null, gora, 12, { stjarna: true, visaProjekt: flerProj }) + '</div>' : tom("Inget väntar på dig just nu.");
+        if (foMinFilter.omr === "inv") html += inv.length ? '<div class="dashblock fo-minlista">' + foArbHtml("", null, inv, 12, { stjarna: true, visaProjekt: flerProj }) + '</div>' : tom("Du väntar inte på något från andra just nu.");
+        if (foMinFilter.omr === "nytt") html += nytt.length ? '<div class="dashblock fo-minlista"><ul class="fo-klockalista fo-nyttlista">' + nytt.map((x, i) => '<li class="' + (x.ny ? "ny" : "") + '" data-nytt="' + i + '" tabindex="0">' +
+            '<span class="fo-avatar liten" aria-hidden="true">' + esc(foInitialer(x.p, x.a.av)) + '</span><span>' + esc(x.a.text) + '<small>' + (flerProj ? esc(x.pnamn) + " · " : "") + foNarText(x.a.tid) + '</small></span></li>').join("") + '</ul></div>'
+            : tom("Inget nytt sedan du var inne senast.");
+        const utan = alla.filter(o => !o.jag);
         if (utan.length) html += '<p class="hjalp">Du finns inte i kontaktlistan i ' + utan.map(o => esc(o.x.namn)).join(", ") + '. Be projektets administratör lägga till dig med din e-post.</p>';
-        html += '<p class="hjalp fo-ingress">Samma lista är underlaget för det dagliga sammanställningsmejlet. Uppgifterna står kvar tills de är hanterade – att läsa en avisering räcker inte.</p>';
+        html += '<p class="hjalp fo-ingress">Uppgifterna står kvar tills de är hanterade – att läsa en avisering räcker inte. Stjärnorna syns bara för dig.</p>';
         yta.innerHTML = html;
         foKopplaArb(yta);
-        yta.querySelectorAll("[data-minproj]").forEach(b => b.addEventListener("click", () => foOppnaObj(b.dataset.minproj, null)));
+        yta.querySelectorAll("[data-minomr]").forEach(b => b.addEventListener("click", () => { foMinFilter.omr = b.dataset.minomr; rita(); }));
+        const ps = document.getElementById("foMinProj"); if (ps) ps.addEventListener("change", () => { foMinFilter.proj = ps.value; rita(); });
+        yta.querySelectorAll("[data-nytt]").forEach(li => li.addEventListener("click", () => { const x = nytt[+li.dataset.nytt]; foOppnaObj(x.pid, x.a.obj); }));
         document.getElementById("foMinUppd").addEventListener("click", () => { foLaddaAlla(true).then(() => { if (foVy === "min") foRita(); }); status("Hämtar dina projekt …"); });
-        document.getElementById("foMinInst").addEventListener("click", foAvisInstDialog);
+        document.getElementById("foMinInst").addEventListener("click", foMinInstDialog);
     };
     rita();
     if (Date.now() - foAllaTid > 120000) foLaddaAlla().then(() => { if (foVy === "min" && document.getElementById("forma") === yta) rita(); foRitaNav(); foRitaKlocka(); });
+}
+// Startsida och aviseringar
+function foMinInstDialog() {
+    const start = foLasLs(foStartsidaNyckel(), "min");
+    modal("Inställningar", "Gäller bara dig",
+        '<div class="falt"><label>Startsida när du öppnar Forma</label>' +
+        '<label class="fo-kryss"><input type="radio" name="foStart" value="min"' + (start !== "oversikt" ? " checked" : "") + '> Min översikt – alla dina projekt</label>' +
+        '<label class="fo-kryss"><input type="radio" name="foStart" value="oversikt"' + (start === "oversikt" ? " checked" : "") + '> Projektöversikt för senast använda projekt</label></div>', [
+        { txt: "Aviseringar …", vanster: true, fn: () => { stangModal(); foAvisInstDialog(); } },
+        { txt: "Avbryt", fn: stangModal },
+        { txt: "Spara", primar: true, fn: () => {
+            const v = (document.querySelector('input[name="foStart"]:checked') || {}).value || "min";
+            foSkrivLs(foStartsidaNyckel(), v);
+            if (foMoln() && window.p4FormaMoln.privatSattFalt) window.p4FormaMoln.privatSattFalt({ inst: { start: v } }).catch(() => { });
+            stangModal(); status("Startsidan är sparad.");
+        } }]);
 }
 
 /* ---------- uppföljning för projekteringsledaren ---------- */
@@ -133,8 +202,8 @@ function foUppfoljningHtml(p) {
         return { d, n: l.length, sen: sen.length, max, esk };
     }).filter(r => r.n);
     if (!rad.length) return "";
-    return '<div class="dashblock fo-uppfoljning"><h3>Uppföljning per disciplin</h3><div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Disciplin</th><th>Obesvarade</th><th>Försenade</th><th>Längst försenad</th><th>Att uppmärksamma</th></tr></thead><tbody>' +
-        rad.map(r => '<tr><td><b>' + esc(r.d.kod) + '</b> ' + esc(r.d.namn) + (foDiscSaknarAvis(p, r.d.id) ? ' <span class="fo-tagg t-sen" title="Disciplinen saknar utsedda aviseringsmottagare – alla i disciplinen aviseras">Saknar mottagare</span>' : "") + '</td>' +
+    return '<div class="dashblock fo-uppfoljning"><h3>Frågor per disciplin</h3><div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Disciplin</th><th>Obesvarade</th><th>Försenade</th><th>Längst försenad</th><th>Att uppmärksamma</th></tr></thead><tbody>' +
+        rad.map(r => '<tr><td>' + foDiscChip(p, r.d.id, true) + (foDiscSaknarAvis(p, r.d.id) ? ' <span class="fo-tagg t-sen" title="Disciplinen saknar utsedda aviseringsmottagare – alla i disciplinen aviseras">Saknar mottagare</span>' : "") + '</td>' +
             '<td><button type="button" class="p4d-lank" data-uppf="' + r.d.id + '|obesvarade">' + r.n + '</button></td>' +
             '<td>' + (r.sen ? '<button type="button" class="p4d-lank rodtal" data-uppf="' + r.d.id + '|forsenade">' + r.sen + '</button>' : "0") + '</td>' +
             '<td>' + (r.max ? r.max + (r.max === 1 ? " arbetsdag" : " arbetsdagar") : "–") + '</td>' +
@@ -184,6 +253,7 @@ let foKlockaFlik = "agera";
 function foOppnaKlocka() {
     const gammal = document.getElementById("foKlockaMeny"); if (gammal) { gammal.remove(); return; }
     const m = document.createElement("div");
+    setTimeout(() => foFargaAvatarer(m), 0);
     m.id = "foKlockaMeny"; m.className = "fo-klockameny"; m.setAttribute("role", "dialog"); m.setAttribute("aria-label", "Aviseringar");
     document.body.appendChild(m);
     const rita = () => {

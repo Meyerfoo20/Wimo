@@ -18,7 +18,9 @@ const FO_RAPPORTER = [
     { id: "beslut", namn: "Beslutslogg", text: "Fastställda beslut, gällande och ersatta." },
     { id: "rev", namn: "Revisionsförteckning", text: "Alla tillägg och ändringar i frågor, svar och beslut, med kvittens." },
     { id: "oppna", namn: "Öppna frågor", text: "Frågor som inte är klara, med svarsdatum och försenade först." },
-    { id: "slutlig", namn: "Slutlig besluts- och ändringssammanställning", text: "Gällande beslut, ändringar i sak och frågor som kan påverka tid eller kostnad." }
+    { id: "slutlig", namn: "Slutlig besluts- och ändringssammanställning", text: "Gällande beslut, ändringar i sak och frågor som kan påverka tid eller kostnad." },
+    // Skapas från Möten & protokoll: de tekniska frågor som behandlades på ett möte.
+    { id: "mote", namn: "Tekniska frågor från möte", text: "Frågorna som behandlades på mötet, med svar, status och beslut.", dold: true }
 ];
 let foRapVal = { typ: "fragor", disc: "", fran: "", till: "", mak: false };
 
@@ -43,6 +45,7 @@ function foRapAnsvDisc(p, f) {
     return foPersonDisc(p, m.person)[0] || "";
 }
 function foRapUrvalText(p, v) {
+    if (v.typ === "mote") { const fo = foForum(p, v.forum); return [(fo ? fo.namn : "Möte") + (v.motesnr ? " " + v.motesnr : ""), "Mötesdatum " + (v.datum || "–")].join(" · "); }
     const d = v.disc ? foDisc(p, v.disc) : null;
     return [d ? "Disciplin " + d.kod + " – " + d.namn : "Alla discipliner",
         v.fran || v.till ? "Period " + (v.fran || "start") + " – " + (v.till || "idag") : "Hela projekttiden",
@@ -91,6 +94,19 @@ function foRapData(p, v) {
     const lageSum = () => [["Frågor", fragor.length], ["Obesvarade", per.obesvarad || 0], ["Ofullständiga svar", per.ofullstandig || 0],
         ["Besvarade", per.besvarad || 0], ["Klara", per.klar || 0], ["Försenade", fragor.filter(f => foForsenad(f, idag)).length]];
 
+    if (v.typ === "mote") {
+        const fo = foForum(p, v.forum) || {};
+        const beh = p.fragor.filter(f => !f.makulerad && f.behandlad && f.behandlad[v.forum] === v.datum).sort((a, b) => a.nr - b.nr);
+        const motesSvar = f => (f.dialog || []).filter(x => x.typ === "svar" && x.mote && x.mote.forum === v.forum && x.mote.datum === v.datum);
+        const bes = p.beslut.filter(b => (b.forum === v.forum && b.datum === v.datum) || beh.some(f => f.id === b.fragaId && b.datum === v.datum));
+        const regText = f => { const m = motesSvar(f); return m.length ? m.map(x => "På mötet: " + x.text + " (registrerat av " + (foPersonNamn(p, x.av) || "–") + (x.lamnat !== x.av ? ", lämnat av " + (foPersonNamn(p, x.lamnat) || "–") : "") + ")").join(" · ") : ""; };
+        return { antal: beh.length, sammanfattning: [["Behandlade frågor", beh.length], ["Svar registrerade på mötet", beh.filter(f => motesSvar(f).length).length], ["Beslut", bes.length]],
+            delar: [
+                { rub: "Behandlade frågor – " + (fo.namn || "") + (v.motesnr ? " " + v.motesnr : ""), kol: ["Nr", "Fråga", "Frågeställare", "Ska svara", "Svar vid mötet", "Status"],
+                    rader: beh.map(f => [f.nr, f.text, franText(f), foMottagareText(p, f) || "–", [svarText(f), regText(f)].filter(x => x && x !== "–").join(" · ") || "–", lageNamn(f)]), tomt: "Inga frågor markerades som behandlade detta datum." },
+                { rub: "Beslut", kol: beslutKol, rader: bes.map(beslutRad), tomt: "Inga beslut registrerade på mötet." }
+            ] };
+    }
     if (v.typ === "fragor") return { antal: fragor.length, sammanfattning: lageSum(), delar: [{ rub: "Frågor", kol: fragaKol, rader: fragor.map(fragaRad), tomt: "Inga frågor i urvalet." }] };
     if (v.typ === "oppna") {
         const l = fragor.filter(f => !f.makulerad && f.lage !== "klar").sort((a, b) => (foForsenad(b, idag) ? 1 : 0) - (foForsenad(a, idag) ? 1 : 0) ||
@@ -220,7 +236,7 @@ function foRapSkapa(yta, leda) {
     yta.innerHTML = '<div class="fo-rapskapa">' +
         '<div class="fo-rapval">' +
         '<div class="dashblock"><h3>Rapporttyp</h3><div class="fo-raptyper" role="radiogroup" aria-label="Rapporttyp">' +
-        FO_RAPPORTER.map(r => '<label class="fo-raptyp' + (r.id === v.typ ? " vald" : "") + '"><input type="radio" name="foRapTyp" value="' + r.id + '"' + (r.id === v.typ ? " checked" : "") + '>' +
+        FO_RAPPORTER.filter(r => !r.dold).map(r => '<label class="fo-raptyp' + (r.id === v.typ ? " vald" : "") + '"><input type="radio" name="foRapTyp" value="' + r.id + '"' + (r.id === v.typ ? " checked" : "") + '>' +
             '<span><b>' + esc(r.namn) + '</b><small>' + esc(r.text) + '</small></span></label>').join("") + '</div></div>' +
         '<div class="dashblock"><h3>Omfattning och urval</h3>' +
         '<div class="falt"><label for="foRapDisc">Disciplin</label><select class="f" id="foRapDisc"><option value="">Alla discipliner</option>' +
@@ -266,7 +282,7 @@ let foRapNyVersion = "";
 function foRapLasDialog() {
     const p = foP, v = Object.assign({}, foRapVal), typ = foRapTyp(v.typ);
     const fore = foRapNyVersion ? p.rapporter.find(x => x.id === foRapNyVersion) : null;
-    const forslag = fore ? fore.titel.replace(/ \(version \d+\)$/, "") + " (version " + ((fore.version || 1) + 1) + ")" : typ.namn + " " + foIdag();
+    const forslag = fore ? fore.titel.replace(/ \(version \d+\)$/, "") + " (version " + ((fore.version || 1) + 1) + ")" : (v.typ === "mote" ? ((foForum(p, v.forum) || {}).kort || "") + (v.motesnr || "") + " – Tekniska frågor " + v.datum : typ.namn + " " + foIdag());
     let signerare = fore ? fore.signerare.map(x => x.person ? { person: x.person } : null).filter(Boolean) : [];
     let ovriga = fore ? fore.signerare.filter(x => !x.person).map(x => x.namn + (x.roll ? ", " + x.roll : "")).join("\n") : "";
     const kropp = '<p class="hjalp" style="margin-top:0">Sammanställningen sparas som den ser ut nu, med rapport-ID, datum, registerläge och kontrollsumma. ' +
@@ -302,6 +318,11 @@ function foRapLasDialog() {
                 signerare: sign, ersatter: fore ? fore.id : "", antal: foRapData(p, v).antal, fil: meta[0], kontroll: kontroll }, true);
             if (!r) { pagar = false; return; }
             foRapNyVersion = "";
+            // Mötessammanställningen kopplas till mötets protokoll, även om protokollet registreras senare.
+            if (v.typ === "mote") {
+                const pr = (foP.protokoll || []).find(x => x.forum === v.forum && x.datum === v.datum && !x.makulerad);
+                if (pr) foGor("registreraProtokoll", Object.assign({}, pr, { sammanstallning: r.id }), true);
+            }
             stangModal();
             foFlik.rapport = "arkiv";
             foRita();

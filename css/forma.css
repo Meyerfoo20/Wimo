@@ -22,6 +22,11 @@ body.modul-forma #dash, body.modul-forma #pstart, body.modul-forma #gantt, body.
 body.modul-forma #anteckningar, body.modul-forma #tidplan, body.modul-forma #backup, body.modul-forma #hjalp,
 body.modul-forma #forslag, body.modul-forma .p4-hoppa, body.modul-forma #p4Genvagar { display: none !important; }
 body.modul-forma #forma { display: block; grid-column: 1 / -1; min-width: 0; }
+/* Plans notiser (hinder, väder, ångra, molnbanner) visas aldrig i Forma */
+body.modul-forma #p4Notiser, body.modul-forma .p4-notiser, body.modul-forma .p4-hnotis,
+body.modul-forma .angrarad, body.modul-forma #p4MolnBanner { display: none !important; }
+/* Formas egna element visas aldrig i Plan, oavsett vad deras egna regler säger */
+body:not(.modul-forma) .fo-bara { display: none !important; }
 body.modul-forma.p4-kontovy #forma { display: none; }
 /* Mitt konto i Forma: bara kontot, inget om Plans projekt, tavlor och poster */
 body.modul-forma #ksSiffror, body.modul-forma #ksSynk, body.modul-forma #ksAnsok, body.modul-forma #ksKorg,
@@ -1012,7 +1017,7 @@ body.modul-forma.fo-panelopen .fo-kolvy .fo-kolgrep { display: none; }
    Samma kantbredd hela varvet runt i Forma – ingen sida tjockare än de andra.
    Färgen får skilja (beige vänster/nederkant på kort), men aldrig bredden.
    ====================================================================== */
-body.modul-forma .fo-nav .p4-nav.aktiv::before { content: none; display: none; }
+/* Navigeringen i Forma har samma grunddesign som i Plan (inga egna undantag). */
 body.modul-forma .fo-tabell tbody tr.vald { box-shadow: inset 0 0 0 2px var(--accent-main); }
 body.modul-forma .fo-tabell tbody tr.okvitt { box-shadow: none; background: var(--leverans-fyll); }
 body.modul-forma .fo-tabell tbody tr.vald.okvitt { box-shadow: inset 0 0 0 2px var(--accent-main); }
@@ -1034,7 +1039,9 @@ body.modul-forma .fo-revruta { border-color: var(--leverans-kant) !important; }
 body.modul-forma .fo-text { border-color: var(--border-color) !important; border-left-color: var(--border-strong) !important; border-bottom-color: var(--border-strong) !important; }
 
 /* ---------- Steg 3: aviseringar ---------- */
-.fo-klocka { position: relative; width: 40px; height: 40px; border-radius: 999px; border: 1.5px solid var(--border-color); background: var(--bg-card); color: var(--text-main); display: inline-grid; place-items: center; cursor: pointer; flex: none; }
+.fo-klocka { position: relative; width: 40px; height: 40px; padding: 0; border-radius: 999px; border: 1.5px solid var(--border-color); background: var(--bg-card); color: var(--text-main); align-items: center; justify-content: center; cursor: pointer; flex: none; line-height: 0; }
+.fo-klocka svg { display: block; flex: none; }
+/* klockan finns bara i Forma (display sätts av .fo-bara, inline-flex + centrering ovan) */
 .fo-klocka:hover { border-color: var(--text-faint); }
 .fo-klocka:focus-visible { outline: 0; box-shadow: var(--pop-ring); }
 .fo-klockatal { position: absolute; top: -5px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--leverans); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; border: 1.5px solid var(--bg-card); }
@@ -1088,3 +1095,181 @@ body.modul-forma .fo-text { border-color: var(--border-color) !important; border
 .fo-kpirad.fo-kpifem { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 @media (max-width: 1100px) { .fo-kpirad.fo-kpifem { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .fo-kpirad.fo-kpifem { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Steg 9: anslutningsstatus, stjärna och organisationsvarningar */
+.fo-stjarna { color: #b8860b; font-size: 12px; }
+.fo-ansl { display: block; }
+.fo-ansl-aktiv { color: var(--ok, #2f7d4f); }
+.fo-ansl-inbjuden { color: var(--varn, #a06a00); }
+.fo-ansl-inaktiv, .fo-ansl-kontakt { color: var(--dampad, #7d867f); }
+.fo-orgvarn ul { margin: 4px 0 0; padding-left: 18px; }
+#foInbText { width: 100%; font-family: inherit; }
+
+/* Steg 6: åtgärder och beslutslogg */
+.fo-atgstaplar h3 .hjalp { font-weight: 400; margin-left: 6px; }
+.fo-stapelrad { display: grid; grid-template-columns: 160px 1fr 220px; gap: 10px; align-items: center; margin: 6px 0; }
+.fo-stapelnamn { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fo-stapel { display: flex; height: 22px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.fo-stapeldel { border: 0; padding: 0 6px; font-size: 12px; color: #fff; cursor: pointer; min-width: 22px; }
+.fo-stapeldel.s-klar { background: var(--produktion); color: var(--bg-card); }
+.fo-stapeldel.s-inom { background: var(--varning-stark, #c99a17); color: #1d1d1d; }
+.fo-stapeldel.s-utan { background: var(--mote-kant); color: var(--text-main); }
+.fo-stapeldel.s-sen { background: var(--leverans); color: var(--bg-card); }
+.fo-stapeldel:focus-visible { outline: 2px solid var(--fokus, #1f5fbf); outline-offset: 1px; }
+.fo-stapeltext { font-size: 12px; color: var(--dampad, #7d867f); }
+.fo-varntext { color: var(--ue); }
+.fo-svaratg { margin: 6px 0; }
+.fo-svaratg summary { cursor: pointer; font-size: 13px; color: var(--dampad, #7d867f); }
+@media (max-width: 700px) { .fo-stapelrad { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Steg 5: möten och protokoll */
+.fo-motesyta { display: grid; grid-template-columns: 240px 1fr; gap: 18px; align-items: start; }
+.fo-mapptrad { border: 2px solid var(--border-color); border-radius: var(--r-l); background: var(--bg-card); padding: 8px 6px; position: sticky; top: 8px; }
+.fo-mapptrad ul { list-style: none; margin: 0; padding: 0; }
+.fo-mapp { display: flex; align-items: flex-start; line-height: 1.35; gap: 6px; width: 100%; text-align: left; background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 14px; color: inherit; cursor: pointer; }
+.fo-mapp:hover { background: var(--hover, rgba(0,0,0,.04)); }
+.fo-mapp.vald { background: var(--produktion-fyll); border-color: var(--produktion-kant); }
+.fo-mapp .antal { margin-left: auto; padding-left: 6px; font-size: 12px; line-height: 19px; color: var(--text-muted); }
+.fo-mappik { font-size: 10px; width: 10px; flex: none; line-height: 19px; color: var(--produktion); }
+.fo-mapptrad > .p4d-lank { margin: 8px 8px 2px; display: inline-block; }
+.fo-mapprub { font-size: 18px; margin: 0 0 10px; }
+.fo-blockrub .fo-hoger { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.fo-bevakning table { margin-top: 6px; }
+.fo-ss-bil { margin-top: 14px; }
+.fo-ss-verktyg { margin-top: 16px; }
+.fo-ss-verktyg textarea { width: 100%; font-size: 18px; }
+.fo-ss-knappar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.fo-ss-knappar button { font: inherit; font-size: 16px; padding: 8px 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,.5); background: transparent; color: inherit; cursor: pointer; }
+.fo-ss-knappar button:first-child { background: #fff; color: #1d1d1d; }
+@media (max-width: 800px) { .fo-motesyta { grid-template-columns: 1fr; } .fo-mapptrad { position: static; } }
+
+
+/* ======================================================================
+   Färg och liv i Forma: en accentfärg (Formas gröna), färgade disciplinkoder
+   och avatarer, tonade nyckeltal. Platt, inga skuggeffekter eller gradienter.
+   Alla färger kommer från temat, så de fungerar i både ljust och mörkt läge.
+   ====================================================================== */
+body.modul-forma { --fo-accent: var(--produktion); --fo-accent-fyll: var(--produktion-fyll); --fo-accent-kant: var(--produktion-kant); }
+
+
+/* rubrikrader i sektioner: knappar till höger på samma linje */
+.fo-blockrub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* disciplinkoder */
+.fo-dkod { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 5px; border: 1px solid;
+  font-size: 11.5px; font-weight: 700; line-height: 1; letter-spacing: .02em; vertical-align: middle; white-space: nowrap; }
+[data-dfarg="1"] { background: var(--ovrigt-fyll); color: var(--ovrigt); border-color: var(--ovrigt-kant); }
+[data-dfarg="2"] { background: var(--produktion-fyll); color: var(--produktion); border-color: var(--produktion-kant); }
+[data-dfarg="3"] { background: var(--avrop-fyll); color: var(--avrop); border-color: var(--avrop-kant); }
+[data-dfarg="4"] { background: var(--ue-fyll); color: var(--ue); border-color: var(--ue-kant); }
+[data-dfarg="5"] { background: var(--franvaro-fyll); color: var(--franvaro); border-color: var(--franvaro-kant); }
+[data-dfarg="6"] { background: var(--mote-fyll); color: var(--text-main); border-color: var(--mote-kant); }
+.fo-ftfran .fo-dkod { margin-left: 4px; }
+.fo-stapelnamn .fo-dkod { margin-right: 2px; }
+
+/* avatarer: samma storlek och kant som förut, färg efter person */
+.fo-avatar[data-afarg] { border: 1.5px solid; }
+.fo-avatar[data-afarg="1"] { background: var(--ovrigt-fyll); color: var(--ovrigt); border-color: var(--ovrigt-kant); }
+.fo-avatar[data-afarg="2"] { background: var(--produktion-fyll); color: var(--produktion); border-color: var(--produktion-kant); }
+.fo-avatar[data-afarg="3"] { background: var(--avrop-fyll); color: var(--avrop); border-color: var(--avrop-kant); }
+.fo-avatar[data-afarg="4"] { background: var(--ue-fyll); color: var(--ue); border-color: var(--ue-kant); }
+.fo-avatar[data-afarg="5"] { background: var(--franvaro-fyll); color: var(--franvaro); border-color: var(--franvaro-kant); }
+.fo-avatar[data-afarg="6"] { background: var(--leverans-fyll); color: var(--leverans); border-color: var(--leverans-kant); }
+
+/* nyckeltal: kort som kräver uppmärksamhet tonas, resten är neutrala */
+body.modul-forma .kpi:hover { border-color: var(--fo-accent-kant); }
+body.modul-forma .kpi.rod { background: var(--leverans-fyll); border-color: var(--leverans-kant); }
+body.modul-forma .kpi.orange { background: var(--varning-fyll); border-color: var(--varning-kant); }
+body.modul-forma .kpi.rod .kpirub, body.modul-forma .kpi.orange .kpirub { color: var(--text-main); }
+
+/* tabeller: rad under muspekaren markeras lätt */
+body.modul-forma .fo-tabell tbody tr:not(.okvitt):hover { background: var(--bg-alt); }
+
+
+
+/* jämna kolumner och rader */
+.fo-platshallare { visibility: hidden; pointer-events: none; }
+.fo-snabbkol { white-space: nowrap; }
+.fo-persontabell { table-layout: fixed; width: 100%; }
+.fo-persontabell th:nth-child(1) { width: 26%; }
+.fo-persontabell th:nth-child(2) { width: 18%; }
+.fo-persontabell th:nth-child(3) { width: 12%; }
+.fo-persontabell th:nth-child(4) { width: 22%; }
+.fo-persontabell th:nth-child(5) { width: 13%; }
+.fo-persontabell th:nth-child(6) { width: 9%; }
+.fo-persontabell td { overflow-wrap: anywhere; }
+.fo-personcell { display: flex; align-items: flex-start; gap: 10px; }
+.fo-personcell > span:last-child { min-width: 0; }
+.fo-personcell .fo-avatar { margin-top: -3px; }
+.fo-atgstaplar h3 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.fo-atgstaplar h3 .hjalp { margin-left: 0; text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+
+/* ======================================================================
+   Taggar: en enda stilren familj. Tunn kant lika runt om, rundade hörn
+   överallt (inga avklippta hörn), samma höjd, centrerad text och samma
+   avstånd mellan taggar. Gäller läge, försenad, möte, tid/kostnad, ny,
+   revision, chip och disciplinkod.
+   ====================================================================== */
+.fo-lage, .fo-tagg, .fo-paverkar, .fo-efteravslut, .fo-chip, .fo-demochip, .fo-revmark, .fo-nytt, .fo-dkod {
+  display: inline-flex !important; align-items: center; justify-content: center; box-sizing: border-box;
+  height: 20px; padding: 0 7px !important; margin: 0; border: 1px solid var(--ck, var(--border-color)) !important; border-radius: 5px !important;
+  font-size: 11px !important; font-weight: 600 !important; line-height: 1 !important; letter-spacing: .01em;
+  white-space: nowrap; vertical-align: middle !important; flex: none;
+}
+.fo-lage, .fo-tagg, .fo-paverkar, .fo-efteravslut { background: var(--cf); color: var(--cc); }
+.fo-lage { height: 22px; padding: 0 8px !important; font-size: 11.5px !important; }
+.fo-lage.mak { color: var(--text-faint); }
+.fo-chip { --ck: var(--border-color); }
+.fo-demochip { --ck: var(--varning-kant); }
+.fo-revmark { --ck: var(--leverans); background: var(--leverans); color: #fff; margin-left: 6px; }
+.fo-nytt { --ck: var(--accent-pop); margin-left: 6px; }
+.fo-tagg.t-ny { margin-left: 6px; }
+.fo-dkod { min-width: 22px; padding: 0 5px !important; }
+/* avstånd: taggar bredvid varandra får alltid 4 px, oavsett var de står */
+.fo-taggrad { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fo-lage + .fo-tagg, .fo-tagg + .fo-tagg, .fo-lage + .fo-paverkar { margin-left: 4px; }
+.fo-taggrad > * { margin: 0 !important; }
+/* i statuskolumnen ligger taggarna på rad och bryts snyggt, inte en och en på egna rader */
+.fo-lagekol { white-space: normal; }
+.fo-lagekol .fo-forsenad, .fo-lagekol .fo-motemark { display: inline-flex; margin-top: 0; }
+/* tagg direkt efter text (t.ex. "Ny" efter numret, "Försenad" efter datum) */
+td > .fo-tagg, td > .fo-chip, b + .fo-tagg, b + .fo-chip, span + .fo-chip { margin-left: 6px; }
+/* läsbar text i taggarna: färgen dras mot textfärgen så att ljusa toner (gult, orange) syns */
+.fo-lage, .fo-tagg, .fo-paverkar, .fo-efteravslut { color: color-mix(in srgb, var(--cc) 72%, var(--text-main)); }
+.fo-lage.mak { color: var(--text-faint); }
+/* disciplinkoder behåller sin egen kantfärg */
+.fo-dkod[data-dfarg="1"] { --ck: var(--ovrigt-kant); }
+.fo-dkod[data-dfarg="2"] { --ck: var(--produktion-kant); }
+.fo-dkod[data-dfarg="3"] { --ck: var(--avrop-kant); }
+.fo-dkod[data-dfarg="4"] { --ck: var(--ue-kant); }
+.fo-dkod[data-dfarg="5"] { --ck: var(--franvaro-kant); }
+.fo-dkod[data-dfarg="6"] { --ck: var(--mote-kant); }
+
+/* "Ny": en liten röd prick uppe till höger om frågenumret */
+.fo-nrtal { position: relative; display: inline-block; }
+.fo-nyprick-rod { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; border-radius: 50%; background: var(--leverans); }
+
+/* Steg 8: översikter, uppföljning och snabbregistrering */
+.ik-fo-uppf { --ik: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='m7 15 4-4 3 3 5-6'/%3E%3C/svg%3E"); }
+.fo-nygrupp { display: inline-flex; align-items: stretch; gap: 1px; }
+body.modul-forma .fo-nygrupp.fo-bara { display: inline-flex; }
+body.modul-forma .fo-nygrupp.fo-bara.dold { display: none; }
+.fo-nygrupp .fo-nyknapp { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.fo-nymer { width: 34px; min-width: 0; padding: 0 !important; border-top-left-radius: 4px; border-bottom-left-radius: 4px; height: 40px; }
+.fo-nymeny { position: fixed; z-index: 900; min-width: 240px; background: var(--bg-card); border: 2px solid var(--border-color); border-radius: var(--r-m); padding: 6px; display: flex; flex-direction: column; }
+.fo-nymenyrub { font-size: 12px; color: var(--text-muted); padding: 6px 10px 4px; }
+.fo-nymeny button { text-align: left; background: none; border: 0; border-radius: var(--r-s); padding: 9px 10px; font: inherit; font-size: 14px; color: var(--text-main); cursor: pointer; }
+.fo-nymeny button:hover, .fo-nymeny button:focus-visible { background: var(--bg-alt); outline: 0; }
+.fo-arbsvar { display: block; margin-top: 4px; padding: 6px 8px; border: 1px solid var(--ovrigt-kant); border-radius: var(--r-s); background: var(--ovrigt-fyll); font-size: 13px; font-weight: 400; color: var(--text-main); }
+.fo-arbsvar > span { display: block; margin-top: 2px; }
+.fo-arbproj { font-weight: 700; color: var(--text-main); }
+.fo-aglista li { align-items: flex-start; }
+.fo-prioknapp { flex: none; margin-left: auto; width: 28px; height: 28px; border: 0; background: none; color: var(--text-faint); font-size: 17px; line-height: 1; cursor: pointer; border-radius: var(--r-s); }
+.fo-prioknapp:hover { color: var(--text-main); background: var(--bg-alt); }
+.fo-prioknapp.pa { color: #b8860b; }
+.fo-minproj-val { margin-left: auto; }
+.fo-minproj-val select { min-width: 220px; }
+.fo-snabbrad { align-items: center; }
+.fo-nyttlista li { cursor: pointer; }
+.fo-forbtopp h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fo-forbtopp h3 .fo-hoger { margin-left: auto; }

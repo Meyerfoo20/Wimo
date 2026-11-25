@@ -25,6 +25,7 @@ const FO_FKOL = {
     mote: { namn: "Mötesforum", bredd: 130, sort: f => f.moten.map(id => (foForum(foP, id) || {}).kort || "").join(",") },
     plats: { namn: "Plats", bredd: 120, sort: f => foRadPlats(f) },
     bilagor: { namn: "Bilagor", bredd: 78, sort: f => f.bilagor.length },
+    logg: { namn: "Beslutslogg", bredd: 104, sort: f => f.ilogg ? 0 : 1 },
     tid: { namn: "Tidspåverkan", bredd: 110, sort: f => foKonsAktiva(f, "tid").length },
     kostnad: { namn: "Kostnadspåverkan", bredd: 124, sort: f => foKonsAktiva(f, "kostnad").length }
 };
@@ -66,12 +67,13 @@ function foDatumVecka(iso) { return iso ? foDatumKort(iso) + ' <span class="fo-v
 function foCell(k, f, ctx) {
     const p = foP;
     switch (k) {
-        case "nr": return '<b>' + f.nr + '</b>' + (ctx.nytt ? '<span class="fo-tagg t-ny" title="Ändrad sedan du tittade senast">Ny</span>' : "");
+        case "nr": return '<b class="fo-nrtal">' + f.nr + (ctx.nytt ? '<span class="fo-nyprick-rod" title="Ändrad sedan du tittade senast"><span class="sr">Ny</span></span>' : "") + '</b>' +
+            (f.stjarna ? ' <span class="fo-stjarna" style="color:#b8860b" title="Sparas alltid">★</span>' : "");
         case "frantill": {
             const fr = foPersonNamn(p, foStallarePerson(f)), dk = foDiscText(p, f.fran);
             const mott = foMottagare(f);
             const till = mott.length ? mott.map(m => '<span class="' + (foHarSvarat(p, f, m) ? "fo-harsv" : "") + '" title="' + (foHarSvarat(p, f, m) ? "Har svarat" : "Har inte svarat") + '">' + esc(foPartText(p, m)) + '</span>').join(", ") : '<i class="fo-dampad">ingen</i>';
-            return '<span class="fo-ft"><span class="fo-ftfran">' + esc(fr || "–") + (dk ? ' <small>' + esc(dk) + '</small>' : "") + '</span><span class="fo-fttill"><span class="fo-pil" aria-hidden="true">→</span> ' + till + '</span></span>';
+            return '<span class="fo-ft"><span class="fo-ftfran">' + esc(fr || "–") + (dk ? ' ' + foDiscChip(p, f.fran) : "") + '</span><span class="fo-fttill"><span class="fo-pil" aria-hidden="true">→</span> ' + till + '</span></span>';
         }
         case "fraga": return '<span class="fo-fragetext">' + esc(f.text) + '</span>' +
             (f.bilagor.length && !ctx.kol.includes("bilagor") ? ' <span class="fo-gemtal" title="' + f.bilagor.length + (f.bilagor.length === 1 ? " bilaga" : " bilagor") + '"><i class="fo-gem" aria-hidden="true"></i>' + f.bilagor.length + '</span>' : "") +
@@ -97,6 +99,9 @@ function foCell(k, f, ctx) {
         case "svarsdatum": { const s = foSenasteSvar(f); return s ? foDatumKort(s.tid) : '<span class="fo-dampad">–</span>'; }
         case "mote": return f.moten.length ? f.moten.map(id => esc((foForum(p, id) || { namn: "?" }).namn)).join(", ") : '<span class="fo-dampad">–</span>';
         case "plats": return esc(foRadPlats(f) || "–");
+        case "logg": return foKanLoggaFraga(p, foJagId(), f) && !f.makulerad
+            ? '<button type="button" class="fo-minknapp' + (f.ilogg ? " fo-pa" : "") + '" data-loggval="' + f.id + '" aria-pressed="' + !!f.ilogg + '" title="Inkludera i beslutsloggen">' + (f.ilogg ? "✓ Ingår" : "Inkludera") + '</button>'
+            : (f.ilogg ? "✓ Ingår" : '<span class="fo-dampad">–</span>');
         case "bilagor": return f.bilagor.length ? '<span class="fo-gemtal"><i class="fo-gem" aria-hidden="true"></i>' + f.bilagor.length + '</span>' : '<span class="fo-dampad">–</span>';
         case "tid": case "kostnad": {
             const l = foKonsAktiva(f, k);
@@ -109,7 +114,7 @@ function foCell(k, f, ctx) {
 /* ---------- tabellen ---------- */
 function foFragaTabellVy(lista, vy) {
     const p = foP, jag = foJagId(), idag = foIdag(), v = foFragevy();
-    const kol = v.kol, forum = p.forum.filter(x => x.aktiv);
+    const kol = v.kol, forum = foForumValbara(p);
     const grupp = v.grupp[vy] || "";
     const sortKol = (foFilter.sort || "").startsWith("kol:") ? foFilter.sort.split(":") : null;
     // gruppera (ordningen inom en grupp följer sorteringen)
@@ -140,8 +145,9 @@ function foFragaTabellVy(lista, vy) {
         return '<tr data-fraga="' + f.id + '" data-rad="' + f.id + '" class="' + (f.id === foFragaOppen ? "vald " : "") + (ok.length ? "okvitt " : "") + (nytt ? "olast " : "") + (f.makulerad ? "mak" : "") + '" tabindex="0">' +
             (valj ? '<td class="fo-valjkol"><input type="checkbox" data-valj="' + f.id + '"' + (foValdaFragor.has(f.id) ? " checked" : "") + ' aria-label="Välj fråga ' + f.nr + '"></td>' : "") +
             kol.map(k => '<td class="fo-td-' + k + (k === "nr" ? " fo-nrkol" : "") + '">' + foCell(k, f, ctx) + '</td>').join("") +
-            '<td class="fo-snabbkol">' + (kanKlar ? '<button type="button" class="fo-minknapp klar" data-klar="' + f.id + '" title="Klarmarkera frågan">Klar</button>' : "") +
-            (foKanSkriva(p, jag) && forum.length && foAktiv(f) ? '<button type="button" class="fo-minknapp fo-hover' + (f.moten.length ? " pa" : "") + '" data-motesval="' + f.id + '" title="Markera för möte">' +
+            // Klar och Möte står alltid på samma plats i kolumnen: saknas en knapp hålls platsen tom.
+            '<td class="fo-snabbkol">' + (kanKlar ? '<button type="button" class="fo-minknapp klar" data-klar="' + f.id + '" title="Klarmarkera frågan">Klar</button>' : '<span class="fo-minknapp klar fo-platshallare" aria-hidden="true">Klar</span>') +
+            (foKanSkriva(p, jag) && forum.length && !f.makulerad ? '<button type="button" class="fo-minknapp fo-hover' + (f.moten.length ? " pa" : "") + '" data-motesval="' + f.id + '" title="Markera för möte">' +
                 (f.moten.length ? "På möte" : "+ Möte") + '</button>' : "") + '</td></tr>';
     };
     if (grupper) {

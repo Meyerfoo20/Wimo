@@ -1532,6 +1532,8 @@
                 nyttKonto = { epost: epost.toLowerCase(), namn: namn, ansokan: ansokan };
                 const cred = await fb.auth.createUserWithEmailAndPassword(fb.authInst, epost, losen);
                 if (namn) await fb.auth.updateProfile(cred.user, { displayName: namn }).catch(() => { });
+                // Bekräftad e-post krävs för att ta emot Forma-inbjudningar.
+                if (fb.auth.sendEmailVerification) await fb.auth.sendEmailVerification(cred.user).catch(() => { });
                 $("kkKod").value = "";
             }
             else await fb.auth.signInWithEmailAndPassword(fb.authInst, epost, losen);
@@ -2181,12 +2183,32 @@
     // så att appen kan lägga sina ändringar ovanpå den nyare versionen.
     const formaSamling = () => fb.fs.collection(fb.db, "forma");
     const formaDoc = (id) => fb.fs.doc(fb.db, "forma", id);
-    const formaRedo = () => !!(fb && anvandare && behorighet.status === "godkand");
-    const formaLas = (d) => {
+    // Forma-projekt styrs av projektets egen medlemslista, så externa projektörer behöver inte vara godkända i Wimo Plan.
+    const formaRedo = () => !!(fb && anvandare);
+    const minEpost = () => String((anvandare && anvandare.email) || "").toLowerCase();
+    // Stora projekt sparas komprimerade (gzip + base64) med prefixet "z1:". Små sparas som vanlig JSON.
+    const FORMA_KOMPRIMERA = 300000;
+    const formaB64 = {
+        ut: (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); },
+        in: (b) => { const s = atob(b), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; }
+    };
+    const formaStrom = async (u8, strom) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(strom)).arrayBuffer());
+    async function formaKoda(data) {
+        const json = JSON.stringify(data);
+        if (json.length < FORMA_KOMPRIMERA || typeof CompressionStream === "undefined") return json;
+        return "z1:" + formaB64.ut(await formaStrom(new TextEncoder().encode(json), new CompressionStream("gzip")));
+    }
+    async function formaAvkoda(s) {
+        if (!s) return null;
+        if (s.startsWith("z1:")) return JSON.parse(new TextDecoder().decode(await formaStrom(formaB64.in(s.slice(3)), new DecompressionStream("gzip"))));
+        return JSON.parse(s);
+    }
+    // trasig: datan fanns men gick inte att läsa. Då får appen aldrig spara över den.
+    const formaLas = async (d) => {
         const x = d.data() || {};
-        let data = null;
-        try { data = x.data ? JSON.parse(x.data) : null; } catch (e) { data = null; }
-        return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data };
+        let data = null, trasig = false;
+        try { data = await formaAvkoda(x.data); } catch (e) { data = null; trasig = !!x.data; }
+        return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data, trasig: trasig };
     };
     window.p4FormaMoln = {
         redo: formaRedo,
@@ -2197,26 +2219,51 @@
         lista(cb, fel) {
             if (!formaRedo()) return () => { };
             const q = arAdmin() ? formaSamling() : fb.fs.query(formaSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
-            return fb.fs.onSnapshot(q, (snap) => cb(snap.docs.map((d) => { const x = d.data() || {};
-                return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [] }; })), fel || ((e) => console.warn("Forma lista:", e)));
+            const som = (d) => { const x = d.data() || {}; return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [] }; };
+            let egna = [], inbjudna = [];
+            const skicka = () => cb(egna.concat(inbjudna.filter((x) => !egna.some((y) => y.id === x.id))));
+            const st1 = fb.fs.onSnapshot(q, (snap) => { egna = snap.docs.map(som); skicka(); }, fel || ((e) => console.warn("Forma lista:", e)));
+            // Projekt där kontot har en giltig inbjudan: gå med direkt (inbjudan är kopplad till e-postadressen).
+            let st2 = () => { }, stoppad = false;
+            const startaInbjudningar = () => {
+                if (stoppad || !minEpost() || !anvandare.emailVerified) return;
+                st2 = fb.fs.onSnapshot(fb.fs.query(formaSamling(), fb.fs.where("inbjudna", "array-contains", minEpost())), async (snap) => {
+                    for (const d of snap.docs) {
+                        const x = d.data() || {};
+                        if ((x.medlemmar || []).includes(anvandare.uid) || !((x.inbjudTid || {})[minEpost()] > Date.now())) continue;
+                        try { await window.p4FormaMoln.anslut(d.id); } catch (e) { console.warn("Forma inbjudan:", e); }
+                    }
+                    inbjudna = [];
+                    skicka();
+                }, (e) => console.warn("Forma inbjudningar:", e));
+            };
+            if (anvandare.emailVerified) startaInbjudningar();
+            // E-posten kan ha bekräftats efter inloggningen: läs om kontot och förnya nyckeln.
+            else if (minEpost()) anvandare.reload().then(() => anvandare.emailVerified ? anvandare.getIdToken(true).then(startaInbjudningar) : null).catch(() => { });
+            return () => { stoppad = true; st1(); st2(); };
         },
         lyssna(id, cb, fel) {
             if (!formaRedo()) return () => { };
-            return fb.fs.onSnapshot(formaDoc(id), (d) => cb(d.exists() ? formaLas(d) : null), fel || ((e) => console.warn("Forma projekt:", e)));
+            // Avkodningen är asynkron: kedja den så att ögonblicksbilderna kommer i rätt ordning.
+            let kedja = Promise.resolve();
+            return fb.fs.onSnapshot(formaDoc(id), (d) => { kedja = kedja.then(async () => cb(d.exists() ? await formaLas(d) : null)).catch((e) => console.warn("Forma projekt:", e)); }, fel || ((e) => console.warn("Forma projekt:", e)));
         },
         async skapa(id, namn, data) {
             await fb.fs.setDoc(formaDoc(id), { namn: String(namn || "Projekt").slice(0, 200), medlemmar: [anvandare.uid], admins: [anvandare.uid],
-                data: JSON.stringify(data), rev: 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+                data: await formaKoda(data), rev: 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
             return 1;
         },
         // Sparar om rev fortfarande stämmer. Annars kastas { konflikt, fjarr } med den nyare versionen.
         async spara(id, data, rev, namn) {
+            const kodad = await formaKoda(data);
+            if (kodad.length > 900000) throw { forStor: true, storlek: kodad.length };
             return fb.fs.runTransaction(fb.db, async (t) => {
                 const d = await t.get(formaDoc(id));
                 if (!d.exists()) throw { saknas: true };
-                const x = formaLas(d);
+                const x = await formaLas(d);
+                if (x.trasig) throw { trasig: true };
                 if (x.rev !== rev) throw { konflikt: true, fjarr: x };
-                t.update(formaDoc(id), { namn: String(namn || x.namn).slice(0, 200), data: JSON.stringify(data), rev: rev + 1,
+                t.update(formaDoc(id), { namn: String(namn || x.namn).slice(0, 200), data: kodad, rev: rev + 1,
                     andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
                 return rev + 1;
             });
@@ -2230,6 +2277,38 @@
                     andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
             });
         },
+        // Inbjudan: e-post + utgångstid på projektdokumentet. Bara den som loggar in med just den
+        // e-postadressen (verifierad) kan gå med, så en vidarebefordrad länk ger ingen åtkomst.
+        async inbjud(id, epost, utgar) {
+            epost = String(epost || "").toLowerCase();
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const x = d.data() || {}, tider = Object.assign({}, x.inbjudTid || {});
+                tider[epost] = utgar;
+                t.update(formaDoc(id), { inbjudna: [...new Set((x.inbjudna || []).concat(epost))], inbjudTid: tider });
+            });
+        },
+        async aterkalla(id, epost) {
+            epost = String(epost || "").toLowerCase();
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) return;
+                const x = d.data() || {}, tider = Object.assign({}, x.inbjudTid || {});
+                delete tider[epost];
+                t.update(formaDoc(id), { inbjudna: (x.inbjudna || []).filter((e) => e !== epost), inbjudTid: tider });
+            });
+        },
+        async anslut(id) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const x = d.data() || {};
+                t.update(formaDoc(id), { medlemmar: (x.medlemmar || []).concat(anvandare.uid), inbjudna: (x.inbjudna || []).filter((e) => e !== minEpost()) });
+            });
+        },
+        epostBekraftad: () => !!(anvandare && anvandare.emailVerified),
+        async skickaBekraftelse() { await fb.auth.sendEmailVerification(anvandare); },
         async radera(id) { await fb.fs.deleteDoc(formaDoc(id)); },
         async sparaFil(pid, fid, obj) {
             await fb.fs.setDoc(fb.fs.doc(fb.db, "forma", pid, "filer", fid), { namn: String(obj.namn || "fil").slice(0, 200), typ: String(obj.typ || "").slice(0, 100),
@@ -2238,6 +2317,53 @@
         async hamtaFil(pid, fid) {
             const d = await fb.fs.getDoc(fb.fs.doc(fb.db, "forma", pid, "filer", fid));
             return d.exists() ? d.data() : null;
+        },
+        // Ett projekt en gång (för Min översikt och aviseringar över alla projekt).
+        async hamta(id) {
+            const d = await fb.fs.getDoc(formaDoc(id));
+            return d.exists() ? await formaLas(d) : null;
+        },
+        // Hur stort projektet blir i molnet (tecken), efter ev. komprimering.
+        async storlek(data) { return (await formaKoda(data)).length; },
+        // Mejlkön: ett dokument per mottagare och händelse. Id:t gör att samma mejl aldrig köas två gånger.
+        async koaMejl(id, data) {
+            const ref = fb.fs.doc(fb.db, "formaMejl", id);
+            try {
+                await fb.fs.setDoc(ref, Object.assign({}, data, { av: anvandare.uid, status: "planerad", forsok: 0, skapad: fb.fs.serverTimestamp() }));
+                return "koad";
+            } catch (e) {
+                // finns redan (skapad av en tidigare sparning) – då är den redan köad
+                if (e && /permission|PERMISSION/.test(String(e.code || e.message))) return "fanns";
+                throw e;
+            }
+        },
+        async mejllogg(pid) {
+            const q = fb.fs.query(fb.fs.collection(fb.db, "formaMejl"), fb.fs.where("projekt", "==", pid), fb.fs.limit(300));
+            const snap = await fb.fs.getDocs(q);
+            return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        },
+        // Privata arbetsuppgifter (formaPrivat/{uid}): syns bara för personen själv.
+        async privatHamta() {
+            const d = await fb.fs.getDoc(fb.fs.doc(fb.db, "formaPrivat", anvandare.uid));
+            return (d.exists() && d.data().uppgifter) || [];
+        },
+        async privatSpara(lista) {
+            await fb.fs.setDoc(fb.fs.doc(fb.db, "formaPrivat", anvandare.uid), { uppgifter: lista, andrad: fb.fs.serverTimestamp() }, { merge: true });
+        },
+        // Personliga val som följer kontot mellan enheter (prioriteringar, startsida).
+        async privatLas() {
+            const d = await fb.fs.getDoc(fb.fs.doc(fb.db, "formaPrivat", anvandare.uid));
+            return d.exists() ? d.data() : {};
+        },
+        async privatSattFalt(obj) {
+            await fb.fs.setDoc(fb.fs.doc(fb.db, "formaPrivat", anvandare.uid), Object.assign({}, obj, { andrad: fb.fs.serverTimestamp() }), { merge: true });
+        },
+        async avisInst() {
+            const d = await fb.fs.getDoc(anvDoc());
+            return (d.exists() && d.data().formaAvis) || {};
+        },
+        async sparaAvisInst(obj) {
+            await fb.fs.setDoc(anvDoc(), { formaAvis: obj, uppdaterad: fb.fs.serverTimestamp() }, { merge: true });
         }
     };
 
@@ -2303,13 +2429,65 @@
         const typ = FORSLAG_TYP[o.typ] ? o.typ : "annat";
         const bilder = (Array.isArray(o.bilder) ? o.bilder : []).filter((b) => typeof b === "string" && b.indexOf("data:image/") === 0).slice(0, 2);
         const ref = fb.fs.doc(fb.fs.collection(fb.db, "forslag"));
-        await fb.fs.setDoc(ref, {
+        const doc = {
             text, typ, uid: anvandare.uid, bilder,
             namn: String(anvandare.displayName || "").slice(0, 200), epost: String(anvandare.email || "").slice(0, 200),
             projekt: String(state && state.projekt || "").slice(0, 200), status: "ny", skapad: fb.fs.serverTimestamp()
-        });
+        };
+        const modul = o.modul === "forma" ? "forma" : "plan";
+        // Modulen sparas när molnets regler tillåter det; annars skickas förslaget utan (äldre regler).
+        try { await fb.fs.setDoc(ref, Object.assign({ modul }, doc)); }
+        catch (e) {
+            if (!/permission/i.test(String(e && (e.code || e.message)))) throw e;
+            await fb.fs.setDoc(ref, doc);
+        }
         return ref.id;
     };
+    // Ett förslag som text att vidarebefordra (mejl, Teams, …).
+    const MODULNAMN = { plan: "Wimo Plan", forma: "Wimo Forma" };
+    function forslagText(x) {
+        const t = tidAv(x.skapad);
+        const vem = x.namn && x.epost ? x.namn + " <" + x.epost + ">" : (x.namn || x.epost || "Okänd");
+        const bilder = Array.isArray(x.bilder) ? x.bilder.length : 0;
+        return (FORSLAG_TYP[x.typ] || "Övrigt") + (x.modul ? " · " + (MODULNAMN[x.modul] || x.modul) : "") + "\n" +
+            "Från: " + vem + "\n" +
+            "När: " + (t ? t.toLocaleString("sv-SE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–") + "\n" +
+            (x.projekt ? "Projekt: " + x.projekt + "\n" : "") +
+            "\n" + String(x.text || "").trim() + "\n" +
+            (bilder ? "\n(" + bilder + (bilder === 1 ? " bild" : " bilder") + " – går att ladda ner från Wimo, Mitt konto → Förslag)\n" : "");
+    }
+    function vidarebefordraForslag(lista) {
+        if (!lista.length) return;
+        const en = lista.length === 1;
+        const text = lista.map(forslagText).join("\n————————————————————\n\n");
+        const amne = en ? "Förslag till Wimo: " + (FORSLAG_TYP[lista[0].typ] || "Övrigt") + " från " + (lista[0].namn || lista[0].epost || "en användare")
+            : lista.length + " förslag till Wimo";
+        const bilder = [];
+        lista.forEach((x, n) => (Array.isArray(x.bilder) ? x.bilder : []).forEach((b, i) => {
+            if (typeof b === "string" && b.indexOf("data:image/") === 0) bilder.push({ b, namn: "forslag-" + (en ? "" : (n + 1) + "-") + "bild-" + (i + 1) + ".jpg" });
+        }));
+        const kropp = '<label class="falt"><span>Mottagare <span class="hjalp">valfritt, flera med komma</span></span>' +
+            '<input class="f" id="fsVbTill" type="email" multiple placeholder="namn@foretag.se" autocomplete="email"></label>' +
+            '<label class="falt"><span>Text</span><textarea class="f p4-fs-vbtext" id="fsVbText" rows="12">' + esc(text) + "</textarea></label>" +
+            (bilder.length ? '<p class="hjalp">Bilder kan inte följa med i ett mejl härifrån. Ladda ner dem och bifoga: ' +
+                bilder.map((x) => '<a href="' + esc(x.b) + '" download="' + esc(x.namn) + '">' + esc(x.namn) + "</a>").join(", ") + "</p>" : "");
+        const kopiera = async (txt) => {
+            try { await navigator.clipboard.writeText(txt); return true; }
+            catch (e) { const t = $("fsVbText"); if (t) { t.select(); try { return document.execCommand("copy"); } catch (e2) { } } return false; }
+        };
+        modal(en ? "Vidarebefordra förslag" : "Vidarebefordra " + lista.length + " förslag", "Ändra texten om du vill och skicka den vidare.", kropp, [
+            { txt: "Kopiera text", vanster: true, fn: async () => { status(await kopiera($("fsVbText").value) ? "Texten är kopierad" : "Kunde inte kopiera – markera texten och kopiera själv", false); } },
+            { txt: "Stäng", fn: stangModal },
+            { txt: "Öppna i mejl", primar: true, fn: async () => {
+                const till = $("fsVbTill").value.trim(), txt = $("fsVbText").value;
+                let body = txt;
+                // Mejlprogram klarar inte hur långa länkar som helst: då kopieras texten och klistras in.
+                if (encodeURIComponent(txt).length > 1800) { await kopiera(txt); body = "(Texten är kopierad – klistra in den här med Ctrl+V.)"; status("Texten är kopierad – klistra in den i mejlet"); }
+                location.href = "mailto:" + encodeURIComponent(till).replace(/%2C/gi, ",").replace(/%40/g, "@") + "?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(body);
+            } }
+        ]);
+    }
+
     function ritaForslagAdmin() {
         const kort = $("ksForslag");
         if (!kort) return;
@@ -2321,6 +2499,7 @@
             const t = tidAv(x.skapad), klar = x.status === "klar";
             return '<li class="p4-fs-rad' + (klar ? " klar" : "") + '">' +
                 '<div class="p4-fs-topp"><span class="p4-ks-tagg' + (x.typ === "fel" ? " fara" : "") + '">' + esc(FORSLAG_TYP[x.typ] || "Övrigt") + "</span>" +
+                  (x.modul ? '<span class="p4-fs-modul ' + (x.modul === "forma" ? "forma" : "plan") + '">' + (x.modul === "forma" ? "Forma" : "Plan") + "</span>" : "") +
                   "<b>" + esc(x.namn || x.epost || "Okänd") + "</b>" + (x.namn && x.epost ? " <small>" + esc(x.epost) + "</small>" : "") +
                   '<small class="p4-fs-tid">' + esc(t ? t.toLocaleString("sv-SE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "just nu") +
                   (x.projekt ? " · " + esc(x.projekt) : "") + "</small></div>" +
@@ -2330,6 +2509,7 @@
                 '<span class="p4-ks-atgarder">' +
                   '<button type="button" class="mknapp' + (klar ? "" : " primar") + '" data-forslag="' + (klar ? "ny" : "klar") + '" data-id="' + esc(x.id) + '">' + (klar ? "Markera som ny" : "Klar") + "</button>" +
                   (x.epost ? '<a class="mknapp" href="mailto:' + esc(x.epost) + "?subject=" + encodeURIComponent("Ditt förslag till Wimo") + '">Svara</a>' : "") +
+                  '<button type="button" class="mknapp" data-forslag="vidare" data-id="' + esc(x.id) + '">Vidarebefordra</button>' +
                   '<button type="button" class="mknapp fara" data-forslag="tabort" data-id="' + esc(x.id) + '">Ta bort</button>' +
                 "</span></li>";
         }).join("");
@@ -2340,7 +2520,8 @@
                 '<button type="button" data-forslagfilter="nya"' + (forslagFilter === "nya" ? ' class="vald"' : "") + ">Nya (" + nya.length + ")</button>" +
                 '<button type="button" data-forslagfilter="alla"' + (forslagFilter === "alla" ? ' class="vald"' : "") + ">Alla (" + forslagLista.length + ")</button>" +
               "</span></div>" +
-            '<p class="hjalp">Det som användarna skriver under Förslag i sidomenyn hamnar här. Bara du som huvudadmin ser dem.</p>' +
+            '<p class="hjalp">Det som användarna skriver under Förslag i sidomenyn, i Plan och Forma, hamnar här. Bara du som huvudadmin ser dem.' +
+              (lista.length ? ' <button type="button" class="p4d-lank" data-forslag="vidarealla">Vidarebefordra ' + (lista.length === 1 ? "förslaget" : "alla " + lista.length + (forslagFilter === "nya" ? " nya" : "")) + "</button>" : "") + "</p>" +
             (rader ? '<ul class="p4-fs-lista">' + rader + "</ul>" : '<p class="hjalp">' + (forslagFilter === "nya" ? "Inga nya förslag just nu." : "Inga förslag ännu.") + "</p>");
     }
     document.addEventListener("click", async (e) => {
@@ -2361,6 +2542,10 @@
         if (f) { forslagFilter = f.dataset.forslagfilter; return ritaForslagAdmin(); }
         const b = e.target.closest("#ksForslag [data-forslag]");
         if (!b || !arAdmin()) return;
+        if (b.dataset.forslag === "vidare") { const x = forslagLista.find((y) => y.id === b.dataset.id); if (x) vidarebefordraForslag([x]); return; }
+        if (b.dataset.forslag === "vidarealla") {
+            return vidarebefordraForslag(forslagFilter === "nya" ? forslagLista.filter((x) => x.status !== "klar") : forslagLista);
+        }
         const ref = fb.fs.doc(fb.db, "forslag", b.dataset.id);
         try {
             if (b.dataset.forslag === "tabort") {

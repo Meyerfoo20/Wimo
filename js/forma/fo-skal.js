@@ -5,10 +5,13 @@
    ====================================================================== */
 
 const FO_LS_MODUL = "wimo-modul";
-let foVy = "oversikt";          // vyn som visas
+let foVy = "oversikt";
+let foStartValt = false;
+// Bibehållet arbetsläge: scrollposition per vy, återställs när man går tillbaka.
+const foScroll = {};          // vyn som visas
 let foFragaOppen = "";          // id för frågan i sidopanelen
 let foFilter = { snabb: "alla", sok: "", disc: "", plats: "", lage: "", mote: "", sort: "std", visaMak: false };
-let foFlik = { atg: "mina", org: "personer", mote: "", beslut: "gallande", rapport: "skapa" };
+let foFlik = { atg: "mina", org: "personer", mote: "", beslut: "logg", rapport: "skapa" };
 
 function foModulAktiv() { return document.body.classList.contains("modul-forma"); }
 
@@ -44,6 +47,12 @@ function foVaxlaModul(modul, tyst) {
         : "Digital fyraveckorstavla för produktionsplanering. Fyra veckor framåt, ett kort per arbetsmoment — från tidplanen till vad laget gör på onsdag morgon.";
     if (forma) {
         try { if (typeof stangModal === "function") stangModal(); } catch (e) { }
+        // Första gången i sessionen: användarens valda startsida (Min översikt är standard).
+        if (!location.hash.startsWith("#forma") && !foStartValt) {
+            foStartValt = true;
+            const st = typeof foStartsidaNyckel === "function" ? foLasLs(foStartsidaNyckel(), "min") : "min";
+            foVy = st === "oversikt" && foP ? "oversikt" : "min";
+        }
         if (!location.hash.startsWith("#forma")) history.replaceState(null, "", "#forma/" + foVy);
         foLasAdress();
         foRita();
@@ -102,7 +111,7 @@ function foModulMeny() {
 
 /* ---------- adresser: #forma/vy och #forma/vy/f12 ---------- */
 let foVantarProjekt = "";   // projekt från en länk som ännu inte finns i listan (molnlistan laddas)
-const FO_VYER = ["min", "oversikt", "flode", "aktiva", "mina", "klara", "alla", "dokument", "tidplaner", "moten", "atgarder", "beslut", "amk", "org", "rapporter", "inst", "projekt"];
+const FO_VYER = ["min", "oversikt", "uppfoljning", "flode", "aktiva", "mina", "klara", "alla", "dokument", "tidplaner", "moten", "atgarder", "beslut", "amk", "org", "rapporter", "inst", "projekt"];
 function foLasAdress() {
     const h = decodeURIComponent(location.hash || "");
     if (!h.startsWith("#forma")) return;
@@ -115,6 +124,8 @@ function foLasAdress() {
         d = d.slice(1);
     }
     if (FO_VYER.includes(d[0])) foVy = d[0];
+    const m = d.find(x => x.startsWith("m:"));
+    if (m) foFlik.mote = m.slice(2);
     const fr = d.find(x => /^f\d+$/.test(x));
     const f = fr && foP ? foFragaNr(foP, fr.slice(1)) : null;
     foFragaOppen = f ? f.id : "";
@@ -123,7 +134,7 @@ function foSattAdress(ersatt) {
     if (!foModulAktiv()) return;
     const f = foFragaOppen && foP ? foFraga(foP, foFragaOppen) : null;
     if (foVantarProjekt && foVantarProjekt === foPid) foVantarProjekt = "";
-    const h = "#forma/" + foVy + (f ? "/f" + f.nr : "");
+    const h = "#forma/" + foVy + (foVy === "moten" && foFlik.mote ? "/m:" + foFlik.mote : "") + (f ? "/f" + f.nr : "");
     if (location.hash === h) return;
     if (ersatt) history.replaceState(null, "", h); else history.pushState(null, "", h);
 }
@@ -132,17 +143,23 @@ window.addEventListener("popstate", () => {
         if (!foFarForma()) return;
         // Bakåt/framåt i webbläsaren byter aldrig modul: står man i Plan stannar man där.
         if (!foModulAktiv()) { history.replaceState(null, "", location.pathname + location.search); return; }
+        // Bakåt i webbläsaren: samma scrollposition som när man lämnade vyn.
+        const fore = foVy;
+        foScroll[fore] = window.scrollY;
         foLasAdress(); foRita();
+        if (foVy !== fore) window.scrollTo({ top: foScroll[foVy] || 0 });
     }
 });
 function foGaTill(vy, fragaId) {
     if (vy !== foVy && typeof foListaAlla !== "undefined") foListaAlla = false;
+    foScroll[foVy] = window.scrollY;
+    const ater = vy !== foVy && !fragaId ? foScroll[vy] || 0 : 0;
     foVy = vy;
     foFragaOppen = fragaId || "";
     foSattAdress();
     document.body.classList.remove("p4-kontovy", "p4-menyoppen");
     foRita();
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: ater });
 }
 
 /* ---------- sidomenyn ---------- */
@@ -173,8 +190,9 @@ function foNavHtml() {
     const leda = foKanLeda(p, jag);
     const olasta = (p.flode || []).filter(x => x.av !== jag && foNytt(p, jag, x)).length;
     const minAntal = (() => { try { return foAllaNu().reduce((s, x) => s + foArbetsyta(x.p, foJagIdI(x.p)).length, 0); } catch (e) { return 0; } })();
-    return grupp("", knapp("min", "fo-ik-jag", "Min översikt", minAntal || "", true, "Min översikt – det du behöver göra i alla projekt") +
+    return grupp("Översikt", knapp("min", "fo-ik-jag", "Min översikt", minAntal || "", true, "Min översikt – det du behöver göra i alla projekt") +
             knapp("oversikt", "ik-dash", "Projektöversikt", "", true) +
+            (leda ? knapp("uppfoljning", "ik-fo-uppf", "Uppföljning", "", true, "Uppföljning – där du behöver agera") : "") +
             knapp("flode", "fo-ik-flode", "Projektflöde", olasta || "", true, "Projektflöde – nytt sedan du tittade")) +
         grupp("Frågor & svar",
             knapp("aktiva", "ik-fo-fraga", "Aktiva frågor", l.oppna || "", true) +
@@ -214,7 +232,7 @@ function foRitaHeader() {
     if (k) k.textContent = foP ? foP.namn : "Välj projekt";
     const d = document.getElementById("foDemo");
     if (d) d.classList.toggle("dold", !(foP && foP.demo));
-    const ny = document.getElementById("foNyFraga");
+    const ny = document.getElementById("foNyGrupp");
     if (ny) ny.classList.toggle("dold", !foP || !foKanSkriva(foP, foJagId()));
     foVisaSynk();
     if (typeof foRitaKlocka === "function") foRitaKlocka();
@@ -225,6 +243,7 @@ let foRitar = false;
 function foRita() {
     if (!foModulAktiv() || foRitar) return;
     foRitar = true;
+    setTimeout(() => foFargaAvatarer(), 0);
     try {
         if (!foP && foPid) foOppnaProjekt(foPid);
         if (!foP) {
@@ -238,7 +257,7 @@ function foRita() {
         const yta = document.getElementById("forma");
         if (!yta) return;
         const sc = window.scrollY;
-        const vyer = { min: foVyMin, oversikt: foVyOversikt, flode: foVyFlode, aktiva: foVyFragor, mina: foVyFragor, klara: foVyFragor, alla: foVyFragor,
+        const vyer = { min: foVyMin, oversikt: foVyOversikt, uppfoljning: foVyUppfoljning, flode: foVyFlode, aktiva: foVyFragor, mina: foVyFragor, klara: foVyFragor, alla: foVyFragor,
             dokument: foVyKommer, tidplaner: foVyKommer, amk: foVyKommer, moten: foVyMoten, atgarder: foVyAtgarder, beslut: foVyBeslut, org: foVyOrg,
             rapporter: foVyRapporter, inst: foVyInst, projekt: foVyProjekt };
         (vyer[foVy] || foVyOversikt)(yta);
@@ -334,6 +353,30 @@ function foStarta() {
     if (pk) pk.addEventListener("click", foProjektMeny);
     const ny = document.getElementById("foNyFraga");
     if (ny) ny.addEventListener("click", foNyFragaFokus);
+    // Pilen bredvid: andra vanliga registreringar. Ett klick på + Ny fråga är oförändrat.
+    const mer = document.getElementById("foNyMer");
+    if (mer) mer.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const gammal = document.getElementById("foNyMeny"); if (gammal) { gammal.remove(); mer.setAttribute("aria-expanded", "false"); return; }
+        const m = document.createElement("div");
+        m.id = "foNyMeny"; m.className = "fo-nymeny"; m.setAttribute("role", "menu");
+        const val = [["fraga", "Ny fråga"], ["atgard", "Ny åtgärd"], ["inlagg", "Nytt inlägg i projektflödet"]].concat(foForumValbara(foP || { forum: [] }).length ? [["protokoll", "Registrera protokoll"]] : []);
+        m.innerHTML = '<div class="fo-nymenyrub">Registreras i ' + esc(foP ? foP.namn : "") + '</div>' + val.map(([k, t]) => '<button type="button" role="menuitem" data-nyval="' + k + '">' + t + '</button>').join("");
+        document.body.appendChild(m);
+        const r = mer.getBoundingClientRect();
+        m.style.top = (r.bottom + 6) + "px"; m.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+        mer.setAttribute("aria-expanded", "true");
+        const stang = () => { m.remove(); mer.setAttribute("aria-expanded", "false"); document.removeEventListener("click", stang); };
+        setTimeout(() => document.addEventListener("click", stang), 0);
+        m.querySelectorAll("[data-nyval]").forEach(b => b.addEventListener("click", () => {
+            const k = b.dataset.nyval; stang();
+            if (k === "fraga") foNyFragaFokus();
+            if (k === "atgard") foAtgardDialog(null);
+            if (k === "inlagg") { foGaTill("flode"); setTimeout(() => { const t = document.querySelector("#forma textarea"); if (t) t.focus(); }, 60); }
+            if (k === "protokoll") foProtokollDialog(null, foForumValbara(foP)[0]);
+        }));
+        const forsta = m.querySelector("button"); if (forsta) forsta.focus();
+    });
     const kl = document.getElementById("foKlocka");
     if (kl) kl.addEventListener("click", foOppnaKlocka);
     foKopplaSok();
@@ -357,3 +400,10 @@ window.addEventListener("wimo-konto", () => {
     if (far && start === "forma" && !foModulAktiv()) foVaxlaModul("forma", true);
     if (!far && location.hash.startsWith("#forma")) history.replaceState(null, "", location.pathname + location.search);
 });
+
+// Färga nya avatarer var de än ritas (listor, panel, klockan, dialoger).
+if (typeof MutationObserver !== "undefined") {
+    let foAvTimer = null;
+    new MutationObserver(() => { if (foAvTimer) return; foAvTimer = setTimeout(() => { foAvTimer = null; if (foModulAktiv()) foFargaAvatarer(); }, 30); })
+        .observe(document.documentElement, { childList: true, subtree: true });
+}

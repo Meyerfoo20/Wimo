@@ -27,6 +27,10 @@ const FO_AVIS_TYPER = {
     bradskande: { namn: "Särskilt brådskande fråga", mejl: "direkt", agera: true },
     kvittering: { namn: "Begärd kvittering", mejl: "direkt", agera: true },
     atgard: { namn: "Tilldelad åtgärd", mejl: "daglig", agera: true },
+    atgard_disc: { namn: "Ny åtgärd i egen disciplin", mejl: "daglig" },
+    protokoll: { namn: "Nytt eller reviderat protokoll", mejl: "daglig" },
+    protokoll_viktigt: { namn: "Viktigt protokoll", mejl: "direkt" },
+    atgard_utford: { namn: "Utförd åtgärd att följa upp", mejl: "daglig", agera: true },
     info: { namn: "Allmän projektinformation", mejl: "ingen" }
 };
 const FO_AVIS_MEJL = { direkt: "Direkt", daglig: "Daglig sammanställning", ingen: "Bara i Forma" };
@@ -104,8 +108,12 @@ function foArbetsyta(p, personId, idag) {
         if (f.lage === "obesvarad" && foArSvarsansvarig(p, personId, f) && !foSvarPoster(f).some(x => foPostLamnat(x) === personId))
             ut.push(Object.assign({ kat: "svara" }, bas, tid));
         if (f.lage === "ofullstandig" && foArSvarsansvarig(p, personId, f)) ut.push(Object.assign({ kat: "komplettera" }, bas, tid));
-        if (f.lage === "besvarad" && foArStallare(p, personId, f) && !foOkvittSvar(f).length)
-            ut.push(Object.assign({ kat: "bedoma" }, bas, { ejSlutligt: !foSlutliga(f).length }));
+        if (f.lage === "besvarad" && foArStallare(p, personId, f) && !foOkvittSvar(f).length) {
+            // Svar att bedöma: visa svaret, vem som svarade och när, direkt i listan.
+            const sv = foSenasteSvar(f);
+            ut.push(Object.assign({ kat: "bedoma" }, bas, { ejSlutligt: !foSlutliga(f).length,
+                svar: sv ? { text: sv.text, av: foPostLamnat(sv), tid: sv.tid, bilagor: (f.bilagor || []).filter(b => b.del === "d:" + sv.id).length } : null }));
+        }
         foOkvitterade(f).filter(r => foArPart(p, personId, r.mottagare) || (r.mottagare && r.mottagare.disc && foDiscAvis(p, r.mottagare.disc).includes(personId)))
             .forEach(r => ut.push(Object.assign({ kat: "kvittera", rev: r.id, vad: (r.ver === "tillagg" ? "Komplettering av " : "Revidering av ") + ({ fraga: "frågan", svar: "svar", beslut: "beslut" })[r.typ] }, bas)));
         if (leda && (f.lage === "obesvarad" || f.lage === "ofullstandig") && tid.dagarSen >= inst.eskalera)
@@ -116,14 +124,45 @@ function foArbetsyta(p, personId, idag) {
         ut.push({ kat: "kvittera", kid: k.id, nr: k.obj && k.obj.typ === "fraga" ? (foFraga(p, k.obj.id) || {}).nr : "", text: k.titel, vad: "Begärd kvittering", fid: k.obj && k.obj.typ === "fraga" ? k.obj.id : "", obj: k.obj });
     });
     p.atgarder.forEach(a => {
+        if (a.status === "kontroll" && a.uppfoljare === personId) { ut.push({ kat: "kontrollera", aid: a.id, nr: "Å-" + a.nr, text: a.text, vad: "Utförd – kontrollera och avsluta" }); return; }
         if (a.status !== "oppen" || !foAvisPersoner(p, [a.ansvarig]).includes(personId)) return;
         ut.push({ kat: "atgard", aid: a.id, nr: "Å-" + a.nr, text: a.text, senast: a.senast || "", forsenad: !!(a.senast && a.senast < idag), sistaDag: a.senast === idag });
     });
-    const vikt = x => (x.forsenad ? 0 : x.sistaDag ? 1 : x.bradskande ? 2 : x.snart ? 3 : 4) * 10 + ({ eskalera: 0, kvittera: 1, svara: 2, komplettera: 2, bedoma: 3, atgard: 4 })[x.kat];
+    // Protokoll som personen ansvarar för och som behöver följas upp (protokollbevakning).
+    if (typeof foBevakning === "function") (p.forum || []).filter(fo => fo.aktiv && fo.bevakning && fo.bevakning.ansvarig === personId).forEach(fo => {
+        const b = foBevakning(p, fo, idag);
+        if (b && b.lage === "folj") ut.push({ kat: "protokoll", obj: { typ: "forum", id: fo.id }, nr: fo.kort, text: fo.namn, vad: b.text });
+    });
+    const vikt = x => (x.forsenad ? 0 : x.sistaDag ? 1 : x.bradskande ? 2 : x.snart ? 3 : 4) * 10 + ({ eskalera: 0, kvittera: 1, svara: 2, komplettera: 2, bedoma: 3, kontrollera: 4, atgard: 4, protokoll: 5 })[x.kat];
     return ut.sort((a, b) => vikt(a) - vikt(b) || (a.senast || "9999").localeCompare(b.senast || "9999") || (+a.nr || 0) - (+b.nr || 0));
 }
 const FO_ARB_RUB = { svara: "Nya frågor att besvara", komplettera: "Begärda kompletteringar", bedoma: "Svar att bedöma", kvittera: "Att kvittera",
-    atgard: "Dina åtgärder", eskalera: "Försenade mer än några dagar – behöver uppmärksammas" };
+    atgard: "Dina åtgärder", eskalera: "Försenade mer än några dagar – behöver uppmärksammas", kontrollera: "Åtgärder att kontrollera", protokoll: "Protokoll att följa upp" };
+// Inväntar: sådant personen väntar på från andra. Räknas fram ur registren, ingen egen bevakningslista.
+function foInvantar(p, personId, idag) {
+    idag = idag || foIdag();
+    const ut = [];
+    if (!personId) return ut;
+    p.fragor.forEach(f => {
+        if (f.makulerad || !foArStallare(p, personId, f)) return;
+        if (f.lage !== "obesvarad" && f.lage !== "ofullstandig") return;
+        ut.push({ kat: f.lage === "ofullstandig" ? "invKompl" : "invSvar", fid: f.id, nr: f.nr, text: f.text, senast: f.svarSenast || "",
+            forsenad: !!(f.svarSenast && f.svarSenast < idag), mottagare: foMottagareText(p, f) || "ingen mottagare vald" });
+    });
+    p.atgarder.forEach(a => {
+        if (a.status !== "oppen" || a.uppfoljare !== personId || foAvisPersoner(p, [a.ansvarig]).includes(personId)) return;
+        ut.push({ kat: "invAtgard", aid: a.id, nr: "Å-" + a.nr, text: a.text, senast: a.senast || "", forsenad: !!(a.senast && a.senast < idag), mottagare: foPartText(p, a.ansvarig) || "ingen ansvarig" });
+    });
+    (p.kvittkrav || []).forEach(k => {
+        if (k.stangd || k.av !== personId) return;
+        const kvar = (k.till || []).filter(id => !(k.kvitt || {})[id]);
+        if (!kvar.length) return;
+        ut.push({ kat: "invKvitt", obj: k.obj, fid: k.obj && k.obj.typ === "fraga" ? k.obj.id : "", nr: k.obj && k.obj.typ === "fraga" ? (foFraga(p, k.obj.id) || {}).nr : "", text: k.titel,
+            mottagare: kvar.map(id => foPersonNamn(p, id)).join(", ") });
+    });
+    return ut.sort((a, b) => (b.forsenad - a.forsenad) || (a.senast || "9999").localeCompare(b.senast || "9999"));
+}
+const FO_INV_RUB = { invSvar: "Svar på mina frågor", invKompl: "Begärda kompletteringar", invAtgard: "Åtgärder jag följer upp", invKvitt: "Kvitteringar jag begärt" };
 
 /* ---------- händelser ---------- */
 function foAvisHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
@@ -147,6 +186,7 @@ function foPersonerIFraga(p, f, medBerorda) {
 // Läge före en operation, för att kunna se vad som ändrades.
 function foAvisFore(p, op) {
     const a = op.a || {};
+    if (op.typ === "registreraProtokoll") { const x = (p.protokoll || []).find(y => y.id === a.id); return { prot: x ? { version: x.version, status: x.status } : null }; }
     const f = a.id && (op.typ in FO_AVIS_HAKAR) ? foFraga(p, a.id) : null;
     return f ? { lage: f.lage, mott: foAvisPersoner(p, foMottagare(f)), senast: f.svarSenast, kons: f.konsekvens.length, slut: foSlutliga(f).map(x => x.id), revs: f.revs.length } : null;
 }
@@ -229,7 +269,28 @@ const FO_AVIS_HAKAR = {
         if (av && foAvisKvittKrav(p, "beslut_andrat")) foNyttKvittKrav(p, ctx, { typ: "beslut", id: b.id }, "Ändrat beslut: " + b.nr, av.till, "beslut_andrat");
     },
     nyAtgard(p, a, ctx, x) {
-        if (x) foAvisera(p, ctx, "atgard", { typ: "atgard", id: x.id }, foAvisPersoner(p, [x.ansvarig]), "Åtgärd Å-" + x.nr + ": " + x.text);
+        if (!x) return;
+        const ansv = foAvisPersoner(p, [x.ansvarig]);
+        foAvisera(p, ctx, "atgard", { typ: "atgard", id: x.id }, ansv, "Åtgärd Å-" + x.nr + ": " + x.text);
+        // Övriga i disciplinen informeras (en åtgärd, en utförandeansvarig).
+        const d = foAtgardDisc(p, x);
+        if (d) foAvisera(p, ctx, "atgard_disc", { typ: "atgard", id: x.id }, p.personer.filter(y => y.aktiv !== false && (y.disc || []).includes(d) && !ansv.includes(y.id)).map(y => y.id),
+            "Ny åtgärd för " + foDiscText(p, d) + ": Å-" + x.nr + " " + x.text);
+    },
+    registreraProtokoll(p, a, ctx, x, fore) {
+        if (!x || x.makulerad) return;
+        const tidigare = fore && fore.prot;
+        if (tidigare && tidigare.version === x.version && tidigare.status === x.status) return;
+        const fo = foForum(p, x.forum);
+        const till = p.personer.filter(y => y.aktiv !== false && y.id !== ctx.av).map(y => y.id);
+        foAvisera(p, ctx, a.direkt ? "protokoll_viktigt" : "protokoll", { typ: "protokoll", id: x.id }, till,
+            (tidigare ? "Reviderat protokoll: " : "Nytt protokoll: ") + (fo ? fo.namn : "") + (x.nr ? " " + x.nr : "") + " " + (x.datum || ""));
+    },
+    atgardStatus(p, a, ctx) {
+        const x = foAtgard(p, a.id);
+        if (!x || !x.uppfoljare || x.uppfoljare === ctx.av) return;
+        if (x.status === "kontroll") foAvisera(p, ctx, "atgard_utford", { typ: "atgard", id: x.id }, [x.uppfoljare], "Åtgärd Å-" + x.nr + " är utförd och väntar på din kontroll: " + x.text);
+        else if (x.status === "klar") foAvisera(p, ctx, "atgard_utford", { typ: "atgard", id: x.id }, [x.uppfoljare], "Åtgärd Å-" + x.nr + " är utförd: " + x.text);
     },
     atgardFalt(p, a, ctx) {
         const x = foAtgard(p, a.id);

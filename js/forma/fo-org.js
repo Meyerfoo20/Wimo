@@ -7,6 +7,7 @@
 // själv skapar, döper om, sorterar och tar bort. En person kan stå i flera kategorier.
 function foVyOrg(yta) {
     const p = foP, jag = foJagId(), leda = foKanLeda(p, jag);
+    const moln = foArMolnProjekt(), molnMedl = moln && foMolnMeta ? foMolnMeta.medlemmar : null;
     const flikar = [["personer", "Personer", p.personer.filter(x => x.aktiv).length], ["foretag", "Företag", p.foretag.filter(x => x.aktiv).length],
         ["disc", "Discipliner", p.discipliner.filter(x => x.aktiv).length], ["forum", "Mötesforum", p.forum.filter(x => x.aktiv).length], ["ind", "Indelningar", p.indelningar.length]];
     if (!flikar.some(f => f[0] === foFlik.org)) foFlik.org = "personer";
@@ -18,18 +19,26 @@ function foVyOrg(yta) {
         const l = p.personer.slice().sort((a, b) => (b.aktiv - a.aktiv) || foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
         const kat = foKategorierSorterade(p);
         html += '<div class="fo-filterrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foOrgSok" type="search" placeholder="Sök namn, företag, roll, disciplin eller e-post" data-behall></label>' +
-            (leda ? '<button type="button" class="mknapp" id="foKategorier">Kategorier …</button>' : "") + "</div>";
+            (leda ? '<button type="button" class="mknapp" id="foKategorier">Kategorier …</button>' +
+                '<button type="button" class="mknapp" id="foErsatt">Ersätt projektmedlem …</button>' : "") +
+            (leda && moln && l.some(x => x.aktiv !== false && x.epost && foAnslutning(p, x, molnMedl) === "kontakt")
+                ? '<button type="button" class="mknapp" id="foBjudAlla">Bjud in alla som inte anslutit</button>' : "") + "</div>";
+        const varn = leda ? foOrgVarningar(p) : [];
+        if (varn.length) html += '<div class="notis fo-orgvarn"><b>Att se över</b><ul>' + varn.map(v => "<li>" + esc(v) + "</li>").join("") + "</ul></div>";
         const rad = (x) => {
             const ft = foForetag(p, x.foretagId);
             const roller = String(x.befattning || "").split(",").map(r => r.trim()).filter(Boolean);
             return '<tr data-rad="' + x.id + '" class="' + (x.aktiv ? "" : "utford") + '" data-sok="' + esc(foNormal([foPersonNamn(p, x.id), ft && ft.namn, x.befattning, x.epost, (x.disc || []).map(d => foDiscText(p, d)).join(" ")].join(" "))) + '">' +
-                '<td><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.id === jag ? ' <span class="hjalp">(du)</span>' : "") + (x.extern ? ' <span class="fo-chip">Extern</span>' : "") + (x.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') +
-                (roller.length ? '<small>' + roller.map(r => esc(r)).join(" · ") + "</small>" : "") + '</td>' +
+                '<td class="fo-personcell"><span class="fo-avatar liten" aria-hidden="true">' + esc(foInitialer(p, x.id)) + '</span><span><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.id === jag ? ' <span class="hjalp">(du)</span>' : "") + (x.extern ? ' <span class="fo-chip">Extern</span>' : "") + (x.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') +
+                (roller.length ? '<small>' + roller.map(r => esc(r)).join(" · ") + "</small>" : "") + '</span></td>' +
                 '<td>' + esc(ft ? ft.namn : "–") + '</td>' +
-                '<td>' + esc((x.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
+                '<td>' + ((x.disc || []).map(d => foDiscChip(p, d)).filter(Boolean).join(" ") || "–") + '</td>' +
                 '<td>' + (x.epost ? '<a href="mailto:' + esc(x.epost) + '">' + esc(x.epost) + '</a>' : "–") + (x.tel ? '<small><a href="tel:' + esc(x.tel.replace(/\s/g, "")) + '">' + esc(x.tel) + '</a></small>' : "") + '</td>' +
-                '<td>' + esc(FO_ROLLER[x.roll] || "–") + (x.uid ? '<small>Har Wimo-konto</small>' : "<small>Utan konto</small>") + '</td>' +
-                '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-person="' + x.id + '">Ändra</button>' : "") + '</td></tr>';
+                '<td>' + esc(FO_ROLLER[x.roll] || "–") + '<small class="fo-ansl fo-ansl-' + foAnslutning(p, x, molnMedl) + '">' + FO_ANSLUTNING[foAnslutning(p, x, molnMedl)] +
+                    (foAnslutning(p, x, molnMedl) === "inbjuden" ? " till " + foDatumKort(new Date(x.inbjudan.utgar).toISOString()) : "") + '</small></td>' +
+                '<td class="fo-snabbkol">' + (leda && moln && x.aktiv !== false && x.epost && ["kontakt", "inbjuden"].includes(foAnslutning(p, x, molnMedl))
+                    ? '<button type="button" class="fo-minknapp" data-bjudin="' + x.id + '">' + (x.inbjudan ? "Skicka om" : "Bjud in") + '</button>' : "") +
+                    (leda ? '<button type="button" class="fo-minknapp" data-person="' + x.id + '">Ändra</button>' : "") + '</td></tr>';
         };
         const tabell = (rader) => '<div class="fo-tabellram"><table class="lista fo-tabell fo-persontabell"><thead><tr><th>Namn och roller</th><th>Företag</th><th>Disciplin</th><th>E-post och telefon</th><th>Behörighet</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
             rader.map(rad).join("") + "</tbody></table></div>";
@@ -60,7 +69,7 @@ function foVyOrg(yta) {
     if (foFlik.org === "disc") {
         const l = p.discipliner.slice().sort((a, b) => a.ordning - b.ordning);
         html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Kod</th><th>Disciplin</th><th>Frågor</th><th>Personer</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
-            l.map((d, i) => '<tr data-rad="' + d.id + '" class="' + (d.aktiv ? "" : "utford") + '"><td><b>' + esc(d.kod) + '</b></td><td>' + esc(d.namn) + (d.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
+            l.map((d, i) => '<tr data-rad="' + d.id + '" class="' + (d.aktiv ? "" : "utford") + '"><td>' + foDiscChip(p, d.id) + '</td><td>' + esc(d.namn) + (d.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
                 '<td>' + p.fragor.filter(f => !f.makulerad && (f.fran === d.id || foMottagare(f).some(m => m.disc === d.id))).length + '</td>' +
                 '<td>' + p.personer.filter(x => x.aktiv && (x.disc || []).includes(d.id)).length + '</td>' +
                 '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp fo-ikonknapp" data-discupp="' + d.id + '"' + (i ? "" : " disabled") + ' aria-label="Flytta upp">↑</button>' +
@@ -99,6 +108,11 @@ function foVyOrg(yta) {
             .forEach(([k, n]) => foGor("sparaDisc", { id: foId(), kod: k, namn: n }, true));
         foRita(); status("Åtta vanliga discipliner lades till. Ta bort eller byt namn på dem som inte passar.");
     });
+    yta.querySelectorAll("[data-bjudin]").forEach(b => b.addEventListener("click", () => foBjudIn([b.dataset.bjudin])));
+    const alla = document.getElementById("foBjudAlla");
+    if (alla) alla.addEventListener("click", () => foBjudIn(p.personer.filter(x => x.aktiv !== false && x.epost && foAnslutning(p, x, molnMedl) === "kontakt").map(x => x.id)));
+    const ers = document.getElementById("foErsatt");
+    if (ers) ers.addEventListener("click", () => foErsattDialog(null));
     const katKnapp = document.getElementById("foKategorier");
     if (katKnapp) katKnapp.addEventListener("click", foKategoriDialog);
     const sok = document.getElementById("foOrgSok");
@@ -129,16 +143,14 @@ function foPersonDialog(x) {
         (foRoll(p, foJagId()) === "admin" ? '<label class="fo-kryss fo-installning"><input type="checkbox" id="foPdSuper"' + (x && x.superuser ? " checked" : "") + '><span><b>Superuser</b>' +
             '<small>Får hantera andras frågor: överföra ägarskap, ändra mottagare, klarmarkera och återöppna – till exempel när frågeställaren lämnat projektet. Alla ingrepp syns i historiken. Historik och låsta sammanställningar kan aldrig ändras.</small></span></label>' : "") +
         '<p class="hjalp" style="margin:0">Behörighet: administratör och projekteringsledare ändrar register och fastställer beslut. Projektör registrerar och besvarar frågor. Granskare och läsare kan läsa och kvittera.</p>' +
-        '<p class="hjalp" style="margin:6px 0 0">Har personen ett Wimo-konto med samma e-post kopplas kontot automatiskt när hen öppnar projektet.</p>';
+        '<p class="hjalp" style="margin:6px 0 0">Kontakten kan finnas utan Wimo-konto. Bjud in från listan när personen ska få tillgång. När hen loggar in med samma e-post kopplas kontot till den här kontakten, utan att någon ny kontakt skapas.</p>';
     const knappar = [];
-    if (x) knappar.push({ txt: x.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => {
-        const v = foLasPersonForm(); v.id = x.id; v.aktiv = !x.aktiv;
-        if (foGor("sparaPerson", v)) { stangModal(); status(x.aktiv ? "Kontakten är inaktiverad. Historiken finns kvar." : "Kontakten är aktiv igen."); }
-    } });
+    if (x) knappar.push({ txt: x.aktiv ? "Avsluta medlemskap" : "Aktivera igen", vanster: true, fara: !!x.aktiv, fn: () => { stangModal(); x.aktiv ? foAvslutaDialog(x) : foAktiveraIgen(x); } });
+    if (x && x.inbjudan) knappar.push({ txt: "Återkalla inbjudan", vanster: true, fn: () => { stangModal(); foAterkalla(x); } });
     knappar.push({ txt: "Avbryt", fn: stangModal });
     knappar.push({ txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
         const v = foLasPersonForm(); v.id = x ? x.id : foId();
-        if (foGor("sparaPerson", v)) { stangModal(); status(ny ? "Kontakten lades till." : "Kontakten sparades."); }
+        if (foGor("sparaPerson", v)) { stangModal(); status(ny ? "Kontakten lades till." : "Kontakten sparades."); foSynkaAtkomst(foPerson(foP, v.id)); }
     } });
     modal(ny ? "Ny kontakt" : foPersonNamn(p, x.id), ny ? "En kontakt behöver inget Wimo-konto." : (FO_ROLLER[x.roll] || ""), kropp, knappar);
     foKopplaValChips(document.getElementById("overlay"));
@@ -219,25 +231,37 @@ function foDiscDialog(d) {
         } }]);
     setTimeout(() => document.getElementById("foDdKod").focus(), 30);
 }
-function foForumDialog(f) {
-    const p = foP, ny = !f;
-    modal(ny ? "Nytt mötesforum" : f.namn, "Ett återkommande möte med egna deltagare.",
+function foForumDialog(f, forelder) {
+    const p = foP, ny = !f, b = (f && f.bevakning) || { pa: false, dagar: 14, marginal: 3, ansvarig: f ? f.sekreterare : "", pausTill: "" };
+    // en mapp kan inte flyttas in i sig själv eller sina undermappar
+    const under = (id) => { const ut = new Set([id]); let andrat = true; while (andrat) { andrat = false; p.forum.forEach(x => { if (x.forelder && ut.has(x.forelder) && !ut.has(x.id)) { ut.add(x.id); andrat = true; } }); } return ut; };
+    const ej = f ? under(f.id) : new Set();
+    const mappar = p.forum.filter(x => x.aktiv && !ej.has(x.id)).sort((a, c) => foForumSokvag(p, a).localeCompare(foForumSokvag(p, c), "sv"));
+    const fl = f ? f.forelder || "" : forelder || "";
+    modal(ny ? "Ny mapp eller mötesforum" : f.namn, "Fri mappstruktur. En mapp kan även vara ett mötesforum som frågor markeras för.",
         '<div class="tva"><div class="falt"><label for="foMdNamn">Namn</label><input class="f" id="foMdNamn" value="' + esc(f ? f.namn : "") + '" placeholder="Projekteringsmöte"></div>' +
         '<div class="falt"><label for="foMdKort">Kortnamn</label><input class="f" id="foMdKort" maxlength="6" value="' + esc(f ? f.kort : "") + '" placeholder="PM"></div></div>' +
+        '<div class="falt"><label for="foMdFor">Ligger i</label><select class="f" id="foMdFor"><option value="">Översta nivån</option>' + mappar.map(x => '<option value="' + x.id + '"' + (x.id === fl ? " selected" : "") + '>' + esc(foForumSokvag(p, x)) + '</option>').join("") + '</select></div>' +
+        '<label class="fo-kryss"><input type="checkbox" id="foMdValbar"' + (!f || f.valbar !== false ? " checked" : "") + '> Mötesforum – kan väljas på frågor och får en egen frågesammanställning</label>' +
         '<div class="tva"><div class="falt"><label for="foMdPlats">Plats</label><input class="f" id="foMdPlats" value="' + esc(f ? f.plats : "") + '" placeholder="Platskontoret"></div>' +
         '<div class="falt"><label for="foMdTid">Tid</label><input class="f" id="foMdTid" type="time" value="' + esc(f ? f.tid : "") + '"></div></div>' +
         '<div class="tva"><div class="falt"><label for="foMdLed">Mötesledare</label>' + foPersonSelect("foMdLed", f ? f.ledare : "", "–") + '</div>' +
         '<div class="falt"><label for="foMdSek">Protokollförare</label>' + foPersonSelect("foMdSek", f ? f.sekreterare : "", "–") + '</div></div>' +
         '<div class="falt"><label for="foMdNasta">Nästa möte</label><input class="f" id="foMdNasta" type="date" value="' + esc(f ? f.nastaMote : "") + '"></div>' +
-        '<div class="falt"><label>Deltagare (distributionslista)</label>' + foValChips("mdelt", p.personer.filter(x => x.aktiv).map(x => ({ id: x.id, namn: foPersonNamn(p, x.id) })), f ? f.deltagare || [] : []) + '</div>', [
+        '<details class="fo-histdet"' + (b.pa ? " open" : "") + '><summary>Protokollbevakning</summary><label class="fo-kryss"><input type="checkbox" id="foMdBev"' + (b.pa ? " checked" : "") + '> Bevaka att protokoll registreras</label>' +
+        '<div class="tva"><div class="falt"><label for="foMdDagar">Mötesintervall (dagar)</label><input class="f" id="foMdDagar" type="number" min="1" value="' + b.dagar + '"></div>' +
+        '<div class="falt"><label for="foMdMarg">Marginal (dagar)</label><input class="f" id="foMdMarg" type="number" min="0" value="' + b.marginal + '"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foMdBevAnsv">Protokollansvarig</label>' + foPersonSelect("foMdBevAnsv", b.ansvarig, "–") + '</div>' +
+        '<div class="falt"><label for="foMdPaus">Pausad till och med</label><input class="f" id="foMdPaus" type="date" value="' + esc(b.pausTill || "") + '"></div></div>' +
+        '<p class="hjalp" style="margin:0">Forma vet inte om ett möte hållits. Ligger forumet utanför intervallet visas det som att det behöver följas upp.</p></details>', [
         ...(f ? [{ txt: f.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => { if (foGor("sparaForum", Object.assign({}, f, { aktiv: !f.aktiv }))) stangModal(); } }] : []),
         { txt: "Avbryt", fn: stangModal },
         { txt: ny ? "Lägg till" : "Spara", primar: true, fn: () => {
-            if (foGor("sparaForum", { id: f ? f.id : foId(), namn: document.getElementById("foMdNamn").value, kort: document.getElementById("foMdKort").value,
-                plats: document.getElementById("foMdPlats").value, tid: document.getElementById("foMdTid").value, ledare: document.getElementById("foMdLed").value,
-                sekreterare: document.getElementById("foMdSek").value, nastaMote: document.getElementById("foMdNasta").value, deltagare: foValda("mdelt") })) stangModal();
+            const v = id => document.getElementById(id).value;
+            if (foGor("sparaForum", Object.assign({}, f || {}, { id: f ? f.id : foId(), namn: v("foMdNamn"), kort: v("foMdKort"), forelder: v("foMdFor"), valbar: document.getElementById("foMdValbar").checked,
+                plats: v("foMdPlats"), tid: v("foMdTid"), ledare: v("foMdLed"), sekreterare: v("foMdSek"), nastaMote: v("foMdNasta"),
+                bevakning: { pa: document.getElementById("foMdBev").checked, dagar: v("foMdDagar"), marginal: v("foMdMarg"), ansvarig: v("foMdBevAnsv"), pausTill: v("foMdPaus") } }))) stangModal();
         } }]);
-    foKopplaValChips(document.getElementById("overlay"));
     setTimeout(() => document.getElementById("foMdNamn").focus(), 30);
 }
 function foIndDialog(ind) {
@@ -444,4 +468,115 @@ function foHjalp() {
         '<h4>Möten</h4><p>Markera frågor för nästa möte med <b>+ Möte</b>. Under Möten finns urvalet per forum, förslag på frågor som borde tas upp och en storskärmsvy för mötesrummet.</p>' +
         '<h4>Kortkommandon</h4><ul class="detalj"><li><span class="et"><kbd>N</kbd></span><span>Ny fråga</span></li><li><span class="et"><kbd>Ctrl</kbd>+<kbd>K</kbd> eller <kbd>/</kbd></span><span>Sök i projektet</span></li>' +
         '<li><span class="et"><kbd>Esc</kbd></span><span>Stäng frågan</span></li></ul></div>', [{ txt: "Stäng", primar: true, fn: stangModal }]);
+}
+
+/* ======================= Inbjudan, avslut och ersättning =======================
+   Ingen server: inbjudan sparas som e-post + utgångstid på projektet i molnet. Bara den som
+   loggar in med just den e-postadressen (bekräftad) kan gå med. Mejlet skickas från ditt eget
+   mejlprogram. */
+const FO_INBJUDAN_DAGAR = 14;
+function foArMolnProjekt() { const l = foLista.find(x => x.id === foPid); return !!(l && l.moln && foMoln()); }
+async function foBjudIn(ids) {
+    if (!foArMolnProjekt()) return status("Projektet måste ligga i molnet för att någon ska kunna bjudas in.", true);
+    const utgar = Date.now() + FO_INBJUDAN_DAGAR * 864e5, klara = [];
+    for (const id of ids) {
+        const x = foPerson(foP, id);
+        if (!x || !x.epost) continue;
+        try { await window.p4FormaMoln.inbjud(foPid, x.epost, utgar); }
+        catch (e) { status("Inbjudan till " + foPersonNamn(foP, id) + " kunde inte sparas. Bara projektets administratör kan bjuda in.", true); continue; }
+        if (foGor("bjudIn", { id: id, utgar: utgar }, true)) klara.push(x);
+    }
+    foRita();
+    if (!klara.length) return;
+    const lank = location.origin + location.pathname + "#forma/p:" + foPid;
+    const amne = "Inbjudan till " + foP.namn + " i Wimo Forma";
+    const text = "Hej!\n\nDu är inbjuden till projektet " + foP.namn + " i Wimo Forma.\n\nÖppna länken och logga in, eller skapa ett konto, med just den här e-postadressen:\n" + lank +
+        "\n\nHar du skapat ett nytt konto behöver du först bekräfta e-postadressen via mejlet från Wimo.\nInbjudan gäller i " + FO_INBJUDAN_DAGAR + " dagar.\n";
+    const till = klara.map(x => x.epost).join(",");
+    modal("Skicka inbjudan", klara.length === 1 ? foPersonNamn(foP, klara[0].id) : klara.length + " personer",
+        '<p>Inbjudan är sparad och gäller i ' + FO_INBJUDAN_DAGAR + ' dagar. Skicka nu mejlet från ditt mejlprogram, eller kopiera texten.</p>' +
+        '<textarea class="f" id="foInbText" rows="8" readonly>' + esc(text) + '</textarea>' +
+        '<p class="hjalp">Bara den som loggar in med inbjudans e-postadress får tillgång. En vidarebefordrad inbjudan ger ingen åtkomst.</p>',
+        [{ txt: "Kopiera text", vanster: true, fn: () => { navigator.clipboard.writeText(text).then(() => status("Texten är kopierad.")); } },
+         { txt: "Stäng", fn: stangModal },
+         { txt: "Öppna i mejlprogrammet", primar: true, fn: () => { location.href = "mailto:" + (klara.length === 1 ? till : "") + "?" + (klara.length > 1 ? "bcc=" + encodeURIComponent(till) + "&" : "") + "subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(text); stangModal(); } }]);
+}
+async function foAterkalla(x) {
+    try { if (foArMolnProjekt() && x.epost) await window.p4FormaMoln.aterkalla(foPid, x.inbjudan.epost || x.epost); }
+    catch (e) { return status("Inbjudan kunde inte återkallas.", true); }
+    if (foGor("aterkallaInbjudan", { id: x.id })) status("Inbjudan är återkallad.");
+}
+// Behörigheten Administratör ska också gälla i molnet (vem som får ändra åtkomst).
+async function foSynkaAtkomst(x) {
+    if (!x || !x.uid || !foArMolnProjekt() || !foMolnMeta) return;
+    const m = foMolnMeta, admin = x.roll === "admin" && x.aktiv !== false;
+    if (admin === m.admins.includes(x.uid) || !m.medlemmar.includes(x.uid)) return;
+    try { await window.p4FormaMoln.medlemmar(foPid, m.medlemmar, admin ? m.admins.concat(x.uid) : m.admins.filter(u => u !== x.uid)); } catch (e) { console.warn(e); }
+}
+function foAnsvarText(a) {
+    const r = [];
+    if (a.stallare.length) r.push(a.stallare.length + " öppna frågor som frågeställare" + (a.bedoma.length ? " (" + a.bedoma.length + " svar väntar på bedömning)" : ""));
+    if (a.mottagare.length) r.push(a.mottagare.length + " obesvarade/öppna frågor att svara på");
+    if (a.atgarder.length) r.push(a.atgarder.length + " öppna åtgärder");
+    if (a.avis.length) r.push("aviseringsmottagare för " + a.avis.map(d => d.kod).join(", "));
+    return r;
+}
+// Avslutat medlemskap: åtkomsten upphör direkt. Kontaktposten och historiken finns kvar.
+function foAvslutaDialog(x) {
+    const p = foP, kvar = foAnsvarText(foAnsvarFor(p, x.id));
+    modal("Avsluta medlemskap", foPersonNamn(p, x.id),
+        '<p>Personens tillgång till projektet upphör direkt. Kontakten, allt hen har gjort och historiken finns kvar. Wimo-kontot och andra projekt påverkas inte.</p>' +
+        (kvar.length ? '<div class="notis"><b>Kvarstående ansvar</b><ul>' + kvar.map(t => "<li>" + esc(t) + "</li>").join("") + '</ul>Du kan föra över det till någon annan nu eller senare.</div>' : ""),
+        [{ txt: "Avbryt", fn: stangModal },
+         ...(kvar.length ? [{ txt: "Avsluta och ersätt …", fn: () => { stangModal(); foAvsluta(x).then(ok => ok && foErsattDialog(x.id)); } }] : []),
+         { txt: "Avsluta medlemskap", primar: true, fara: true, fn: () => { stangModal(); foAvsluta(x); } }]);
+}
+async function foAvsluta(x) {
+    // Säkerheten först: ta bort åtkomsten i molnet innan något annat.
+    if (foArMolnProjekt() && foMolnMeta) {
+        const m = foMolnMeta;
+        try {
+            if (x.uid && m.medlemmar.includes(x.uid)) await window.p4FormaMoln.medlemmar(foPid, m.medlemmar.filter(u => u !== x.uid), m.admins.filter(u => u !== x.uid));
+            if (x.inbjudan && x.epost) await window.p4FormaMoln.aterkalla(foPid, x.inbjudan.epost || x.epost);
+        } catch (e) { status("Åtkomsten kunde inte tas bort. Bara projektets administratör kan göra det. Inget har ändrats.", true); return false; }
+    }
+    if (x.inbjudan) foGor("aterkallaInbjudan", { id: x.id }, true);
+    const ok = foGor("sparaPerson", Object.assign({}, x, { aktiv: false }));
+    if (ok) status(foPersonNamn(foP, x.id) + " har inte längre tillgång till projektet. Historiken finns kvar.");
+    return !!ok;
+}
+function foAktiveraIgen(x) {
+    if (foGor("sparaPerson", Object.assign({}, x, { aktiv: true })))
+        status("Kontakten är aktiv igen." + (x.uid && foArMolnProjekt() ? " Bjud in personen igen för att ge tillgång till projektet." : ""));
+}
+// Ersätt projektmedlem: välj avgående, övertagande och vilka ansvar som följer med.
+function foErsattDialog(franId) {
+    const p = foP;
+    const opt = (l, v) => '<option value="">Välj …</option>' + l.map(x => '<option value="' + x.id + '"' + (x.id === v ? " selected" : "") + '>' + esc(foPersonNamn(p, x.id)) + (x.aktiv === false ? " (avslutad)" : "") + '</option>').join("");
+    const alla = p.personer.slice().sort((a, b) => foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
+    const kropp = '<div class="tva"><div class="falt"><label for="foErsFran">Avgående</label><select class="f" id="foErsFran">' + opt(alla, franId) + '</select></div>' +
+        '<div class="falt"><label for="foErsTill">Tar över</label><select class="f" id="foErsTill">' + opt(alla.filter(x => x.aktiv !== false), "") + '</select></div></div>' +
+        '<div id="foErsDelar"></div>' +
+        '<p class="hjalp">Bara aktuellt ansvar förs över. Ställda frågor, lämnade svar, kvitteringar och låsta sammanställningar behåller sin ursprungliga person. Behörigheter och åtkomst ändras inte här.</p>';
+    modal("Ersätt projektmedlem", "", kropp, [{ txt: "Avbryt", fn: stangModal }, { txt: "För över", primar: true, fn: () => {
+        const fran = document.getElementById("foErsFran").value, till = document.getElementById("foErsTill").value;
+        if (!fran || !till) return status("Välj båda personerna.", true);
+        const delar = {}; document.querySelectorAll("[data-ersdel]").forEach(k => { delar[k.dataset.ersdel] = k.checked; });
+        const n = foGor("ersattPerson", { fran: fran, till: till, delar: delar });
+        if (n !== null) { stangModal(); status(n ? n + " ansvar fördes över till " + foPersonNamn(foP, till) + "." : "Det fanns inget aktuellt ansvar att föra över."); }
+    } }]);
+    const rita = () => {
+        const fran = document.getElementById("foErsFran").value, el = document.getElementById("foErsDelar");
+        if (!fran) { el.innerHTML = ""; return; }
+        const a = foAnsvarFor(p, fran), x = foPerson(p, fran);
+        const rad = (k, n, t) => '<label class="fo-kryss"><input type="checkbox" data-ersdel="' + k + '"' + (n ? " checked" : " disabled") + '> ' + esc(t) + ' <span class="hjalp">' + n + '</span></label>';
+        el.innerHTML = '<div class="falt"><label>Ansvar som förs över</label>' +
+            rad("stallare", a.stallare.length, "Öppna frågor som frågeställare (bedöma och klarmarkera)") +
+            rad("mottagare", a.mottagare.length, "Öppna frågor att besvara") +
+            rad("atgarder", a.atgarder.length, "Öppna åtgärder") +
+            rad("avis", a.avis.length, "Aviseringsmottagare för discipliner") +
+            rad("disc", (x.disc || []).length, "Discipliner") + "</div>";
+    };
+    document.getElementById("foErsFran").addEventListener("change", rita);
+    rita();
 }
