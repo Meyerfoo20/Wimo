@@ -8,7 +8,7 @@ const FO_LS_MODUL = "wimo-modul";
 let foVy = "oversikt";          // vyn som visas
 let foFragaOppen = "";          // id för frågan i sidopanelen
 let foFilter = { snabb: "alla", sok: "", disc: "", plats: "", lage: "", mote: "", sort: "std", visaMak: false };
-let foFlik = { atg: "mina", org: "personer", mote: "", beslut: "gallande" };
+let foFlik = { atg: "mina", org: "personer", mote: "", beslut: "gallande", rapport: "skapa" };
 
 function foModulAktiv() { return document.body.classList.contains("modul-forma"); }
 
@@ -101,11 +101,19 @@ function foModulMeny() {
 }
 
 /* ---------- adresser: #forma/vy och #forma/vy/f12 ---------- */
-const FO_VYER = ["oversikt", "aktiva", "klara", "alla", "moten", "atgarder", "beslut", "org", "inst", "projekt"];
+let foVantarProjekt = "";   // projekt från en länk som ännu inte finns i listan (molnlistan laddas)
+const FO_VYER = ["min", "oversikt", "flode", "aktiva", "mina", "klara", "alla", "dokument", "tidplaner", "moten", "atgarder", "beslut", "amk", "org", "rapporter", "inst", "projekt"];
 function foLasAdress() {
     const h = decodeURIComponent(location.hash || "");
     if (!h.startsWith("#forma")) return;
-    const d = h.replace(/^#forma\/?/, "").split("/");
+    let d = h.replace(/^#forma\/?/, "").split("/");
+    // #forma/p:{projekt}/vy/f12 – länkar i mejl öppnar rätt projekt
+    if (d[0] && d[0].startsWith("p:")) {
+        const pid = d[0].slice(2);
+        if (pid !== foPid && foAllaProjekt().some(x => x.id === pid)) foOppnaProjekt(pid);
+        else if (pid !== foPid) { try { localStorage.setItem(FO_LS_AKTIV, pid); } catch (e) { } foVantarProjekt = pid; }
+        d = d.slice(1);
+    }
     if (FO_VYER.includes(d[0])) foVy = d[0];
     const fr = d.find(x => /^f\d+$/.test(x));
     const f = fr && foP ? foFragaNr(foP, fr.slice(1)) : null;
@@ -114,6 +122,7 @@ function foLasAdress() {
 function foSattAdress(ersatt) {
     if (!foModulAktiv()) return;
     const f = foFragaOppen && foP ? foFraga(foP, foFragaOppen) : null;
+    if (foVantarProjekt && foVantarProjekt === foPid) foVantarProjekt = "";
     const h = "#forma/" + foVy + (f ? "/f" + f.nr : "");
     if (location.hash === h) return;
     if (ersatt) history.replaceState(null, "", h); else history.pushState(null, "", h);
@@ -127,6 +136,7 @@ window.addEventListener("popstate", () => {
     }
 });
 function foGaTill(vy, fragaId) {
+    if (vy !== foVy && typeof foListaAlla !== "undefined") foListaAlla = false;
     foVy = vy;
     foFragaOppen = fragaId || "";
     foSattAdress();
@@ -136,32 +146,52 @@ function foGaTill(vy, fragaId) {
 }
 
 /* ---------- sidomenyn ---------- */
+// Sidomenyn: Översikt · Frågor & svar · Projektering · Administration · Stöd.
+// Projekt och Mitt konto nås från toppmenyn. Menyn visar bara det man har behörighet till.
+// Minimerad visas bara ikonerna (valet sparas i webbläsaren).
+const FO_LS_MINI = "wimo_forma_minimerad";
+function foMinimerad() { try { return localStorage.getItem(FO_LS_MINI) === "1"; } catch (e) { return false; } }
+function foSattMinimerad(pa) {
+    try { localStorage.setItem(FO_LS_MINI, pa ? "1" : "0"); } catch (e) { }
+    document.body.classList.toggle("fo-mini", !!pa);
+    foRitaNav();
+}
 function foNavHtml() {
     const p = foP, l = p ? foLaget(p) : null, jag = foJagId();
-    const ag = p ? foAttGora(p, jag) : null;
-    const nAg = ag ? ag.svara.length + ag.kvittera.length + ag.avsluta.length + ag.atgarder.length : 0;
-    const knapp = (vy, ik, txt, badge, ljus) => '<button class="p4-nav' + (foVy === vy ? " aktiv" : "") + '" type="button" data-fovy="' + vy + '"' +
-        (foVy === vy ? ' aria-current="page"' : "") + '><span class="p4-ik ' + ik + '"></span><span>' + txt + '</span>' +
+    const knapp = (vy, ik, txt, badge, ljus, titel) => '<button class="p4-nav' + (foVy === vy ? " aktiv" : "") + '" type="button" data-fovy="' + vy + '"' +
+        (foVy === vy ? ' aria-current="page"' : "") + ' title="' + esc(titel || txt) + (badge ? " (" + badge + ")" : "") + '"><span class="p4-ik ' + ik + '"></span><span class="p4-navtext">' + txt + '</span>' +
         (badge ? '<span class="p4-badge' + (ljus ? " p4-badge-ljus" : "") + '">' + badge + '</span>' : "") + '</button>';
-    const ingen = !p;
-    return '<div class="p4-navgrupp">' + knapp("oversikt", "ik-dash", "Översikt", nAg || "", true) + '</div>' +
-        (ingen ? "" :
-        '<div class="p4-navgrupp"><div class="p4-navrubrik">Frågor</div>' +
-        knapp("aktiva", "ik-fo-fraga", "Aktiva frågor", l.oppna || "", true) +
-        knapp("klara", "ik-fo-klar", "Klara frågor", l.klara || "", true) +
-        knapp("alla", "ik-fo-register", "Alla frågor", "", true) + '</div>' +
-        '<div class="p4-navgrupp"><div class="p4-navrubrik">Projekt</div>' +
-        knapp("moten", "ik-mote", "Möten", p.fragor.filter(f => foAktiv(f) && f.moten.length).length || "", true) +
-        knapp("atgarder", "ik-lista", "Åtgärder", l.atgForsenade ? l.atgForsenade : (l.atgOppna || ""), !l.atgForsenade) +
-        knapp("beslut", "ik-fo-beslut", "Beslutslogg", "", true) +
-        knapp("org", "ik-folk", "Organisation", "", true) + '</div>') +
-        '<div class="p4-navgrupp"><div class="p4-navrubrik">Data</div>' +
-        (ingen ? "" : knapp("inst", "ik-fo-inst", "Projektinställningar", "", true)) +
-        knapp("projekt", "ik-fo-projekt", "Alla projekt", "", true) +
-        '<button class="p4-nav" type="button" data-fonav="konto"><span class="p4-ik ik-konto"></span><span>Mitt konto</span></button></div>' +
-        '<div class="p4-navgrupp"><div class="p4-navrubrik">Stöd</div>' +
-        '<button class="p4-nav" type="button" data-fonav="hjalp"><span class="p4-ik ik-hjalp"></span><span>Hjälp för Forma</span></button>' +
-        '<button class="p4-nav" type="button" data-fonav="forslag"><span class="p4-ik ik-forslag"></span><span>Förslag</span></button></div>';
+    const grupp = (rubrik, innehall) => '<div class="p4-navgrupp">' + (rubrik ? '<div class="p4-navrubrik">' + rubrik + "</div>" : "") + innehall + "</div>";
+    const stod = grupp("Stöd",
+        '<button class="p4-nav" type="button" data-fonav="hjalp" title="Hjälp för Forma"><span class="p4-ik ik-hjalp"></span><span class="p4-navtext">Hjälp för Forma</span></button>' +
+        '<button class="p4-nav" type="button" data-fonav="forslag" title="Förslag"><span class="p4-ik ik-forslag"></span><span class="p4-navtext">Förslag</span></button>');
+    const mini = foMinimerad();
+    const minKnapp = '<button class="p4-nav fo-miniknapp" type="button" data-fonav="mini" aria-pressed="' + mini + '" title="' + (mini ? "Visa hela menyn" : "Minimera menyn") + '">' +
+        '<span class="p4-ik fo-ik-mini" aria-hidden="true"></span><span class="p4-navtext">' + (mini ? "Visa hela menyn" : "Minimera menyn") + "</span></button>";
+    if (!p) return grupp("", knapp("projekt", "ik-fo-projekt", "Välj projekt", "", true)) + stod + '<div class="fo-navfot">' + minKnapp + "</div>";
+    const minaTur = p.fragor.filter(f => foMinTur(p, jag, f)).length;
+    const leda = foKanLeda(p, jag);
+    const olasta = (p.flode || []).filter(x => x.av !== jag && foNytt(p, jag, x)).length;
+    const minAntal = (() => { try { return foAllaNu().reduce((s, x) => s + foArbetsyta(x.p, foJagIdI(x.p)).length, 0); } catch (e) { return 0; } })();
+    return grupp("", knapp("min", "fo-ik-jag", "Min översikt", minAntal || "", true, "Min översikt – det du behöver göra i alla projekt") +
+            knapp("oversikt", "ik-dash", "Projektöversikt", "", true) +
+            knapp("flode", "fo-ik-flode", "Projektflöde", olasta || "", true, "Projektflöde – nytt sedan du tittade")) +
+        grupp("Frågor & svar",
+            knapp("aktiva", "ik-fo-fraga", "Aktiva frågor", l.oppna || "", true) +
+            knapp("mina", "fo-ik-jag", "Mina frågor", minaTur || "", false, "Mina frågor – väntar på dig") +
+            knapp("klara", "ik-fo-klar", "Klara frågor", l.klara || "", true) +
+            knapp("alla", "ik-fo-register", "Alla frågor", p.fragor.filter(f => !f.makulerad).length || "", true)) +
+        grupp("Projektering",
+            knapp("dokument", "fo-ik-mapp", "Dokument", "", true) +
+            knapp("tidplaner", "ik-tidplan", "Tidplaner", "", true) +
+            knapp("moten", "ik-mote", "Möten & protokoll", p.fragor.filter(f => foAktiv(f) && f.moten.length).length || "", true) +
+            knapp("atgarder", "ik-lista", "Åtgärder", l.atgForsenade ? l.atgForsenade : (l.atgOppna || ""), !l.atgForsenade) +
+            knapp("beslut", "ik-fo-beslut", "Beslutslogg", l.beslut || "", true) +
+            knapp("amk", "fo-ik-amk", "Arbetsmiljö & kvalitet", "", true) +
+            knapp("org", "ik-folk", "Projektmedlemmar", p.personer.filter(x => x.aktiv).length || "", true) +
+            knapp("rapporter", "fo-ik-rapport", "Rapporter & export", (p.rapporter || []).filter(r => r.status !== "makulerad").length || "", true, "Rapporter & export – låsta sammanställningar i arkivet")) +
+        (leda ? grupp("Administration", knapp("inst", "ik-fo-inst", "Projektinställningar", "", true)) : "") +
+        stod + '<div class="fo-navfot">' + minKnapp + "</div>";
 }
 function foRitaNav() {
     const nav = document.getElementById("foNav");
@@ -172,8 +202,9 @@ function foRitaNav() {
         document.body.classList.remove("p4-menyoppen");
         const v = b.dataset.fonav;
         if (v === "konto" && window.p4OppnaKonto) { foStangPanel(true); window.p4OppnaKonto(); nav.querySelectorAll(".p4-nav").forEach(x => x.classList.toggle("aktiv", x === b)); }
+        if (v === "mini") return foSattMinimerad(!foMinimerad());
         if (v === "hjalp") foHjalp();
-        if (v === "forslag") { foVaxlaModul("plan"); setTimeout(() => { const f = document.querySelector('[data-nav="forslag"]'); if (f) f.click(); }, 0); }
+        if (v === "forslag") { if (typeof fsVy === "object") fsVy.franForma = true; foVaxlaModul("plan"); setTimeout(() => { const f = document.querySelector('[data-nav="forslag"]'); if (f) f.click(); }, 0); }
     }));
 }
 
@@ -186,6 +217,7 @@ function foRitaHeader() {
     const ny = document.getElementById("foNyFraga");
     if (ny) ny.classList.toggle("dold", !foP || !foKanSkriva(foP, foJagId()));
     foVisaSynk();
+    if (typeof foRitaKlocka === "function") foRitaKlocka();
 }
 
 /* ---------- rita det som syns ---------- */
@@ -206,8 +238,9 @@ function foRita() {
         const yta = document.getElementById("forma");
         if (!yta) return;
         const sc = window.scrollY;
-        const vyer = { oversikt: foVyOversikt, aktiva: foVyFragor, klara: foVyFragor, alla: foVyFragor, moten: foVyMoten,
-            atgarder: foVyAtgarder, beslut: foVyBeslut, org: foVyOrg, inst: foVyInst, projekt: foVyProjekt };
+        const vyer = { min: foVyMin, oversikt: foVyOversikt, flode: foVyFlode, aktiva: foVyFragor, mina: foVyFragor, klara: foVyFragor, alla: foVyFragor,
+            dokument: foVyKommer, tidplaner: foVyKommer, amk: foVyKommer, moten: foVyMoten, atgarder: foVyAtgarder, beslut: foVyBeslut, org: foVyOrg,
+            rapporter: foVyRapporter, inst: foVyInst, projekt: foVyProjekt };
         (vyer[foVy] || foVyOversikt)(yta);
         window.scrollTo({ top: sc });
         if (foFragaOppen && foP && foFraga(foP, foFragaOppen)) foRitaPanel();
@@ -233,6 +266,7 @@ function foKopplaSok() {
         if (t.typ === "beslut") { foGaTill("beslut"); setTimeout(() => foMarkeraRad(t.id), 30); }
         if (t.typ === "atgard") { foFlik.atg = "alla"; foGaTill("atgarder"); setTimeout(() => foMarkeraRad(t.id), 30); }
         if (t.typ === "person") { foFlik.org = "personer"; foGaTill("org"); setTimeout(() => foMarkeraRad(t.id), 30); }
+        if (t.typ === "inlagg") foVisaInlagg(t.id);
         inp.value = ""; stang(); inp.blur();
     };
     const ritaLista = () => {
@@ -287,18 +321,21 @@ document.addEventListener("keydown", (e) => {
 }, true);
 
 function foNyFragaFokus() {
-    if (!["aktiva", "alla"].includes(foVy)) foGaTill("aktiva");
+    if (!["aktiva", "mina", "alla"].includes(foVy)) foGaTill("aktiva");
     setTimeout(() => { const t = document.getElementById("foNyText"); if (t) { t.focus(); t.scrollIntoView({ block: "center" }); } }, 30);
 }
 
 /* ---------- start ---------- */
 function foStarta() {
+    document.body.classList.toggle("fo-mini", foMinimerad());
     foLasLista();
     foUppdateraBehorighet();
     const pk = document.getElementById("foProjektknapp");
     if (pk) pk.addEventListener("click", foProjektMeny);
     const ny = document.getElementById("foNyFraga");
     if (ny) ny.addEventListener("click", foNyFragaFokus);
+    const kl = document.getElementById("foKlocka");
+    if (kl) kl.addEventListener("click", foOppnaKlocka);
     foKopplaSok();
     let modul = "plan";
     try { modul = localStorage.getItem(FO_LS_MODUL) || "plan"; } catch (e) { }

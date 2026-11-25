@@ -68,6 +68,42 @@ function foForumSelect(id, valt, tomText, attr) {
     return '<select class="f" id="' + id + '"' + (attr || "") + '><option value="">' + esc(tomText || "Inget") + '</option>' +
         foP.forum.filter(f => f.aktiv || f.id === valt).map(f => '<option value="' + f.id + '"' + (f.id === valt ? " selected" : "") + '>' + esc(f.namn) + '</option>').join("") + '</select>';
 }
+// Etiketter för risk för tid- och kostnadspåverkan.
+function foKonsTaggar(f) {
+    const t = foKonsAktiva(f, "tid").length, k = foKonsAktiva(f, "kostnad").length;
+    return (t ? '<span class="fo-tagg t-varn" title="' + esc(FO_KONS.tid + " – " + FO_PAVERKAR_TEXT) + '">Tid</span>' : "") +
+        (k ? '<span class="fo-tagg t-varn" title="' + esc(FO_KONS.kostnad + " – " + FO_PAVERKAR_TEXT) + '">Kostnad</span>' : "");
+}
+// Flera mottagare/berörda: valda som etiketter med ×, och en lista för att lägga till fler.
+// status(part) kan ge extra text i etiketten (t.ex. om parten har svarat).
+function foPartValjare(id, valda, val) {
+    val = val || {};
+    const p = foP, v = valda.map(foPartVarde);
+    const disc = val.disc === false ? [] : p.discipliner.filter(d => d.aktiv && !v.includes("d:" + d.id)).sort((a, b) => a.ordning - b.ordning);
+    const pers = val.pers === false ? [] : p.personer.filter(x => x.aktiv && !v.includes("p:" + x.id)).sort((a, b) => foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
+    const chips = valda.map(part => {
+        let st = val.status ? val.status(part) : "";
+        if (part.disc && typeof foDiscSaknarAvis === "function" && foDiscSaknarAvis(p, part.disc))
+            st += '<i class="fo-saknar" title="Disciplinen saknar utsedda aviseringsmottagare. Alla i disciplinen aviseras. Välj mottagare under Projektinställningar → Aviseringar.">alla aviseras</i>';
+        return '<span class="fo-partchip' + (part.disc ? " disc" : "") + '">' + esc(foPartText(p, part, true) || "?") + (st ? " " + st : "") +
+            (val.lasa ? "" : '<button type="button" class="fo-partbort" data-partbort="' + esc(foPartVarde(part)) + '" aria-label="Ta bort ' + esc(foPartText(p, part)) + '">×</button>') + '</span>';
+    }).join("");
+    const sel = val.lasa ? "" : '<select class="f fo-partlagg" aria-label="' + esc(val.etikett || "Lägg till") + '"><option value="">' + esc(valda.length ? (val.merText || "+ Lägg till …") : (val.tomText || "Välj …")) + '</option>' +
+        (disc.length ? '<optgroup label="Disciplin">' + disc.map(d => '<option value="d:' + d.id + '">' + esc(d.kod + " – " + d.namn) + '</option>').join("") + '</optgroup>' : "") +
+        (pers.length ? '<optgroup label="Person">' + pers.map(x => {
+            const dk = (x.disc || []).map(i => foDiscText(p, i)).filter(Boolean).join(", ");
+            return '<option value="p:' + x.id + '">' + esc(foPersonNamn(p, x.id) + (dk ? " (" + dk + ")" : "")) + '</option>';
+        }).join("") + '</optgroup>' : "") + '</select>';
+    return '<div class="fo-partval" id="' + id + '">' + chips + sel + (!valda.length && val.lasa ? '<span class="hjalp">–</span>' : "") + '</div>';
+}
+function foKopplaPartValjare(rot, id, valda, klar) {
+    const el = rot.querySelector("#" + id);
+    if (!el) return;
+    el.querySelectorAll("[data-partbort]").forEach(b => b.addEventListener("click", () => klar(valda.filter(x => foPartVarde(x) !== b.dataset.partbort))));
+    const s = el.querySelector(".fo-partlagg");
+    if (s) s.addEventListener("change", () => { const n = foPartFran(s.value); if (n) klar(valda.concat([n])); });
+}
+
 // Knapprad där flera kan vara valda (berörda discipliner, plats, möten).
 function foValChips(namn, alternativ, valda) {
     if (!alternativ.length) return '<span class="hjalp">Inga att välja ännu.</span>';

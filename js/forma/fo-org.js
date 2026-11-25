@@ -2,30 +2,51 @@
    Wimo Forma · organisation, projektinställningar och projektlistan
    ====================================================================== */
 
-/* ======================= Organisation ======================= */
+/* ======================= Projektmedlemmar ======================= */
+// Projektets gemensamma kontaktlista. Personerna grupperas i kategorier som användaren
+// själv skapar, döper om, sorterar och tar bort. En person kan stå i flera kategorier.
 function foVyOrg(yta) {
     const p = foP, jag = foJagId(), leda = foKanLeda(p, jag);
     const flikar = [["personer", "Personer", p.personer.filter(x => x.aktiv).length], ["foretag", "Företag", p.foretag.filter(x => x.aktiv).length],
         ["disc", "Discipliner", p.discipliner.filter(x => x.aktiv).length], ["forum", "Mötesforum", p.forum.filter(x => x.aktiv).length], ["ind", "Indelningar", p.indelningar.length]];
     if (!flikar.some(f => f[0] === foFlik.org)) foFlik.org = "personer";
     const nyText = { personer: "+ Ny kontakt", foretag: "+ Nytt företag", disc: "+ Ny disciplin", forum: "+ Nytt mötesforum", ind: "+ Ny indelning" }[foFlik.org];
-    let html = foTopp("Organisation", leda ? '<button class="navknapp" type="button" id="foOrgNy">' + nyText + '</button>' : "");
+    let html = foTopp("Projektmedlemmar", leda ? '<button class="navknapp" type="button" id="foOrgNy">' + nyText + '</button>' : "");
     html += '<div class="fo-flikar" role="tablist">' + flikar.map(([k, t, n]) => '<button type="button" role="tab" class="fo-flik' + (foFlik.org === k ? " vald" : "") + '" aria-selected="' + (foFlik.org === k) + '" data-orgflik="' + k + '">' +
         t + ' <span>' + n + '</span></button>').join("") + '</div>';
     if (foFlik.org === "personer") {
         const l = p.personer.slice().sort((a, b) => (b.aktiv - a.aktiv) || foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
-        html += '<div class="fo-filterrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foOrgSok" type="search" placeholder="Sök namn, företag, disciplin eller e-post" data-behall></label></div>';
-        html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell" id="foPersonTabell"><thead><tr><th>Namn</th><th>Företag och befattning</th><th>Disciplin</th><th>E-post och telefon</th><th>Roll</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
-            l.map(x => {
-                const ft = foForetag(p, x.foretagId);
-                return '<tr data-rad="' + x.id + '" class="' + (x.aktiv ? "" : "utford") + '" data-sok="' + esc(foNormal([foPersonNamn(p, x.id), ft && ft.namn, x.befattning, x.epost, (x.disc || []).map(d => foDiscText(p, d)).join(" ")].join(" "))) + '">' +
-                    '<td><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.id === jag ? ' <span class="hjalp">(du)</span>' : "") + (x.extern ? ' <span class="fo-chip">Extern</span>' : "") + (x.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
-                    '<td>' + esc(ft ? ft.namn : "–") + (x.befattning ? '<small>' + esc(x.befattning) + '</small>' : "") + '</td>' +
-                    '<td>' + esc((x.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
-                    '<td>' + (x.epost ? '<a href="mailto:' + esc(x.epost) + '">' + esc(x.epost) + '</a>' : "–") + (x.tel ? '<small><a href="tel:' + esc(x.tel.replace(/\s/g, "")) + '">' + esc(x.tel) + '</a></small>' : "") + '</td>' +
-                    '<td>' + esc(FO_ROLLER[x.roll] || "–") + (x.uid ? '<small>Har Wimo-konto</small>' : "") + '</td>' +
-                    '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-person="' + x.id + '">Ändra</button>' : "") + '</td></tr>';
-            }).join("") + '</tbody></table></div>' : foTomt("Inga personer ännu", "Lägg till projektets deltagare. En kontakt behöver inget Wimo-konto.");
+        const kat = foKategorierSorterade(p);
+        html += '<div class="fo-filterrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foOrgSok" type="search" placeholder="Sök namn, företag, roll, disciplin eller e-post" data-behall></label>' +
+            (leda ? '<button type="button" class="mknapp" id="foKategorier">Kategorier …</button>' : "") + "</div>";
+        const rad = (x) => {
+            const ft = foForetag(p, x.foretagId);
+            const roller = String(x.befattning || "").split(",").map(r => r.trim()).filter(Boolean);
+            return '<tr data-rad="' + x.id + '" class="' + (x.aktiv ? "" : "utford") + '" data-sok="' + esc(foNormal([foPersonNamn(p, x.id), ft && ft.namn, x.befattning, x.epost, (x.disc || []).map(d => foDiscText(p, d)).join(" ")].join(" "))) + '">' +
+                '<td><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.id === jag ? ' <span class="hjalp">(du)</span>' : "") + (x.extern ? ' <span class="fo-chip">Extern</span>' : "") + (x.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') +
+                (roller.length ? '<small>' + roller.map(r => esc(r)).join(" · ") + "</small>" : "") + '</td>' +
+                '<td>' + esc(ft ? ft.namn : "–") + '</td>' +
+                '<td>' + esc((x.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
+                '<td>' + (x.epost ? '<a href="mailto:' + esc(x.epost) + '">' + esc(x.epost) + '</a>' : "–") + (x.tel ? '<small><a href="tel:' + esc(x.tel.replace(/\s/g, "")) + '">' + esc(x.tel) + '</a></small>' : "") + '</td>' +
+                '<td>' + esc(FO_ROLLER[x.roll] || "–") + (x.uid ? '<small>Har Wimo-konto</small>' : "<small>Utan konto</small>") + '</td>' +
+                '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp" data-person="' + x.id + '">Ändra</button>' : "") + '</td></tr>';
+        };
+        const tabell = (rader) => '<div class="fo-tabellram"><table class="lista fo-tabell fo-persontabell"><thead><tr><th>Namn och roller</th><th>Företag</th><th>Disciplin</th><th>E-post och telefon</th><th>Behörighet</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
+            rader.map(rad).join("") + "</tbody></table></div>";
+        if (!l.length) html += foTomt("Inga personer ännu", "Lägg till projektets deltagare. En kontakt behöver inget Wimo-konto.");
+        else {
+            // en grupp per kategori, i den ordning användaren har valt; en person kan stå i flera
+            const grupper = kat.map(k => ({ k, rader: l.filter(x => (x.kategorier || []).includes(k.id)) }));
+            const utan = l.filter(x => !(x.kategorier || []).some(id => foKategori(p, id)));
+            const tomma = grupper.filter(g => !g.rader.length);
+            html += '<div id="foPersonGrupper">' + grupper.filter(g => g.rader.length).map(g => '<section class="fo-katgrupp" data-katgrupp="' + g.k.id + '"><h3 class="fo-blockrub">' + esc(g.k.namn) +
+                ' <span class="antal">' + g.rader.length + "</span></h3>" + tabell(g.rader) + "</section>").join("") +
+                (utan.length ? '<section class="fo-katgrupp" data-katgrupp=""><h3 class="fo-blockrub">' + (kat.length ? "Utan kategori" : "Alla personer") + ' <span class="antal">' + utan.length + "</span></h3>" + tabell(utan) + "</section>" : "") +
+                // tomma kategorier tar ingen plats: de står på en rad längst ner
+                (tomma.length ? '<p class="hjalp fo-kattomma">Inga personer i ' + tomma.map(g => "<b>" + esc(g.k.namn) + "</b>").join(", ") + "." +
+                    (leda ? " Välj kategori när du lägger till eller ändrar en person." : "") + "</p>" : "") +
+                "</div>";
+        }
     }
     if (foFlik.org === "foretag") {
         const l = p.foretag.slice().sort((a, b) => (b.aktiv - a.aktiv) || a.namn.localeCompare(b.namn, "sv"));
@@ -40,7 +61,7 @@ function foVyOrg(yta) {
         const l = p.discipliner.slice().sort((a, b) => a.ordning - b.ordning);
         html += l.length ? '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Kod</th><th>Disciplin</th><th>Frågor</th><th>Personer</th><th class="fo-snabbkol"><span class="sr">Ändra</span></th></tr></thead><tbody>' +
             l.map((d, i) => '<tr data-rad="' + d.id + '" class="' + (d.aktiv ? "" : "utford") + '"><td><b>' + esc(d.kod) + '</b></td><td>' + esc(d.namn) + (d.aktiv ? "" : ' <span class="fo-chip">Inaktiv</span>') + '</td>' +
-                '<td>' + p.fragor.filter(f => !f.makulerad && (f.fran === d.id || (f.ansvarig && f.ansvarig.disc === d.id))).length + '</td>' +
+                '<td>' + p.fragor.filter(f => !f.makulerad && (f.fran === d.id || foMottagare(f).some(m => m.disc === d.id))).length + '</td>' +
                 '<td>' + p.personer.filter(x => x.aktiv && (x.disc || []).includes(d.id)).length + '</td>' +
                 '<td class="fo-snabbkol">' + (leda ? '<button type="button" class="fo-minknapp fo-ikonknapp" data-discupp="' + d.id + '"' + (i ? "" : " disabled") + ' aria-label="Flytta upp">↑</button>' +
                     '<button type="button" class="fo-minknapp fo-ikonknapp" data-discner="' + d.id + '"' + (i < l.length - 1 ? "" : " disabled") + ' aria-label="Flytta ner">↓</button>' +
@@ -78,10 +99,14 @@ function foVyOrg(yta) {
             .forEach(([k, n]) => foGor("sparaDisc", { id: foId(), kod: k, namn: n }, true));
         foRita(); status("Åtta vanliga discipliner lades till. Ta bort eller byt namn på dem som inte passar.");
     });
+    const katKnapp = document.getElementById("foKategorier");
+    if (katKnapp) katKnapp.addEventListener("click", foKategoriDialog);
     const sok = document.getElementById("foOrgSok");
     if (sok) sok.addEventListener("input", () => {
         const q = foNormal(sok.value).trim();
-        document.querySelectorAll("#foPersonTabell tbody tr").forEach(tr => { tr.hidden = !!q && !tr.dataset.sok.includes(q); });
+        document.querySelectorAll(".fo-persontabell tbody tr").forEach(tr => { tr.hidden = !!q && !tr.dataset.sok.includes(q); });
+        // dölj tomma grupper medan man söker
+        document.querySelectorAll(".fo-katgrupp").forEach(g => { g.hidden = !!q && !g.querySelector("tbody tr:not([hidden])"); });
     });
 }
 
@@ -91,14 +116,19 @@ function foPersonDialog(x) {
         '<div class="falt"><label for="foPdEn">Efternamn</label><input class="f" id="foPdEn" value="' + esc(x ? x.efternamn : "") + '"></div></div>' +
         '<div class="tva"><div class="falt"><label for="foPdFt">Företag</label><select class="f" id="foPdFt"><option value="">–</option>' + p.foretag.filter(f => f.aktiv || (x && f.id === x.foretagId)).map(f =>
             '<option value="' + f.id + '"' + (x && x.foretagId === f.id ? " selected" : "") + '>' + esc(f.namn) + '</option>').join("") + '</select></div>' +
-        '<div class="falt"><label for="foPdBef">Befattning</label><input class="f" id="foPdBef" value="' + esc(x ? x.befattning : "") + '" placeholder="Uppdragsansvarig"></div></div>' +
+        '<div class="falt"><label for="foPdBef">Roller <span class="hjalp">flera med komma</span></label><input class="f" id="foPdBef" value="' + esc(x ? x.befattning : "") + '" placeholder="Uppdragsansvarig, BIM-samordnare"></div></div>' +
+        '<div class="falt"><label>Kategorier <span class="hjalp">en person kan stå i flera</span></label>' + (foKategorierSorterade(p).length
+            ? foValChips("pkat", foKategorierSorterade(p).map(k => ({ id: k.id, namn: k.namn })), x ? x.kategorier || [] : [])
+            : '<p class="hjalp" style="margin:0">Inga kategorier ännu. Skapa dem under Kategorier … i Projektmedlemmar.</p>') + "</div>" +
         '<div class="falt"><label>Discipliner</label>' + foValChips("pdisc", p.discipliner.filter(d => d.aktiv).sort((a, b) => a.ordning - b.ordning).map(d => ({ id: d.id, namn: d.kod + " " + d.namn })), x ? x.disc || [] : []) + '</div>' +
         '<div class="tva"><div class="falt"><label for="foPdEp">E-post</label><input class="f" id="foPdEp" type="email" value="' + esc(x ? x.epost : "") + '"></div>' +
         '<div class="falt"><label for="foPdTel">Telefon</label><input class="f" id="foPdTel" type="tel" value="' + esc(x ? x.tel : "") + '"></div></div>' +
-        '<div class="tva"><div class="falt"><label for="foPdRoll">Roll i projektet</label><select class="f" id="foPdRoll">' + Object.keys(FO_ROLLER).map(r =>
+        '<div class="tva"><div class="falt"><label for="foPdRoll">Behörighet i Forma</label><select class="f" id="foPdRoll">' + Object.keys(FO_ROLLER).map(r =>
             '<option value="' + r + '"' + ((x ? x.roll : "projektor") === r ? " selected" : "") + '>' + FO_ROLLER[r] + '</option>').join("") + '</select></div>' +
         '<div class="falt"><label>&nbsp;</label><label class="fo-kryss"><input type="checkbox" id="foPdExt"' + (x && x.extern ? " checked" : "") + '> Extern deltagare</label></div></div>' +
-        '<p class="hjalp" style="margin:0">Roller: administratör och projekteringsledare ändrar register och fastställer beslut. Projektör registrerar och besvarar frågor. Granskare och läsare kan läsa och kvittera.</p>' +
+        (foRoll(p, foJagId()) === "admin" ? '<label class="fo-kryss fo-installning"><input type="checkbox" id="foPdSuper"' + (x && x.superuser ? " checked" : "") + '><span><b>Superuser</b>' +
+            '<small>Får hantera andras frågor: överföra ägarskap, ändra mottagare, klarmarkera och återöppna – till exempel när frågeställaren lämnat projektet. Alla ingrepp syns i historiken. Historik och låsta sammanställningar kan aldrig ändras.</small></span></label>' : "") +
+        '<p class="hjalp" style="margin:0">Behörighet: administratör och projekteringsledare ändrar register och fastställer beslut. Projektör registrerar och besvarar frågor. Granskare och läsare kan läsa och kvittera.</p>' +
         '<p class="hjalp" style="margin:6px 0 0">Har personen ett Wimo-konto med samma e-post kopplas kontot automatiskt när hen öppnar projektet.</p>';
     const knappar = [];
     if (x) knappar.push({ txt: x.aktiv ? "Inaktivera" : "Aktivera igen", vanster: true, fn: () => {
@@ -114,10 +144,46 @@ function foPersonDialog(x) {
     foKopplaValChips(document.getElementById("overlay"));
     setTimeout(() => { const t = document.getElementById("foPdFn"); if (t) t.focus(); }, 30);
 }
+// Kategorierna: skapa, döp om, sortera och ta bort. Personerna behåller sina övriga kategorier.
+function foKategoriDialog() {
+    const p = foP, l = foKategorierSorterade(p);
+    const kropp = '<ul class="fo-katlista">' + l.map((k, i) => {
+        const n = p.personer.filter(x => (x.kategorier || []).includes(k.id)).length;
+        return '<li><input class="f" data-katnamn="' + k.id + '" value="' + esc(k.namn) + '" aria-label="Kategorins namn"><span class="hjalp">' + n + (n === 1 ? " person" : " personer") + "</span>" +
+            '<button type="button" class="fo-minknapp fo-ikonknapp" data-katflytt="' + k.id + '|-1"' + (i ? "" : " disabled") + ' aria-label="Flytta upp">↑</button>' +
+            '<button type="button" class="fo-minknapp fo-ikonknapp" data-katflytt="' + k.id + '|1"' + (i < l.length - 1 ? "" : " disabled") + ' aria-label="Flytta ner">↓</button>' +
+            '<button type="button" class="fo-minknapp fo-farlank" data-kattabort="' + k.id + '">Ta bort</button></li>';
+    }).join("") + "</ul>" +
+        '<div class="fo-katny"><input class="f" id="foKatNy" placeholder="Ny kategori, t.ex. Myndigheter" maxlength="60"><button type="button" class="mknapp" id="foKatLagg">Lägg till</button></div>' +
+        '<p class="hjalp" style="margin:10px 0 0">Kategorierna är era egna. Tar du bort en kategori finns personerna kvar i kontaktlistan.</p>';
+    modal("Kategorier", "Grupperna i Projektmedlemmar", kropp, [{ txt: "Klar", primar: true, fn: () => { stangModal(); foRita(); } }]);
+    const rot = document.getElementById("overlay");
+    rot.querySelectorAll("[data-katnamn]").forEach(inp => inp.addEventListener("change", () => {
+        if (!foGor("sparaKategori", { id: inp.dataset.katnamn, namn: inp.value }, true)) inp.value = (foKategori(foP, inp.dataset.katnamn) || {}).namn || "";
+        else foVisaSparat(inp);
+    }));
+    rot.querySelectorAll("[data-katflytt]").forEach(b => b.addEventListener("click", () => {
+        const [id, steg] = b.dataset.katflytt.split("|");
+        if (foGor("flyttaKategori", { id, steg: +steg }, true)) foKategoriDialog();
+    }));
+    rot.querySelectorAll("[data-kattabort]").forEach(b => b.addEventListener("click", () => {
+        const k = foKategori(foP, b.dataset.kattabort);
+        if (k && confirm("Ta bort kategorin " + k.namn + "? Personerna finns kvar.")) { if (foGor("taBortKategori", { id: k.id }, true)) foKategoriDialog(); }
+    }));
+    const ny = document.getElementById("foKatNy"), lagg = () => {
+        if (!ny.value.trim()) return ny.focus();
+        if (foGor("sparaKategori", { id: foId(), namn: ny.value }, true)) foKategoriDialog();
+        setTimeout(() => { const n = document.getElementById("foKatNy"); if (n) n.focus(); }, 30);
+    };
+    document.getElementById("foKatLagg").addEventListener("click", lagg);
+    ny.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lagg(); } });
+}
+
 function foLasPersonForm() {
     return { fornamn: document.getElementById("foPdFn").value, efternamn: document.getElementById("foPdEn").value, foretagId: document.getElementById("foPdFt").value,
-        befattning: document.getElementById("foPdBef").value, disc: foValda("pdisc"), epost: document.getElementById("foPdEp").value,
-        tel: document.getElementById("foPdTel").value, roll: document.getElementById("foPdRoll").value, extern: document.getElementById("foPdExt").checked };
+        befattning: document.getElementById("foPdBef").value.split(",").map(r => r.trim()).filter(Boolean).join(", "), disc: foValda("pdisc"), kategorier: foValda("pkat"), epost: document.getElementById("foPdEp").value,
+        tel: document.getElementById("foPdTel").value, roll: document.getElementById("foPdRoll").value, extern: document.getElementById("foPdExt").checked,
+        superuser: document.getElementById("foPdSuper") ? document.getElementById("foPdSuper").checked : undefined };
 }
 function foKopplaValChips(rot) {
     if (!rot) return;
@@ -216,29 +282,30 @@ function foVyInst(yta) {
         '<div class="falt"><label for="foIuBesk">Beskrivning</label><textarea class="f" id="foIuBesk" data-uf="beskrivning" rows="3"' + dis + '>' + esc(p.beskrivning) + '</textarea></div>' +
         '<p class="hjalp" style="margin:0">Ändringar sparas direkt.</p></div>';
     html += '<div><div class="dashblock"><h3>Arbetsflöde</h3>' +
-        '<label class="fo-kryss fo-installning"><input type="checkbox" id="foIaAuto"' + (p.inst.autoBesvarad ? " checked" : "") + dis + '><span><b>Nytt svar på ofullständigt svar ger Besvarad direkt</b>' +
-        '<small>Avmarkera om frågeställaren själv ska avgöra när kompletteringen räcker.</small></span></label>' +
+        '<div class="falt"><label for="foIaSvarstid">Förinställd svarstid för nya frågor</label><div class="fo-svarstid"><input class="f" type="number" min="0" max="60" id="foIaSvarstid" value="' + (+p.inst.svarstid || 0) + '"' + dis + '><span>arbetsdagar</span></div>' +
+        '<p class="hjalp" style="margin:4px 0 0">Fyller i Svar senast när en fråga skapas. Går att ändra eller ta bort på varje fråga. 0 = ingen förinställd svarstid.</p></div>' +
+        '<p class="hjalp" style="margin:10px 0 0">Ett kompletterande svar på ett ofullständigt svar ger alltid Besvarad, så att frågeställaren gör en ny bedömning. Bara frågeställaren (eller en superuser) klarmarkerar.</p>' +
         '<p class="hjalp" style="margin:10px 0 0">Historik, revisionsmarkering och kvittering av ändringar i sak går inte att stänga av. Det är så spårbarheten bevaras.</p></div>';
     html += '<div class="dashblock"><h3>Åtkomst</h3>' + (moln
         ? '<p class="hjalp" style="margin-top:0">Projektet sparas i molnet. De som har åtkomst ser och arbetar i samma projekt.</p>' + foMedlemHtml(admin)
         : '<p class="hjalp" style="margin-top:0">Projektet sparas bara i den här webbläsaren. ' + (foMoln() && window.p4FormaMoln.farSkapa() ? "Flytta det till molnet för att dela det med andra och nå det från fler datorer." : foMoln() ? "Be huvudadmin om behörigheten Får skapa projekt för att kunna dela det i molnet." : "Logga in för att kunna dela projektet i molnet.") + '</p>' +
             (foMoln() && window.p4FormaMoln.farSkapa() ? '<button type="button" class="mknapp" id="foTillMoln">Flytta till molnet</button>' : "")) + '</div>';
-    html += '<div class="dashblock"><h3>Data</h3><p class="hjalp" style="margin-top:0">Exporten innehåller hela projektet med historik, men inte bilagornas filer.</p>' +
-        '<div class="fo-knapprad"><button type="button" class="mknapp" id="foExpJson">Exportera projektet</button><button type="button" class="mknapp" id="foExpCsv">Exportera frågor till Excel</button></div>' +
+    html += '<div class="dashblock"><h3>Data</h3><p class="hjalp" style="margin-top:0">Export av frågor och hela projektet finns under <button type="button" class="p4d-lank" data-fovy-lank="rapporter">Rapporter & export</button>.</p>' +
         (admin || !moln ? '<div class="fo-farozon"><button type="button" class="fo-farlank" id="foTaBort">' + (moln ? "Ta bort projektet för alla" : "Ta bort projektet från den här datorn") + '</button></div>' : "") + '</div></div></div>';
+    html += foAvisInstHtml(p, leda);
     yta.innerHTML = html;
+    foKopplaAvisInst(yta, p, leda);
     yta.querySelectorAll("[data-uf]").forEach(el => el.addEventListener("change", () => {
         const a = {}; a[el.dataset.uf] = el.value;
         if (el.dataset.uf === "namn" && !el.value.trim()) { el.value = p.namn; return status("Projektet måste ha ett namn.", true); }
         if (foGor("projektUppgifter", a, true)) { foVisaSparat(el); foRitaHeader(); }
     }));
-    const auto = document.getElementById("foIaAuto");
-    if (auto) auto.addEventListener("change", () => { if (foGor("installning", { nyckel: "autoBesvarad", varde: auto.checked, text: auto.checked ? "nytt svar ger Besvarad" : "frågeställaren avgör" }, true)) foVisaSparat(auto); });
-    document.getElementById("foExpJson").addEventListener("click", () => {
-        foLaddaNer(foFilnamn(p.namn) + "-forma-" + foIdag() + ".json", JSON.stringify({ format: "wimo-forma", version: FO_VER, exporterad: foNu(), projekt: p }, null, 1), "application/json");
-        status("Projektet exporterades.");
+    const st = document.getElementById("foIaSvarstid");
+    if (st) st.addEventListener("change", () => {
+        const n = Math.max(0, Math.min(60, Math.round(+st.value || 0))); st.value = n;
+        if (foGor("installning", { nyckel: "svarstid", varde: n, text: n ? "förinställd svarstid " + n + " arbetsdagar" : "ingen förinställd svarstid" }, true)) foVisaSparat(st);
     });
-    document.getElementById("foExpCsv").addEventListener("click", () => foLaddaNer(foFilnamn(p.namn) + "-fragor-" + foIdag() + ".csv", foCsvFragor(p, p.fragor.slice().sort((a, b) => a.nr - b.nr)), "text/csv;charset=utf-8"));
+    yta.querySelectorAll("[data-fovy-lank]").forEach(b => b.addEventListener("click", () => foGaTill(b.dataset.fovyLank)));
     const tb = document.getElementById("foTaBort");
     if (tb) tb.addEventListener("click", () => {
         modal("Ta bort " + p.namn + "?", moln ? "Projektet tas bort för alla som har åtkomst. Det går inte att ångra." : "Projektet tas bort från den här webbläsaren.",
@@ -369,8 +436,10 @@ function foHjalp() {
     modal("Hjälp för Wimo Forma", "Projekteringens frågor, svar, beslut och åtgärder", '<div class="fo-hjalp">' +
         '<h4>Byta mellan Plan och Forma</h4><p>Klicka på Wimo-loggan uppe till vänster och välj modul. Modulerna har var sin data och påverkar inte varandra.</p>' +
         '<h4>Ställa en fråga</h4><p>Skriv frågan i rutan överst i Aktiva frågor och tryck <kbd>Ctrl</kbd>+<kbd>Enter</kbd>. Bara texten behövs. Klistra in skärmklipp med <kbd>Ctrl</kbd>+<kbd>V</kbd>. Varje fråga får ett nummer som aldrig återanvänds.</p>' +
-        '<h4>Lägen</h4><p><b>Obesvarad</b> → <b>Besvarad</b> när svaret sparas → <b>Klar</b> när frågeställaren är nöjd. Är svaret inte tillräckligt väljer frågeställaren <b>Svaret är ofullständigt</b>, och frågan går tillbaka till ansvarig.</p>' +
-        '<h4>Tillägg, ändring och kvittering</h4><p>Allt som skrivs sparas som versioner. Ett tillägg i slutet är ett tillägg; allt annat är en ändring i sak. Ändringar i en publicerad fråga eller ett publicerat svar ska kvitteras av motparten. Kvittering betyder att man tagit del av ändringen, inte att man godkänner den.</p>' +
+        '<h4>Fråga och svar</h4><p>En fråga kan riktas till flera som <b>ska svara</b> och till <b>berörda</b> som bara behöver känna till den. Flera kan svara, och frågeställaren kan ställa följdfrågor i samma fråga. Frågeställaren väljer vilket eller vilka svar som är det <b>slutliga beskedet</b> – det visas i frågelistan. Ett besked som någon lämnat muntligt kan registreras åt personen och märks då som registrerat av någon annan.</p>' +
+        '<h4>Lägen</h4><p><b>Obesvarad</b> → <b>Besvarad</b> när ett svar lämnas → <b>Klar</b> när frågeställaren bedömer att frågan är tillräckligt besvarad. Alla mottagare behöver inte svara. Är svaret inte tillräckligt väljer frågeställaren <b>Svaret är ofullständigt</b>; nästa svar ger Besvarad igen. Bara frågeställaren eller en superuser klarmarkerar och återöppnar.</p>' +
+        '<h4>Rätta, komplettera och revidera</h4><p>Allt som skrivs sparas som versioner. <b>Rätta</b> är för stavfel. <b>Komplettera</b> lägger till information. <b>Revidera</b> är en ändring i sak: orsak krävs och motparten kvitterar. Revideras det slutliga svaret i en klar fråga öppnas frågan igen. Kvittering betyder att man tagit del av ändringen, inte att man godkänner den.</p>' +
+        '<h4>Tid och kostnad</h4><p>Alla projektmedlemmar kan markera <b>risk för tidspåverkan</b> och <b>risk för kostnadspåverkan</b>, även på andras frågor. Vid klarmarkering och beslut måste man bekräfta att konsekvenserna har kommunicerats och hanterats. Markeringen är en upplysning – inte ÄTA, underrättelse eller ekonomiskt godkännande.</p>' +
         '<h4>Beslut</h4><p>Ett svar blir aldrig automatiskt ett beslut. Administratör och projekteringsledare fastställer beslut från frågan. Ett beslut ändras aldrig — det ersätts eller kompletteras av ett nytt.</p>' +
         '<h4>Möten</h4><p>Markera frågor för nästa möte med <b>+ Möte</b>. Under Möten finns urvalet per forum, förslag på frågor som borde tas upp och en storskärmsvy för mötesrummet.</p>' +
         '<h4>Kortkommandon</h4><ul class="detalj"><li><span class="et"><kbd>N</kbd></span><span>Ny fråga</span></li><li><span class="et"><kbd>Ctrl</kbd>+<kbd>K</kbd> eller <kbd>/</kbd></span><span>Sök i projektet</span></li>' +

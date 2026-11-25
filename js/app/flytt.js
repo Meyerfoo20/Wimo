@@ -147,8 +147,8 @@ function dialogHelaMomentet(start, slut, delta, sedan) {
         { txt: "Flytta endast starten", fn: () => { stangModal(); if (sedan)
                 sedan(); } },
         { txt: "Flytta hela momentet", primar: true, fn: () => {
-                flyttaMedVal(slut, delta, "slutdatum flyttat med momentet");
                 stangModal();
+                flyttaMedVal(slut, delta, "slutdatum flyttat med momentet");
                 if (sedan)
                     sedan();
             } }
@@ -166,8 +166,8 @@ function dialogStartEfterSlut(start, slut, delta, sedan) {
         { txt: "Ändra datumen manuellt", fn: () => { stangModal(); if (sedan)
                 sedan(); } },
         { txt: "Flytta hela momentet", primar: true, fn: () => {
-                flyttaMedVal(slut, delta, "slutdatum flyttat med momentet");
                 stangModal();
+                flyttaMedVal(slut, delta, "slutdatum flyttat med momentet");
                 if (sedan)
                     sedan();
             } }
@@ -349,8 +349,8 @@ function dialogSlutForeStart(slut, start, delta) {
     modal("Kontrollera datumen", slut.text, kropp, [
         { txt: "Ändra datumen manuellt", fn: stangModal },
         { txt: "Flytta hela momentet", primar: true, fn: () => {
-                flyttaMedVal(start, delta, "startdatum flyttat med momentet");
                 stangModal();
+                flyttaMedVal(start, delta, "startdatum flyttat med momentet");
             } }
     ]);
 }
@@ -404,7 +404,15 @@ function modal(titel, undertitel, kropp, knappar) {
         kn.textContent = b.txt;
         if (b.id)
             kn.id = b.id;
-        kn.addEventListener("click", b.fn);
+        // Varje klick körs bara en gång, och inte alls när rutan redan har stängts. Klick som hinner
+        // köas medan något tungt körs (t.ex. omritning på en långsam dator) skulle annars köra samma val igen.
+        kn.addEventListener("click", (e) => {
+            if (!o.isConnected || o.dataset.upptagen)
+                return;
+            o.dataset.upptagen = "1";
+            try { b.fn(e); }
+            finally { if (o.isConnected) delete o.dataset.upptagen; }
+        });
         if (b.vanster)
             foot.prepend(kn);
         else

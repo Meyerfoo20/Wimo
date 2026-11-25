@@ -135,6 +135,8 @@ function foGor(typ, a, tyst) {
         foPlaneraPush();
     }
     if (!tyst && typeof foRita === "function") foRita();
+    // Direktmejl för händelsen läggs i kön (bara den som gjorde ändringen köar).
+    if (typeof foKoaMejl === "function") setTimeout(() => foKoaMejl().catch(e => console.warn(e)), 50);
     return svar === undefined ? true : svar;
 }
 
@@ -225,6 +227,10 @@ function foStartaMolnLista() {
         foMolnLista = l;
         // Lokala kopior av molnprojekt som kontot inte längre är med i tas bort.
         foLista.filter(x => x.moln && !l.some(m => m.id === x.id)).forEach(x => foTaBortLokalt(x.id));
+        // En länk (t.ex. från ett mejl) till ett projekt som inte var laddat ännu.
+        if (typeof foVantarProjekt !== "undefined" && foVantarProjekt && l.some(m => m.id === foVantarProjekt) && foVantarProjekt !== foPid) {
+            foOppnaProjekt(foVantarProjekt); foVantarProjekt = ""; if (typeof foLasAdress === "function") foLasAdress();
+        }
         if (typeof foRita === "function" && foModulAktiv()) foRita();
     });
 }

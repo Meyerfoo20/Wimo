@@ -399,12 +399,15 @@ function stegNar() {
         { txt: "Avbryt", fn: stangModal },
         { txt: "Nästa ▸", primar: true, fn: () => {
                 lasBem();
+                const forraStart = g.start;
                 g.start = document.getElementById("pStart").value;
                 g.klar = klarValt();
                 if (!g.klar || iso2d(g.klar) < iso2d(g.start))
                     g.klar = g.start;
+                // Leveranser och UE får ligga när som helst under momentet (t.ex. plåtslagare en vecka in i taket).
+                // Bara rader som fortfarande står på den gamla startdagen följer med när starten ändras.
                 (g.mtrl || []).forEach(m => {
-                    if (iso2d(m.levDag) > iso2d(g.start)) {
+                    if (forraStart && m.levDag === forraStart && forraStart !== g.start) {
                         m.levDag = g.start;
                         m.avropDag = minusArbetsdagar(m.levDag, Math.max(0, parseInt(m.ledtid || "0", 10)));
                     }
@@ -587,8 +590,11 @@ function ritaMaterial() {
             v.innerHTML = '<div class="notis">' + (arUe(m) ? "UE-starten" : "Leveransen") + ' ligger ' + kortDatum(m.levDag) +
                 ' (v' + veckonr(m.levDag) + '), utanför den här fyraveckorsplanen. Posten sparas och syns när planen rullar fram.</div>';
         }
+        else if (g.klar && iso2d(m.levDag) > iso2d(g.klar)) {
+            v.innerHTML = '<div class="notis" style="margin:8px 0 0">' + (arUe(m) ? "UE kommer" : "Leveransen kommer") + ' efter att momentet ska vara färdigställt (' + kortDatum(g.klar) + '). Kontrollera datumet.</div>';
+        }
         else if (iso2d(m.levDag) > iso2d(g.start)) {
-            v.innerHTML = '<div class="notis" style="margin:8px 0 0">' + (arUe(m) ? "UE startar efter momentets start." : "Leveransen ligger efter momentets start.") + ' Kontrollera ordningen.</div>';
+            v.innerHTML = '<p class="hjalp" style="margin:8px 0 0">' + (arUe(m) ? "UE kommer in" : "Leveransen kommer") + ' under momentet, ' + arbetsdagarMellan(g.start, m.levDag) + ' arbetsdagar efter start.</p>';
         }
         else
             v.innerHTML = "";

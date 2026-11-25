@@ -5,7 +5,7 @@
    ====================================================================== */
 
 const FS_TYPER = [["ny", "Ny funktion"], ["battre", "Förbättring"], ["fel", "Något fungerar inte"], ["annat", "Övrigt"]];
-const fsVy = { typ: "ny", text: "", skickat: false, skickar: false, bilder: [] };
+const fsVy = { typ: "ny", text: "", skickat: false, skickar: false, bilder: [], modul: "plan" };   // modul: varifrån förslaget skickas (plan | forma)
 const FS_MAX_BILDER = 2, FS_MAX_TECKEN = 380000;   // varje bild sparas komprimerad i förslaget (Firestore tar max 1 MB per dokument)
 
 // Skalar ner och komprimerar en bild till JPEG tills den får plats.
@@ -55,6 +55,9 @@ function oppnaForslag() {
     document.body.classList.add("dashlage");
     document.getElementById("forslag").classList.remove("dold");
     fsVy.skickat = false;
+    // öppnat via Förslag i Forma (som byter till sidan här) → förslaget märks Forma
+    fsVy.modul = fsVy.franForma ? "forma" : "plan";
+    fsVy.franForma = false;
     ritaForslag();
     if (window.p4MarkeraNav) window.p4MarkeraNav();
 }
@@ -135,7 +138,7 @@ async function skickaForslag() {
     fsVy.skickar = true;
     ritaForslag();
     try {
-        await window.p4SkickaForslag({ text, typ: fsVy.typ, bilder: fsVy.bilder.slice() });
+        await window.p4SkickaForslag({ text, typ: fsVy.typ, bilder: fsVy.bilder.slice(), modul: fsVy.modul || "plan" });
         fsVy.text = "";
         fsVy.bilder = [];
         fsVy.skickat = true;
