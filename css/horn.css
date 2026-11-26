@@ -66,9 +66,13 @@
 .p4-pilknapp { padding: 0 16px; }
 .p4-pil { width: 18px; height: 18px; flex: none; display: block; }
 
-/* veckoknapparna (← Denna vecka →): tonen syns alltid, bara hörnen animeras vid hover */
-.p4-grupp > .navknapp:not(.plan):not(.aktiv):not(.pa) {
+/* veckoknapparna (← Denna vecka →), Påminn flera / Anpassa vy / Exportera / Skriv ut i Forma och kontoknappen:
+   tonen syns alltid, bara hörnen animeras vid hover */
+.p4-grupp > .navknapp:not(.plan):not(.aktiv):not(.pa),
+.navknapp.p4-tonknapp:not(.plan):not(.aktiv):not(.pa),
+html body .p4-konto.p4-konto.p4-konto.p4-konto {   /* kontoknappen i både Plan och Forma */
   background-size: 100% 100% !important;
   transition: color .15s !important;
 }
 .p4-grupp:has(> #bakat) { gap: 10px; }
+.p4-tonknapp + .p4-tonknapp { margin-left: 2px; }   /* 8 px gap + 2 = 10 px, som veckoknapparna */
