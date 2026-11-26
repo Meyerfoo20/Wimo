@@ -56,6 +56,7 @@ function foOppnaObj(pid, obj, fid) {
     if (typ === "atgard") { foFlik.atg = "alla"; foGaTill("atgarder"); return setTimeout(() => foMarkeraRad(id), 30); }
     if (typ === "inlagg") { foGaTill("flode"); return setTimeout(() => foVisaInlagg(id), 30); }
     if (typ === "forum") { foFlik.mote = id; return foGaTill("moten"); }
+    if (typ === "tidplan") { if (typeof foTpVal !== "undefined") foTpVal = id; return foGaTill("tidplaner"); }
     if (typ === "protokoll") { const x = (p.protokoll || []).find(y => y.id === id); if (x) foFlik.mote = x.forum; return foGaTill("moten"); }
     foGaTill("oversikt");
 }
@@ -83,7 +84,7 @@ function foArbRad(pid, p, x, opt) {
     if (opt.projekt) t.push('<span class="fo-arbproj">' + esc(opt.projekt) + '</span>');
     if (x.forsenad) t.push('<b class="rodtal">Försenad' + (x.dagarSen ? " " + x.dagarSen + (x.dagarSen === 1 ? " arbetsdag" : " arbetsdagar") : "") + '</b>');
     else if (x.sistaDag) t.push('<b class="fo-orangetal">Sista dag idag</b>');
-    else if (x.senast) t.push((x.kat === "atgard" || x.kat === "invAtgard" ? "Klar senast " : "Svar senast ") + foDatumKort(x.senast) + " v. " + foVecka(x.senast));
+    else if (x.senast) t.push((x.kat === "atgard" || x.kat === "invAtgard" ? "Klar senast " : x.kat === "leverans" ? "Leverans " : "Svar senast ") + foDatumKort(x.senast) + " v. " + foVecka(x.senast));
     if (x.bradskande) t.push('<b class="rodtal">Brådskande</b>');
     if (x.vad) t.push(esc(x.vad));
     if (x.ejSlutligt) t.push("välj slutligt svar");
@@ -97,7 +98,7 @@ function foArbRad(pid, p, x, opt) {
         (opt.stjarna ? '<button type="button" class="fo-prioknapp' + (prio ? " pa" : "") + '" data-prio="' + esc(nyckel) + '" aria-pressed="' + prio + '" title="' + (prio ? "Ta bort från mina prioriterade" : "Prioritera (syns bara för dig)") + '">' + (prio ? "★" : "☆") + '</button>' : "") + '</li>';
 }
 function foArbHtml(pid, p, lista, max, opt) {
-    const ordning = ["eskalera", "kvittera", "svara", "komplettera", "bedoma", "kontrollera", "atgard", "protokoll", "invSvar", "invKompl", "invAtgard", "invKvitt"];
+    const ordning = ["eskalera", "kvittera", "svara", "komplettera", "bedoma", "kontrollera", "atgard", "leverans", "protokoll", "invSvar", "invKompl", "invAtgard", "invKvitt"];
     const rub = Object.assign({}, FO_ARB_RUB, typeof FO_INV_RUB !== "undefined" ? FO_INV_RUB : {});
     return ordning.filter(k => lista.some(x => x.kat === k)).map(k => {
         const l = lista.filter(x => x.kat === k);

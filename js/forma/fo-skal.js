@@ -258,7 +258,7 @@ function foRita() {
         if (!yta) return;
         const sc = window.scrollY;
         const vyer = { min: foVyMin, oversikt: foVyOversikt, uppfoljning: foVyUppfoljning, flode: foVyFlode, aktiva: foVyFragor, mina: foVyFragor, klara: foVyFragor, alla: foVyFragor,
-            dokument: foVyKommer, tidplaner: foVyKommer, amk: foVyKommer, moten: foVyMoten, atgarder: foVyAtgarder, beslut: foVyBeslut, org: foVyOrg,
+            dokument: foVyKommer, tidplaner: foVyTidplaner, amk: foVyKommer, moten: foVyMoten, atgarder: foVyAtgarder, beslut: foVyBeslut, org: foVyOrg,
             rapporter: foVyRapporter, inst: foVyInst, projekt: foVyProjekt };
         (vyer[foVy] || foVyOversikt)(yta);
         window.scrollTo({ top: sc });

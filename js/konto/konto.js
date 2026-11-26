@@ -1925,9 +1925,10 @@
         if (!trotsOsparat) {
             try { if (synkKlar && !konflikter.size) { clearTimeout(pushTimer); await push(); } } catch (e) { }
             const osparade = plan4.projekt.filter((p) => arAndrad(p) || konflikter.has(p.id));
-            if (osparade.length) {
+            const formaOsparade = typeof window.foOsparat === "function" ? window.foOsparat() : [];
+            if (osparade.length || formaOsparade.length) {
                 return fraga("Det finns ändringar som inte är sparade i molnet",
-                    osparade.map((p) => p.projekt).join(", ") + "\nLoggar du ut nu försvinner de ändringarna från den här datorn. " +
+                    osparade.map((p) => p.projekt).concat(formaOsparade.map((n) => "Forma: " + n)).join(", ") + "\nLoggar du ut nu försvinner de ändringarna från den här datorn. " +
                     "Kontrollera nätverket och försök igen.",
                     [{ txt: "Logga ut ändå", fara: true, vanster: true, fn: () => loggaUt(true) },
                      { txt: "Avbryt", primar: true, fn: stangModal }], false);
@@ -2208,8 +2209,26 @@
         const x = d.data() || {};
         let data = null, trasig = false;
         try { data = await formaAvkoda(x.data); } catch (e) { data = null; trasig = !!x.data; }
-        return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data, trasig: trasig };
+        return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data, trasig: trasig,
+            kopior: Array.isArray(x.kopior) ? x.kopior : [], kopiaTid: x.kopiaTid || 0, franCache: !!(d.metadata && d.metadata.fromCache) };
     };
+    /* Säkerhetskopior: forma/{id}/kopior/r{rev} är en exakt kopia av projektet i den versionen (reglerna kontrollerar
+       att innehållet är identiskt). De kan aldrig ändras eller tas bort från appen. En kopia tas automatiskt
+       en gång per dygn, före rensning och borttagningar, när projektet krymper och innan projektet tas bort.
+       Reglerna kräver kopian när projektet krymper mer än 10 %. */
+    const FORMA_KOPIA_DYGN = 20 * 3600 * 1000;
+    const formaKopiaRef = (id, rev) => fb.fs.doc(fb.db, "forma", id, "kopior", "r" + rev);
+    // Inuti en transaktion: skapar kopian av nuvarande version om den saknas. Returnerar metadata att lägga till.
+    async function formaTaKopia(t, id, x, orsak) {
+        const ra = x.data;
+        if (typeof ra !== "string" || !ra) return null;
+        const ref = formaKopiaRef(id, x.rev || 0);
+        const k = await t.get(ref);
+        if (k.exists()) return null;
+        t.set(ref, { namn: x.namn || "Projekt", data: ra, rev: x.rev || 0, skapad: fb.fs.serverTimestamp(), av: anvandare.uid, orsak: String(orsak || "").slice(0, 60) });
+        return { id: "r" + (x.rev || 0), rev: x.rev || 0, tid: Date.now(), orsak: String(orsak || "").slice(0, 60), av: anvandare.uid, storlek: ra.length };
+    }
+    const formaMedKopia = (x, meta) => meta ? { kopior: (Array.isArray(x.kopior) ? x.kopior : []).concat(meta).slice(-300), kopiaTid: meta.tid } : {};
     window.p4FormaMoln = {
         redo: formaRedo,
         uid: () => anvandare ? anvandare.uid : "",
@@ -2221,8 +2240,10 @@
             const q = arAdmin() ? formaSamling() : fb.fs.query(formaSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
             const som = (d) => { const x = d.data() || {}; return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [] }; };
             let egna = [], inbjudna = [];
-            const skicka = () => cb(egna.concat(inbjudna.filter((x) => !egna.some((y) => y.id === x.id))));
-            const st1 = fb.fs.onSnapshot(q, (snap) => { egna = snap.docs.map(som); skicka(); }, fel || ((e) => console.warn("Forma lista:", e)));
+            // franCache: listan kommer från webbläsarens minne (t.ex. offline) och kan vara ofullständig.
+            let franCache = true;
+            const skicka = () => cb(egna.concat(inbjudna.filter((x) => !egna.some((y) => y.id === x.id))), { franCache: franCache });
+            const st1 = fb.fs.onSnapshot(q, (snap) => { egna = snap.docs.map(som); franCache = !!snap.metadata.fromCache; skicka(); }, fel || ((e) => console.warn("Forma lista:", e)));
             // Projekt där kontot har en giltig inbjudan: gå med direkt (inbjudan är kopplad till e-postadressen).
             let st2 = () => { }, stoppad = false;
             const startaInbjudningar = () => {
@@ -2246,7 +2267,7 @@
             if (!formaRedo()) return () => { };
             // Avkodningen är asynkron: kedja den så att ögonblicksbilderna kommer i rätt ordning.
             let kedja = Promise.resolve();
-            return fb.fs.onSnapshot(formaDoc(id), (d) => { kedja = kedja.then(async () => cb(d.exists() ? await formaLas(d) : null)).catch((e) => console.warn("Forma projekt:", e)); }, fel || ((e) => console.warn("Forma projekt:", e)));
+            return fb.fs.onSnapshot(formaDoc(id), (d) => { kedja = kedja.then(async () => cb(d.exists() ? await formaLas(d) : null, { franCache: !!(d.metadata && d.metadata.fromCache) })).catch((e) => console.warn("Forma projekt:", e)); }, fel || ((e) => console.warn("Forma projekt:", e)));
         },
         async skapa(id, namn, data) {
             await fb.fs.setDoc(formaDoc(id), { namn: String(namn || "Projekt").slice(0, 200), medlemmar: [anvandare.uid], admins: [anvandare.uid],
@@ -2254,18 +2275,42 @@
             return 1;
         },
         // Sparar om rev fortfarande stämmer. Annars kastas { konflikt, fjarr } med den nyare versionen.
-        async spara(id, data, rev, namn) {
+        // orsak: tas en säkerhetskopia av versionen före ändringen (t.ex. "rensning", "borttagning").
+        async spara(id, data, rev, namn, orsak) {
             const kodad = await formaKoda(data);
             if (kodad.length > 900000) throw { forStor: true, storlek: kodad.length };
             return fb.fs.runTransaction(fb.db, async (t) => {
                 const d = await t.get(formaDoc(id));
                 if (!d.exists()) throw { saknas: true };
-                const x = await formaLas(d);
+                const x = await formaLas(d), ra = d.data() || {};
                 if (x.trasig) throw { trasig: true };
                 if (x.rev !== rev) throw { konflikt: true, fjarr: x };
-                t.update(formaDoc(id), { namn: String(namn || x.namn).slice(0, 200), data: kodad, rev: rev + 1,
-                    andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+                const gammal = typeof ra.data === "string" ? ra.data.length : 0;
+                const skal = orsak || (kodad.length * 10 < gammal * 9 ? "krympt" : "") || (Date.now() - (+ra.kopiaTid || 0) > FORMA_KOPIA_DYGN ? "dygn" : "");
+                const meta = skal ? await formaTaKopia(t, id, ra, skal) : null;
+                t.update(formaDoc(id), Object.assign({ namn: String(namn || x.namn).slice(0, 200), data: kodad, rev: rev + 1,
+                    andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid }, formaMedKopia(ra, meta)));
                 return rev + 1;
+            });
+        },
+        // Hämtar en säkerhetskopia (avkodad).
+        async kopia(id, kid) {
+            const d = await fb.fs.getDoc(fb.fs.doc(fb.db, "forma", id, "kopior", kid));
+            if (!d.exists()) return null;
+            const x = d.data() || {};
+            return { id: d.id, namn: x.namn, rev: x.rev, orsak: x.orsak, data: await formaAvkoda(x.data) };
+        },
+        // Återställer projektet till en kopia. Nuvarande version kopieras först, så återställningen kan ångras.
+        async aterstall(id, kid) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const k = await t.get(fb.fs.doc(fb.db, "forma", id, "kopior", kid));
+                if (!k.exists()) throw { saknas: true };
+                const ra = d.data() || {}, kx = k.data() || {};
+                const meta = await formaTaKopia(t, id, ra, "fore-aterstallning");
+                t.update(formaDoc(id), Object.assign({ data: kx.data, rev: (ra.rev || 0) + 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid }, formaMedKopia(ra, meta)));
+                return (ra.rev || 0) + 1;
             });
         },
         async medlemmar(id, medlemmar, admins) {
@@ -2309,7 +2354,28 @@
         },
         epostBekraftad: () => !!(anvandare && anvandare.emailVerified),
         async skickaBekraftelse() { await fb.auth.sendEmailVerification(anvandare); },
-        async radera(id) { await fb.fs.deleteDoc(formaDoc(id)); },
+        // Manuell säkerhetskopia av nuvarande version (höjer rev så att alla ser den nya kopian i listan).
+        async kopieraNu(id) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) throw { saknas: true };
+                const ra = d.data() || {};
+                const meta = await formaTaKopia(t, id, ra, "manuell");
+                if (!meta) return ra.rev || 0;   // kopian av den här versionen finns redan
+                t.update(formaDoc(id), Object.assign({ rev: (ra.rev || 0) + 1, data: ra.data, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid }, formaMedKopia(ra, meta)));
+                return (ra.rev || 0) + 1;
+            });
+        },
+        // Borttagning: en sista kopia tas i samma transaktion (reglerna kräver den). Kopior och bilagor finns kvar
+        // i molnet och kan återställas av Wimo.
+        async radera(id) {
+            return fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(formaDoc(id));
+                if (!d.exists()) return;
+                await formaTaKopia(t, id, d.data() || {}, "fore-borttagning");
+                t.delete(formaDoc(id));
+            });
+        },
         async sparaFil(pid, fid, obj) {
             await fb.fs.setDoc(fb.fs.doc(fb.db, "forma", pid, "filer", fid), { namn: String(obj.namn || "fil").slice(0, 200), typ: String(obj.typ || "").slice(0, 100),
                 storlek: obj.storlek || 0, data: obj.data, skapad: fb.fs.serverTimestamp(), av: anvandare.uid });

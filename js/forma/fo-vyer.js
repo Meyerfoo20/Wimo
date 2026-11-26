@@ -965,8 +965,17 @@ function foVyUppfoljning(yta) {
             block("Risk för tid- eller kostnadspåverkan", risk.length, '<ul class="atglista fo-aglista">' + risk.map(f => radF(f, foKonsAktiva(f).map(k => FO_KONS[k.typ]).join(", "))).join("") + '</ul>') +
             block("Protokoll att följa upp", prot.length, '<ul class="atglista fo-aglista">' + prot.map(x => '<li data-forum="' + x.fo.id + '"><span class="fo-agnr">' + esc(x.fo.kort) + '</span><span class="fo-agtext">' + esc(x.fo.namn) +
                 '<small>' + esc(x.b.text) + (x.fo.bevakning.ansvarig ? " · ansvarig " + esc(foPersonNamn(p, x.fo.bevakning.ansvarig)) : "") + '</small></span></li>').join("") + '</ul>', "", "Forma vet inte om mötet hållits – det här är en påminnelse att stämma av.") + '</div>';
+        // tidplanernas leveranser: passerat utan bekräftelse skiljs från konstaterade förseningar och risker
+        const lev = foTpLeveranser(p, idag).filter(l => !foUppf.disc || foTpAnsvDisc(p, l.rad.ansv) === foUppf.disc).filter(l => !foUppf.person || (l.rad.ansv && foArPart(p, foUppf.person, l.rad.ansv)));
+        const omTva = foTpPlus(idag, 14);
+        const radL = l => '<li data-tidplan="' + l.tp.id + '"><span class="fo-agnr">' + (l.rad.ansv && l.rad.ansv.disc ? esc(foDiscText(p, l.rad.ansv.disc)) : "") + '</span><span class="fo-agtext">' + esc(l.rad.namn) +
+            '<small>' + esc(l.tp.namn) + ' · ' + esc(foTpAnsvText(p, l.rad.ansv) || "ingen ansvarig") + ' · fastställt ' + foDatumKort(l.slut) + (l.u.prognos ? ' · prognos ' + foDatumKort(l.u.prognos) : "") +
+            (l.u.konsekvens ? ' · ' + esc(FO_TP_KONS[l.u.konsekvens]) : "") + '</small></span><span class="fo-lage ' + FO_TP_LAGE[l.status].kl + '"><i></i>' + FO_TP_LAGE[l.status].namn + '</span></li>';
+        const levAvv = lev.filter(l => ["sen", "risk", "passerad"].includes(l.status)), levKom = lev.filter(l => (l.status === "ej" || l.status === "plan") && l.slut >= idag && l.slut <= omTva);
+        html += '<div class="fo-tvakol">' +
+            block("Leveranser att följa upp", levAvv.length, '<ul class="atglista fo-aglista">' + levAvv.map(radL).join("") + '</ul>', "", "Passerat utan bekräftelse betyder inte att leveransen är sen – bara att ingen har rapporterat.") +
+            block("Kommande leveranser (14 dagar)", levKom.length, '<ul class="atglista fo-aglista">' + levKom.map(radL).join("") + '</ul>') + '</div>';
         html += foKvittOversiktHtml(p);
-        html += '<p class="hjalp">Kommande leveranser och leveransrisker visas här när tidplanerna finns i Forma.</p>';
     }
     yta.innerHTML = html;
     document.getElementById("foUpDisc").addEventListener("change", e => { foUppf.disc = e.target.value; foRita(); });
@@ -978,18 +987,19 @@ function foVyUppfoljning(yta) {
     yta.querySelectorAll("[data-fraga]").forEach(li => li.addEventListener("click", () => { foFragaOppen = li.dataset.fraga; foSattAdress(); foRita(); }));
     yta.querySelectorAll("[data-atg]").forEach(li => li.addEventListener("click", () => foAtgardDialog(foAtgard(p, li.dataset.atg))));
     yta.querySelectorAll("[data-forum]").forEach(li => li.addEventListener("click", () => { foFlik.mote = li.dataset.forum; foGaTill("moten"); }));
+    yta.querySelectorAll("[data-tidplan]").forEach(li => li.addEventListener("click", () => { foTpVal = li.dataset.tidplan; foGaTill("tidplaner"); }));
     foKopplaUppfoljning(yta);
 }
 // Förbered möte: välj forum, tidshorisont och områden. Sammanställningen bygger på de vanliga registren.
 function foForbMoteDialog() {
-    const p = foP, forum = foForumValbara(p), v = foUppf.mote || { forum: (forum[0] || {}).id || "", dagar: 14, omr: { fragor: true, sena: true, atg: true, risk: true, beslut: true } };
+    const p = foP, forum = foForumValbara(p), v = foUppf.mote || { forum: (forum[0] || {}).id || "", dagar: 14, omr: { fragor: true, sena: true, atg: true, risk: true, beslut: true, lev: true } };
     if (!forum.length) return status("Skapa ett mötesforum först, under Möten & protokoll.", true);
     const kr = (k, t) => '<label class="fo-kryss"><input type="checkbox" data-omr="' + k + '"' + (v.omr[k] ? " checked" : "") + '> ' + t + '</label>';
     modal("Förbered möte", "Sammanställs från frågor, åtgärder och beslut – inget registreras två gånger",
         '<div class="tva"><div class="falt"><label for="foFmFo">Mötesforum</label><select class="f" id="foFmFo">' + forum.map(f => '<option value="' + f.id + '"' + (f.id === v.forum ? " selected" : "") + '>' + esc(f.namn) + '</option>').join("") + '</select></div>' +
         '<div class="falt"><label for="foFmDagar">Blicka framåt (dagar)</label><input class="f" id="foFmDagar" type="number" min="1" value="' + v.dagar + '"></div></div>' +
         '<div class="falt"><label>Visa</label>' + kr("fragor", "Frågor markerade för mötet") + kr("sena", "Frågor med passerad svarstid") + kr("atg", "Åtgärder som är sena eller ska vara klara inom perioden") +
-        kr("risk", "Risker för tid och kostnad") + kr("beslut", "Ändrade beslut") + '</div>', [
+        kr("risk", "Risker för tid och kostnad") + kr("beslut", "Ändrade beslut") + kr("lev", "Leveranser i tidplanerna") + '</div>', [
         { txt: "Avbryt", fn: stangModal },
         { txt: "Visa sammanställning", primar: true, fn: () => {
             const omr = {}; document.querySelectorAll("[data-omr]").forEach(k => { omr[k.dataset.omr] = k.checked; });
@@ -1019,6 +1029,8 @@ function foForbereddMoteHtml(p, idag) {
     if (v.omr.atg) html += lista("Åtgärder att följa upp", atg, a => '<li data-atg="' + a.id + '"><span class="fo-agnr">Å-' + a.nr + '</span><span class="fo-agtext">' + esc(a.text) + '<small>' +
         esc(foPartText(p, a.ansvarig) || "–") + ' · ' + (a.senast < idag ? '<b class="rodtal">Klar senast ' + foDatumKort(a.senast) + '</b>' : "Klar senast " + foDatumKort(a.senast)) + '</small></span></li>');
     if (v.omr.risk) html += lista("Risker för tid och kostnad", risk, rf);
+    if (v.omr.lev !== false) html += lista("Leveranser i tidplanerna", foTpLeveranser(p, idag).filter(l => l.status !== "klar" && l.slut <= s && (!foUppf.disc || foTpAnsvDisc(p, l.rad.ansv) === foUppf.disc)).sort((a, b) => a.slut.localeCompare(b.slut)),
+        l => '<li data-tidplan="' + l.tp.id + '"><span class="fo-agnr"></span><span class="fo-agtext">' + esc(l.rad.namn) + '<small>' + esc(foTpAnsvText(p, l.rad.ansv) || "–") + ' · ' + foDatumKort(l.slut) + '</small></span><span class="fo-lage ' + FO_TP_LAGE[l.status].kl + '"><i></i>' + FO_TP_LAGE[l.status].namn + '</span></li>');
     if (v.omr.beslut) html += lista("Ändrade beslut", bes, b => '<li><span class="fo-agnr">' + esc(b.nr) + '</span><span class="fo-agtext">' + esc(b.text) + '<small>' + (b.satt === "kompletterar" ? "Kompletterar " : "Ersätter ") + esc((foBeslut(p, b.ersatter) || {}).nr || "") + " · " + esc(b.datum || "") + '</small></span></li>');
     return html;
 }

@@ -1273,3 +1273,90 @@ body.modul-forma .fo-nygrupp.fo-bara.dold { display: none; }
 .fo-nyttlista li { cursor: pointer; }
 .fo-forbtopp h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .fo-forbtopp h3 .fo-hoger { margin-left: auto; }
+
+/* ======================= Steg 7: tidplaner =======================
+   Tabell och Gantt använder Plans klasser (tp-*) så att formen är densamma. */
+.fo-tp-topp { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.fo-tp-val { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fo-tp-val select { min-width: 240px; font-weight: 600; }
+.fo-tp-namn { font-size: 16px; }
+.fo-tp-faststalld { --ck: var(--produktion-kant); background: var(--produktion-fyll); color: var(--produktion); }
+.fo-tp-revchip { --ck: var(--varning-kant); background: var(--varning-fyll); }
+.fo-tp-lagesknappar { display: flex; gap: 8px; }
+.fo-tp-verktyg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.fo-tp-verktyg .mknapp { height: 36px; }
+.fo-tp-verktyg .tp-markdel { width: 1px; height: 22px; background: var(--border-color); margin: 0 2px; }
+.fo-tp-verktyg .tp-nav button.vald { background: var(--text-main); color: var(--bg-card); }
+.fo-tp-hoger { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fo-tp-hoger select { min-width: 160px; }
+.tp-angra { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1.5px solid var(--border-color); border-radius: var(--r-s); background: var(--bg-card); color: var(--text-main); cursor: pointer; }
+.tp-angra:hover { background: var(--bg-alt); }
+.fo-tp-notis, .fo-tp-kons { margin: 0 0 10px; }
+.fo-tp-kons .mknapp { margin-left: 6px; }
+.fo-tp-yta { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.fo-tp-yta.med-bank { grid-template-columns: minmax(0, 1fr) 320px; }
+.fo-tp-yta .tp-yta { --tp-hh: var(--tp-rh); }
+.fo-tp-yta .tp-yta.z-dag, .fo-tp-yta .tp-yta.z-manad { --tp-hh: 52px; }
+.fo-tp-mil { color: var(--text-main); font-size: 11px; margin-right: 6px; flex: none; }
+.fo-tp-akt { color: var(--produktion); font-size: 9px; margin-left: 6px; flex: none; }
+.tp-rad .tp-namntext { overflow: hidden; text-overflow: ellipsis; }
+.tp-rad .tp-ihop { margin-right: 4px; font-size: 11px; }
+.tp-rad.markerad { background: var(--valdbg, color-mix(in srgb, var(--accent-pop) 8%, transparent)); }
+.tp-rad.markerad .tp-nr { color: var(--text-main); font-weight: 700; }
+.tp-nr { cursor: pointer; }
+.fo-tp-statuscell { padding: 0 6px; }
+.fo-tp-stat { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; color: var(--text-muted); white-space: nowrap; }
+.fo-tp-stat small { font-size: 11px; }
+.fo-tp-gstapel { top: 13px !important; height: 10px !important; border-width: 1.5px !important; background: var(--text-main) !important; border-color: var(--text-main) !important; cursor: default; }
+.fo-tp-varn { --tpc: var(--leverans); --tpc-fyll: var(--leverans-fyll); --tpc-kant: var(--leverans-kant); }
+.fo-tp-bas { z-index: 0; pointer-events: none; }
+.fo-tp-milstolpe { position: absolute; top: calc(var(--tp-rh) / 2 - 7px); width: 14px; height: 14px; margin-left: -7px; background: var(--text-main); transform: rotate(45deg); z-index: 1; cursor: grab; }
+.tp-las .fo-tp-milstolpe { cursor: default; }
+.fo-tp-prog { position: absolute; top: 4px; bottom: 4px; width: 2px; margin-left: -1px; background: var(--leverans); z-index: 2; pointer-events: none; }
+.fo-tp-hjalp { margin-top: 8px; }
+.fo-tp-andr { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); }
+.fo-tp-lageval { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+.fo-tp-fargval { display: flex; gap: 8px; }
+.fo-tp-farg input { position: absolute; opacity: 0; }
+.fo-tp-farg span { display: block; width: 26px; height: 26px; border-radius: 6px; background: var(--tpc-fyll, var(--produktion-fyll)); border: 2px solid var(--tpc-kant, var(--produktion-kant)); cursor: pointer; }
+.fo-tp-farg input:checked + span { border-color: var(--text-main); }
+.fo-tp-farg input:focus-visible + span { outline: 2px solid var(--accent-pop); outline-offset: 2px; }
+/* aktivitetsbanken */
+.fo-tp-bank { border: 1.5px solid var(--border-color); border-radius: var(--r-l); background: var(--bg-card); padding: 12px; display: flex; flex-direction: column; gap: 8px; position: sticky; top: 8px; max-height: calc(100vh - 110px); }
+.fo-tp-bankhuvud { display: flex; align-items: center; justify-content: space-between; }
+.fo-tp-bankfilter { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.fo-tp-bankfilter select { font-size: 13px; padding-left: 8px; padding-right: 22px; min-width: 0; }
+.fo-tp-banklista { overflow-y: auto; min-height: 120px; flex: 1; margin: 0 -4px; padding: 0 4px; }
+.fo-tp-bankgrupp { margin-bottom: 8px; }
+.fo-tp-bankkat { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); padding: 6px 0 4px; position: sticky; top: 0; background: var(--bg-card); }
+.fo-tp-bankkat .p4d-lank { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 12px; }
+.fo-tp-bankrad { display: flex; align-items: flex-start; gap: 8px; padding: 6px 4px; border-radius: var(--r-s); cursor: pointer; font-size: 13.5px; }
+.fo-tp-bankrad:hover { background: var(--bg-alt); }
+.fo-tp-bankrad input { margin-top: 3px; flex: none; }
+.fo-tp-bankrad > span { flex: 1; min-width: 0; }
+.fo-tp-bankrad small { display: block; font-size: 11.5px; color: var(--text-muted); }
+.fo-tp-banklagg { flex: none; width: 26px; height: 26px; border: 1.5px solid var(--border-color); border-radius: var(--r-s); background: var(--bg-card); color: var(--text-main); font-size: 16px; line-height: 1; cursor: pointer; }
+.fo-tp-banklagg:hover { background: var(--text-main); color: var(--bg-card); border-color: var(--text-main); }
+.fo-tp-bankfot .p4-btn { width: 100%; }
+.fo-tp-bankinfo { margin: 0; font-size: 12px; }
+@media (max-width: 1100px) { .fo-tp-yta.med-bank { grid-template-columns: 1fr; } .fo-tp-bank { position: static; max-height: 520px; } }
+.fo-tp-verktyg .tp-nav button { height: 34px; padding: 0 11px; }
+.fo-tp-verktyg .tp-nav button.vald { background: var(--text-main); color: var(--bg-card); }
+.fo-tp-hoger select, .fo-tp-val select { width: auto; }
+.fo-tp-hoger .fo-litefalt { margin: 0; }
+.fo-lage.fo-tp-ej { --cf: var(--bg-alt); --cc: var(--text-muted); --ck: var(--border-color); }
+.fo-tp-statuscell .fo-lage { max-width: 100%; }
+.fo-tp-verktyg .tp-nav button { height: 34px; padding: 0 11px; }
+.fo-tp-verktyg .tp-nav button.vald { background: var(--text-main); color: var(--bg-card); }
+.fo-tp-hoger select, .fo-tp-val select { width: auto; }
+.fo-tp-hoger .fo-litefalt { margin: 0; }
+.fo-lage.fo-tp-ej { --cf: var(--bg-alt); --cc: var(--text-muted); --ck: var(--border-color); }
+
+/* Säkerhetskopior i projektinställningarna */
+.fo-kopior { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+.fo-kopior td { padding: 6px 8px 6px 0; border-top: 1px solid var(--border-color); vertical-align: middle; }
+.fo-kopior tr:first-child td { border-top: 0; }
+.fo-kopior td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fo-kopia-knappar { text-align: right; white-space: nowrap; }
+.fo-kopia-knappar .p4d-lank + .p4d-lank { margin-left: 12px; }
+.fo-ejsparade { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-left: 3px solid var(--leverans); border-radius: var(--r-s); }

@@ -128,16 +128,26 @@ function foArbetsyta(p, personId, idag) {
         if (a.status !== "oppen" || !foAvisPersoner(p, [a.ansvarig]).includes(personId)) return;
         ut.push({ kat: "atgard", aid: a.id, nr: "Å-" + a.nr, text: a.text, senast: a.senast || "", forsenad: !!(a.senast && a.senast < idag), sistaDag: a.senast === idag });
     });
+    // Kommande leveranser i fastställda tidplaner (aktiva rader där personen eller hens disciplin är ansvarig).
+    if (typeof foTpLeveranser === "function") {
+        const omTva = new Date(idag + "T12:00:00"); omTva.setDate(omTva.getDate() + 14);
+        const grans = omTva.toISOString().slice(0, 10);
+        foTpLeveranser(p, idag).forEach(l => {
+            if (l.status === "klar" || !l.slut || l.slut > grans || !l.rad.ansv || !foAvisPersoner(p, [l.rad.ansv]).includes(personId)) return;
+            ut.push({ kat: "leverans", obj: { typ: "tidplan", id: l.tp.id }, nr: "", text: l.rad.namn, senast: l.slut, forsenad: l.slut < idag,
+                vad: l.tp.namn + (l.status === "passerad" ? " · passerat – bekräfta eller lämna prognos" : l.status === "risk" ? " · risk rapporterad" : "") });
+        });
+    }
     // Protokoll som personen ansvarar för och som behöver följas upp (protokollbevakning).
     if (typeof foBevakning === "function") (p.forum || []).filter(fo => fo.aktiv && fo.bevakning && fo.bevakning.ansvarig === personId).forEach(fo => {
         const b = foBevakning(p, fo, idag);
         if (b && b.lage === "folj") ut.push({ kat: "protokoll", obj: { typ: "forum", id: fo.id }, nr: fo.kort, text: fo.namn, vad: b.text });
     });
-    const vikt = x => (x.forsenad ? 0 : x.sistaDag ? 1 : x.bradskande ? 2 : x.snart ? 3 : 4) * 10 + ({ eskalera: 0, kvittera: 1, svara: 2, komplettera: 2, bedoma: 3, kontrollera: 4, atgard: 4, protokoll: 5 })[x.kat];
+    const vikt = x => (x.forsenad ? 0 : x.sistaDag ? 1 : x.bradskande ? 2 : x.snart ? 3 : 4) * 10 + ({ eskalera: 0, kvittera: 1, svara: 2, komplettera: 2, bedoma: 3, kontrollera: 4, atgard: 4, leverans: 4, protokoll: 5 })[x.kat];
     return ut.sort((a, b) => vikt(a) - vikt(b) || (a.senast || "9999").localeCompare(b.senast || "9999") || (+a.nr || 0) - (+b.nr || 0));
 }
 const FO_ARB_RUB = { svara: "Nya frågor att besvara", komplettera: "Begärda kompletteringar", bedoma: "Svar att bedöma", kvittera: "Att kvittera",
-    atgard: "Dina åtgärder", eskalera: "Försenade mer än några dagar – behöver uppmärksammas", kontrollera: "Åtgärder att kontrollera", protokoll: "Protokoll att följa upp" };
+    atgard: "Dina åtgärder", eskalera: "Försenade mer än några dagar – behöver uppmärksammas", kontrollera: "Åtgärder att kontrollera", leverans: "Kommande leveranser", protokoll: "Protokoll att följa upp" };
 // Inväntar: sådant personen väntar på från andra. Räknas fram ur registren, ingen egen bevakningslista.
 function foInvantar(p, personId, idag) {
     idag = idag || foIdag();

@@ -315,7 +315,8 @@ function foVyInst(yta) {
         : '<p class="hjalp" style="margin-top:0">Projektet sparas bara i den här webbläsaren. ' + (foMoln() && window.p4FormaMoln.farSkapa() ? "Flytta det till molnet för att dela det med andra och nå det från fler datorer." : foMoln() ? "Be huvudadmin om behörigheten Får skapa projekt för att kunna dela det i molnet." : "Logga in för att kunna dela projektet i molnet.") + '</p>' +
             (foMoln() && window.p4FormaMoln.farSkapa() ? '<button type="button" class="mknapp" id="foTillMoln">Flytta till molnet</button>' : "")) + '</div>';
     html += '<div class="dashblock"><h3>Data</h3><p class="hjalp" style="margin-top:0">Export av frågor och hela projektet finns under <button type="button" class="p4d-lank" data-fovy-lank="rapporter">Rapporter & export</button>.</p>' +
-        (admin || !moln ? '<div class="fo-farozon"><button type="button" class="fo-farlank" id="foTaBort">' + (moln ? "Ta bort projektet för alla" : "Ta bort projektet från den här datorn") + '</button></div>' : "") + '</div></div></div>';
+        (admin || !moln ? '<div class="fo-farozon"><button type="button" class="fo-farlank" id="foTaBort">' + (moln ? "Ta bort projektet för alla" : "Ta bort projektet från den här datorn") + '</button></div>' : "") + '</div>' +
+        foKopiorHtml(moln, leda, admin) + '</div></div>';
     html += foAvisInstHtml(p, leda);
     yta.innerHTML = html;
     foKopplaAvisInst(yta, p, leda);
@@ -332,19 +333,21 @@ function foVyInst(yta) {
     yta.querySelectorAll("[data-fovy-lank]").forEach(b => b.addEventListener("click", () => foGaTill(b.dataset.fovyLank)));
     const tb = document.getElementById("foTaBort");
     if (tb) tb.addEventListener("click", () => {
-        modal("Ta bort " + p.namn + "?", moln ? "Projektet tas bort för alla som har åtkomst. Det går inte att ångra." : "Projektet tas bort från den här webbläsaren.",
+        modal("Ta bort " + p.namn + "?", moln ? "Projektet tas bort för alla som har åtkomst. En sista säkerhetskopia sparas i molnet och kan återställas av Wimo." : "Projektet tas bort från den här webbläsaren.",
             '<p class="hjalp">Exportera projektet först om du vill spara en kopia. Skriv projektets namn för att bekräfta.</p><input class="f" id="foTbNamn" placeholder="' + esc(p.namn) + '">', [
             { txt: "Avbryt", fn: stangModal },
             { txt: "Ta bort", primar: true, fara: true, fn: async () => {
                 if (document.getElementById("foTbNamn").value.trim() !== p.namn) return status("Skriv projektets namn exakt för att ta bort det.", true);
                 stangModal();
                 const id = foPid;
+                if (moln && foKo.length) return status("Vänta tills dina ändringar är sparade i molnet innan du tar bort projektet.", true);
                 if (moln) { try { await window.p4FormaMoln.radera(id); } catch (e) { return status("Projektet kunde inte tas bort i molnet. Kontrollera att du är administratör och har nät.", true); } }
                 foTaBortLokalt(id);
                 foGaTill("projekt");
                 status("Projektet är borttaget.");
             } }]);
     });
+    foKopiorKoppla(yta, admin);
     const tm = document.getElementById("foTillMoln");
     if (tm) tm.addEventListener("click", async () => {
         tm.disabled = true;
@@ -453,6 +456,69 @@ function foVyProjekt(yta) {
         });
         inp.click();
     });
+}
+
+/* ======================= Säkerhetskopior ======================= */
+const FO_KOPIA_ORSAK = { dygn: "Daglig kopia", krympt: "Före en större minskning", manuell: "Manuell kopia",
+    "fore-rensaFragor": "Före arkivering av gamla frågor", "fore-aterstallning": "Före återställning", "fore-borttagning": "Före borttagning av projektet",
+    "fore-ersattPerson": "Före Ersätt person", "fore-tpErsatt": "Före ändring i tidplan", "fore-tpTaBort": "Före borttagning i tidplan", "fore-tpAvbrytRev": "Före avbruten revidering" };
+const foKopiaOrsak = (o) => FO_KOPIA_ORSAK[o] || (String(o || "").startsWith("fore-taBort") ? "Före borttagning" : "Före ändring");
+function foKopiaTid(ms) { const d = new Date(ms); return isNaN(d) ? "" : d.toLocaleString("sv-SE", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+function foKopiorHtml(moln, leda, admin) {
+    const ej = foEjSparade().filter(x => x.projekt === foPid);
+    let h = '<div class="dashblock"><h3>Säkerhetskopior</h3>';
+    if (!moln) h += '<p class="hjalp" style="margin:0">Projektet sparas bara på den här datorn. Exportera det regelbundet under Rapporter & export, eller flytta det till molnet för automatiska säkerhetskopior.</p>';
+    else {
+        const k = ((foMolnMeta && foMolnMeta.kopior) || []).slice().sort((a, b) => b.tid - a.tid);
+        h += '<p class="hjalp" style="margin-top:0">Molnet sparar en exakt kopia av projektet minst en gång per dygn och alltid före rensning och borttagningar. Kopiorna kan inte ändras eller tas bort. En kopia kan laddas ner och öppnas med Importera under Alla projekt.</p>';
+        h += k.length ? '<table class="fo-kopior"><tbody>' + k.slice(0, 12).map(x => '<tr><td>' + esc(foKopiaTid(x.tid)) + '</td><td>' + esc(foKopiaOrsak(x.orsak)) + '</td><td class="fo-kopia-knappar">' +
+            (leda ? '<button type="button" class="p4d-lank" data-fokopia-ner="' + esc(x.id) + '">Ladda ner</button>' : "") +
+            (admin ? '<button type="button" class="p4d-lank" data-fokopia-ater="' + esc(x.id) + '" data-tid="' + x.tid + '">Återställ</button>' : "") + '</td></tr>').join("") + '</tbody></table>' +
+            (k.length > 12 ? '<p class="hjalp" style="margin:6px 0 0">' + (k.length - 12) + ' äldre kopior finns också.</p>' : "")
+            : '<p class="hjalp">Ingen kopia ännu. Den första tas vid nästa ändring.</p>';
+        if (leda) h += '<button type="button" class="mknapp" id="foKopiaNu" style="margin-top:10px">Säkerhetskopiera nu</button>';
+    }
+    if (ej.length) h += '<div class="fo-ejsparade"><b>' + ej.length + (ej.length === 1 ? " ändring" : " ändringar") + ' kunde inte sparas</b><p class="hjalp" style="margin:4px 0 8px">Någon annan hann ändra samma sak först, eller så togs åtkomsten bort. Texten finns kvar här på datorn.</p>' +
+        '<button type="button" class="p4d-lank" id="foEjNer">Ladda ner</button> <button type="button" class="p4d-lank" id="foEjRensa">Rensa listan</button></div>';
+    return h + '</div>';
+}
+function foKopiorKoppla(yta, admin) {
+    const pid = foPid;
+    yta.querySelectorAll("[data-fokopia-ner]").forEach(b => b.addEventListener("click", async () => {
+        b.disabled = true;
+        try {
+            const k = await window.p4FormaMoln.kopia(pid, b.dataset.fokopiaNer);
+            if (!k || !k.data) throw new Error("saknas");
+            foLaddaNer(foFilnamn(k.namn || foP.namn) + "-kopia-" + k.id + ".json", JSON.stringify({ format: "wimo-forma", version: FO_VER, exporterad: foNu(), kopia: { id: k.id, rev: k.rev, orsak: k.orsak }, projekt: k.data }, null, 1), "application/json");
+        } catch (e) { console.warn(e); status("Kopian kunde inte hämtas. Kontrollera nätet.", true); }
+        b.disabled = false;
+    }));
+    yta.querySelectorAll("[data-fokopia-ater]").forEach(b => b.addEventListener("click", () => {
+        if (foKo.length) return status("Vänta tills dina ändringar är sparade i molnet innan du återställer.", true);
+        modal("Återställ projektet?", "Till kopian från " + foKopiaTid(+b.dataset.tid),
+            '<p class="hjalp">Projektet återställs för alla. Den nuvarande versionen sparas först som en ny kopia, så återställningen kan ångras. Skriv ÅTERSTÄLL för att bekräfta.</p><input class="f" id="foAterBekr" placeholder="ÅTERSTÄLL">', [
+            { txt: "Avbryt", fn: stangModal },
+            { txt: "Återställ", primar: true, fara: true, fn: async () => {
+                if (document.getElementById("foAterBekr").value.trim().toUpperCase() !== "ÅTERSTÄLL") return status("Skriv ÅTERSTÄLL för att bekräfta.", true);
+                stangModal();
+                try { await window.p4FormaMoln.aterstall(pid, b.dataset.fokopiaAter); status("Projektet är återställt. Den tidigare versionen finns kvar som kopia."); }
+                catch (e) { console.warn(e); status("Projektet kunde inte återställas. Kontrollera nätet och att du är administratör.", true); }
+            } }]);
+    }));
+    const nu = document.getElementById("foKopiaNu");
+    if (nu) nu.addEventListener("click", async () => {
+        if (foKo.length) return status("Vänta tills dina ändringar är sparade i molnet.", true);
+        nu.disabled = true;
+        try { await window.p4FormaMoln.kopieraNu(pid); status("En säkerhetskopia är sparad i molnet."); }
+        catch (e) { console.warn(e); status("Kopian kunde inte sparas. Försök igen om en stund.", true); }
+        nu.disabled = false;
+    });
+    const en = document.getElementById("foEjNer");
+    if (en) en.addEventListener("click", () => foLaddaNer(foFilnamn(foP.namn) + "-ej-sparade-" + foIdag() + ".json", JSON.stringify(foEjSparade().filter(x => x.projekt === pid), null, 1), "application/json"));
+    const er = document.getElementById("foEjRensa");
+    if (er) er.addEventListener("click", () => modal("Rensa listan?", "Ändringar som inte kunde sparas", '<p class="hjalp">Ladda ner listan först om du vill behålla texten.</p>', [
+        { txt: "Avbryt", fn: stangModal },
+        { txt: "Rensa", primar: true, fara: true, fn: () => { foSkrivLs(FO_LS_EJSPARADE, foEjSparade().filter(x => x.projekt !== pid)); stangModal(); foRita(); } }]));
 }
 
 /* ======================= Hjälp ======================= */
