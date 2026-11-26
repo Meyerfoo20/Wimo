@@ -572,7 +572,7 @@ body.modul-forma #p4Backup { display: none !important; }
   display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px 0 12px; margin-left: auto; border-radius: 999px;
   border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.fo-filterknapp::before { content: ""; width: 14px; height: 14px; background: currentColor;
+.fo-filterik { flex: none; width: 14px; height: 14px; background: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h18l-7 8v6l-4 2v-8z'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 5h18l-7 8v6l-4 2v-8z'/%3E%3C/svg%3E") center / contain no-repeat; }
 .fo-filterknapp:hover, .fo-filterknapp.oppen { border-color: var(--accent-main); }

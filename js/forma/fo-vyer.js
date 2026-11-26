@@ -159,7 +159,7 @@ function foVyFragor(yta) {
     const visaFler = foFilter.oppen || extraAktivt;
     html += '<div class="fo-verktygsrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foFSok" type="search" placeholder="Sök nummer eller text" value="' + esc(foFilter.sok) + '" data-behall></label>' +
         '<div class="fo-snabbrad">' + huvud.map(k => chip(k, namnet[k])).join("") + '</div>' +
-        '<button type="button" class="fo-filterknapp' + (visaFler ? " oppen" : "") + '" id="foFlerFilter" aria-expanded="' + !!visaFler + '">Filter' + (extraAktivt ? ' <span class="fo-filterprick" aria-label="filter är valda"></span>' : "") + '</button></div>';
+        '<button type="button" class="fo-filterknapp' + (visaFler ? " oppen" : "") + '" id="foFlerFilter" aria-expanded="' + !!visaFler + '"><span class="fo-filterik" aria-hidden="true"></span>Filter' + (extraAktivt ? ' <span class="fo-filterprick" aria-label="filter är valda"></span>' : "") + '</button></div>';
     html += '<div class="fo-filterrad' + (visaFler ? "" : " dold") + '" id="foFilterRad">' + (fler.length ? fler.map(k => chip(k, namnet[k])).join("") : "") +
         foDiscSelect("foFDisc", foFilter.disc, "Alla discipliner", ' aria-label="Disciplin"') +
         (p.indelningar.length ? foPlatsSelect("foFPlats", foFilter.plats, "Alla platser", ' aria-label="Plats"') : "") +
