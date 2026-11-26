@@ -5,9 +5,9 @@
    sin fyllning. Filen laddas sist så att den gäller överallt. */
 
 /* knappgruppen (Föregående / Denna vecka / Nästa) får ingen egen bakgrund */
-.p4-grupp { background: transparent; padding: 0; gap: 6px; }
+.p4-grupp { background: transparent; }
 
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button) {
   position: relative;
   isolation: isolate;
@@ -18,9 +18,9 @@
   background: linear-gradient(color-mix(in srgb, currentColor 8%, transparent), color-mix(in srgb, currentColor 8%, transparent)) left / 0 100% no-repeat !important;
   transition: background-size .5s cubic-bezier(.65, 0, .35, 1), color .15s;
 }
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button)::before,
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button)::after {
   content: "";
   position: absolute;
@@ -30,27 +30,27 @@
   pointer-events: none;
   transition: width .5s cubic-bezier(.65, 0, .35, 1), height .5s cubic-bezier(.65, 0, .35, 1);
 }
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button)::before {
   top: -1px; left: -1px;
   border-top-width: 2px; border-left-width: 2px;
   border-top-left-radius: var(--r-s);
 }
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button)::after {
   right: -1px; bottom: -1px;
   border-bottom-width: 2px; border-right-width: 2px;
   border-bottom-right-radius: var(--r-s);
 }
 /* hover, tangentbordsfokus och öppen filterpanel: hörnen växer, tonen glider in */
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button):is(:hover, :focus-visible, :focus-within, .oppen):not(:disabled) {
   background-size: 100% 100% !important;
   outline: none;
 }
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button):is(:hover, :focus-visible, :focus-within, .oppen):not(:disabled)::before,
-:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara), .parkiv:not(.projektrad .parkiv),
+:is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv:not(.projektrad .parkiv),
     .fo-minknapp:not(.pa), .fo-snabb:not(.vald), .fo-filterknapp, .p4-btn-ljus, .p4-konto, .p4-molnbanner button):is(:hover, :focus-visible, :focus-within, .oppen):not(:disabled)::after {
   width: 44%;
   height: 70%;
@@ -61,3 +61,14 @@
   :is(.navknapp, .mknapp, .parkiv, .fo-minknapp, .fo-snabb, .fo-filterknapp)::before,
   :is(.navknapp, .mknapp, .parkiv, .fo-minknapp, .fo-snabb, .fo-filterknapp)::after { display: none; }
 }
+
+/* veckopilarna på tavlan: bara pilar, tjockare streck */
+.p4-pilknapp { padding: 0 16px; }
+.p4-pil { width: 18px; height: 18px; flex: none; display: block; }
+
+/* veckoknapparna (← Denna vecka →): tonen syns alltid, bara hörnen animeras vid hover */
+.p4-grupp > .navknapp:not(.plan):not(.aktiv):not(.pa) {
+  background-size: 100% 100% !important;
+  transition: color .15s !important;
+}
+.p4-grupp:has(> #bakat) { gap: 10px; }
