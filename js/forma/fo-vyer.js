@@ -143,10 +143,10 @@ function foVyFragor(yta) {
     else lista.sort(sorter[foFilter.sort] || sorter.std);
 
     const kanPam = foKanLeda(p, jag) || foSuper(p, jag) || p.plId === jag || p.fragor.some(f => foArStallare(p, jag, f));
-    let html = foTopp(rub, (vy !== "klara" && kanPam ? '<button class="navknapp' + (foValjLage ? " pa" : "") + '" type="button" id="foValjKnapp" aria-pressed="' + foValjLage + '" title="Välj flera frågor och skicka en gemensam påminnelse">' + (foValjLage ? "Avsluta val" : "Påminn flera") + '</button>' : "") +
-        '<button class="navknapp" type="button" id="foAnpassaVy" title="Välj kolumner, ordning, gruppering och visning">Anpassa vy</button>' +
-        '<button class="navknapp" type="button" id="foExport" title="Öppnas i Excel">Exportera</button>' +
-        '<button class="navknapp" type="button" id="foSkrivUt" title="Skriv ut eller spara som PDF">Skriv ut / PDF</button>');
+    let html = foTopp(rub, (vy !== "klara" && kanPam ? '<button class="navknapp p4-tonknapp' + (foValjLage ? " pa" : "") + '" type="button" id="foValjKnapp" aria-pressed="' + foValjLage + '" title="Välj flera frågor och skicka en gemensam påminnelse">' + (foValjLage ? "Avsluta val" : "Påminn flera") + '</button>' : "") +
+        '<button class="navknapp p4-tonknapp" type="button" id="foAnpassaVy" title="Välj kolumner, ordning, gruppering och visning">Anpassa vy</button>' +
+        '<button class="navknapp p4-tonknapp" type="button" id="foExport" title="Öppnas i Excel">Exportera</button>' +
+        '<button class="navknapp p4-tonknapp" type="button" id="foSkrivUt" title="Skriv ut eller spara som PDF">Skriv ut / PDF</button>');
     if (vy !== "klara" && kan) html += foNyFragaHtml();
     else if (vy !== "klara" && !kan) html += '<div class="notis">Du har läsbehörighet i projektet och kan inte registrera frågor.</div>';
     const chip = (k, txt) => '<button type="button" class="fo-snabb' + (foFilter.snabb === k ? " vald" : "") + '" data-snabb="' + k + '" aria-pressed="' + (foFilter.snabb === k) + '">' +
