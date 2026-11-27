@@ -292,7 +292,7 @@ function foTaEmot(x) {
         status("Projektet sparades av en nyare version av Wimo. Uppdatera sidan.", true);
         return;
     }
-    foMolnMeta = { medlemmar: x.medlemmar, admins: x.admins, kopior: x.kopior || [], kopiaTid: x.kopiaTid || 0 };
+    foMolnMeta = { medlemmar: x.medlemmar, admins: x.admins, kopior: x.kopior || [], kopiaTid: x.kopiaTid || 0, foretag: x.foretag || "" };
     if (x.rev > foRev || !foP) {
         if (foKo.length) foRebase(x);
         else { foP = foLaga(x.data || foTomtProjekt(x.namn)); foRev = x.rev; foSparaLokalt(); }

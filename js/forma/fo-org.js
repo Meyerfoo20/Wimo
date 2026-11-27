@@ -370,9 +370,12 @@ function foMedlemHtml(admin) {
     const personer = window.p4FormaMoln.personer();
     const namn = (uid) => { const x = personer.find(y => y.uid === uid); const pp = foP.personer.find(y => y.uid === uid); return x ? (x.namn || x.epost) : pp ? foPersonNamn(foP, pp.id) : "Wimo-konto"; };
     const ej = personer.filter(x => !m.medlemmar.includes(x.uid));
+    // Företagets projekt: nya personer kommer bara in via inbjudan (de tar en Forma-plats).
+    const kanLagga = admin && !m.foretag;
     return '<ul class="fo-medlemmar">' + m.medlemmar.map(uid => '<li><span>' + esc(namn(uid)) + (m.admins.includes(uid) ? ' <span class="fo-chip">Administratör</span>' : "") + '</span>' +
         (admin && uid !== window.p4FormaMoln.uid() ? '<button type="button" class="fo-minknapp" data-tabortmedlem="' + uid + '">Ta bort</button>' : "") + '</li>').join("") + '</ul>' +
-        (admin ? (ej.length ? '<div class="fo-nyrad"><select class="f" id="foNyMedlem"><option value="">Välj person med Wimo-konto …</option>' + ej.map(x =>
+        (admin && !kanLagga ? '<p class="hjalp" style="margin:8px 0 0">Nya personer bjuds in under Kontakter. Varje person i företagets Forma-projekt tar en av företagets Forma-platser, även externa.</p>' : "") +
+        (kanLagga ? (ej.length ? '<div class="fo-nyrad"><select class="f" id="foNyMedlem"><option value="">Välj person med Wimo-konto …</option>' + ej.map(x =>
             '<option value="' + x.uid + '">' + esc((x.namn || "") + (x.epost ? " – " + x.epost : "")) + '</option>').join("") + '</select>' +
             '<button type="button" class="mknapp" id="foLaggMedlem">Ge åtkomst</button></div>' : '<p class="hjalp">Alla Wimo-konton du kan se har redan åtkomst.</p>') +
             '<p class="hjalp" style="margin:8px 0 0">Listan visar Wimo-konton i dina Plan-projekt. Den som får åtkomst läggs in som kontakt med rollen Projektör första gången hen öppnar projektet.</p>' : "");
@@ -549,7 +552,11 @@ async function foBjudIn(ids) {
         const x = foPerson(foP, id);
         if (!x || !x.epost) continue;
         try { await window.p4FormaMoln.inbjud(foPid, x.epost, utgar); }
-        catch (e) { status("Inbjudan till " + foPersonNamn(foP, id) + " kunde inte sparas. Bara projektets administratör kan bjuda in.", true); continue; }
+        catch (e) {
+            status(e && e.fullt ? (e.annat ? foPersonNamn(foP, id) + " har ingen Forma-plats i företaget. Be företagets administratör om en plats." : window.p4Foretag.fulltText(e))
+                : "Inbjudan till " + foPersonNamn(foP, id) + " kunde inte sparas. Bara projektets administratör kan bjuda in.", true);
+            continue;
+        }
         if (foGor("bjudIn", { id: id, utgar: utgar }, true)) klara.push(x);
     }
     foRita();

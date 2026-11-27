@@ -15,10 +15,23 @@ let foFlik = { atg: "mina", org: "personer", mote: "", beslut: "logg", rapport: 
 
 function foModulAktiv() { return document.body.classList.contains("modul-forma"); }
 
-// Just nu får bara huvudadmin använda Forma och byta modul. Alla andra har bara Plan.
-function foFarForma() { return !!(window.p4FormaMoln && window.p4FormaMoln.redo() && window.p4FormaMoln.arAdmin()); }
+// Forma är öppet för huvudadmin och för konton i ett företag med modulen Forma.
+// Ett företag utan Plan har bara Forma: då går det inte att byta modul.
+function foFarForma() {
+    const m = window.p4FormaMoln;
+    return !!(m && m.redo() && (m.farForma ? m.farForma() : m.arAdmin()));
+}
+function foFarPlan() { return !window.p4Foretag || window.p4Foretag.far("plan"); }
 function foUppdateraBehorighet() {
-    const far = foFarForma();
+    const far = foFarForma(), plan = foFarPlan();
+    if (far && !plan) {
+        // bara Forma: alltid Forma, ingen modulväxlare
+        document.body.classList.remove("fo-kan-byta");
+        document.body.classList.add("fo-bara-forma");
+        if (!foModulAktiv()) foVaxlaModul("forma", true);
+        return far;
+    }
+    document.body.classList.remove("fo-bara-forma");
     document.body.classList.toggle("fo-kan-byta", far);
     const brand = document.getElementById("p4Brand");
     if (brand) {
@@ -399,6 +412,12 @@ window.addEventListener("wimo-konto", () => {
     if (redo) foStartModul = null;
     if (far && start === "forma" && !foModulAktiv()) foVaxlaModul("forma", true);
     if (!far && location.hash.startsWith("#forma")) history.replaceState(null, "", location.pathname + location.search);
+});
+// Företagets moduler kan ändras i portalen (t.ex. Forma läggs till): uppdatera direkt.
+window.addEventListener("wimo-foretag", () => {
+    const far = foUppdateraBehorighet();
+    if (far && !foFarPlan() && !foModulAktiv()) foVaxlaModul("forma", true);
+    if (typeof foRita === "function" && foModulAktiv()) foRita();
 });
 
 // Färga nya avatarer var de än ritas (listor, panel, klockan, dialoger).

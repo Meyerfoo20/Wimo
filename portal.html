@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wimo · Företagsportal</title>
+  <meta name="robots" content="noindex">
+  <script>try { if (localStorage.getItem("wimo-tema") === "mork") document.documentElement.setAttribute("data-tema", "mork"); } catch (e) { }</script>
+  <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png?v=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="css/bas.css?v=20261126o">
+  <link rel="stylesheet" href="css/skal.css?v=20261126o">
+  <link rel="stylesheet" href="css/konto.css?v=20261126o">
+  <link rel="stylesheet" href="css/tema.css?v=20261126o">
+  <link rel="stylesheet" href="css/horn.css?v=20261126o">
+  <link rel="stylesheet" href="css/portal.css?v=20261126o">
+</head>
+<body class="po-body">
+  <header class="po-topp">
+    <a class="po-logga" href="konto.html" title="Till Wimo"><img src="img/wimo.png" alt="Wimo" height="26"></a>
+    <span class="po-titel">Företagsportal</span>
+    <span class="po-jag" id="poJag"></span>
+    <a class="navknapp" href="konto.html">Till Wimo</a>
+  </header>
+  <main class="po-sida" id="poSida">
+    <p class="hjalp">Laddar…</p>
+  </main>
+  <div class="po-dialog dold" id="poDialog" role="dialog" aria-modal="true" aria-labelledby="poDialogRubrik">
+    <div class="po-dialog-ruta">
+      <h2 id="poDialogRubrik"></h2>
+      <div id="poDialogKropp"></div>
+      <div class="po-dialog-knappar" id="poDialogKnappar"></div>
+    </div>
+  </div>
+  <div class="po-status dold" id="poStatus" role="status"></div>
+  <script src="js/konto/firebase-config.js?v=20261126o"></script>
+  <script src="js/portal.js?v=20261126o"></script>
+</body>
+</html>

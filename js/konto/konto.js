@@ -126,6 +126,12 @@
             Object.keys(egna).forEach((tid) => { if (egna[tid] === "ingen") ingen[tid] = "ingen"; });
             return { roll: "las", tavlor: ingen };
         }
+        // Företagets projekt: utan Plan-plats, eller när företaget är pausat, går det bara att läsa.
+        if (m && behorighet.foretag && foretag && (!harPlanPlats() || !foretagAktivt() || !foretagHar("plan"))) {
+            const egna = (m.tavlaBeh && m.tavlaBeh[anvandare.uid]) || {}, ingen = {};
+            Object.keys(egna).forEach((tid) => { if (egna[tid] === "ingen") ingen[tid] = "ingen"; });
+            return { roll: "las", tavlor: ingen };
+        }
         if (m) return { roll: m.projektAdmin.includes(anvandare.uid) ? "admin" : m.lasare.includes(anvandare.uid) ? "las" : "red",
             tavlor: (m.tavlaBeh && m.tavlaBeh[anvandare.uid]) || {} };
         return behCache[pid] || { roll: "red", tavlor: {} };
@@ -165,10 +171,12 @@
     const anvDoc = () => fb.fs.doc(fb.db, "anvandare", anvandare.uid);
     // Projekten är gemensamma: projekt/{id} med en lista medlemmar (uid). Admin ser alla,
     // övriga bara de projekt de är medlemmar i.
-    const projektSamling = () => fb.fs.collection(fb.db, "projekt");
+    // Ett konto som hör till ett företag har sina Plan-projekt i fprojekt/ (företagets egen samling).
+    const projRot = () => (behorighet && behorighet.foretag) ? "fprojekt" : "projekt";
+    const projektSamling = () => fb.fs.collection(fb.db, projRot());
     const projektFraga = () => arAdmin() ? projektSamling()
         : fb.fs.query(projektSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
-    const projektDoc = (id) => fb.fs.doc(fb.db, "projekt", id);
+    const projektDoc = (id) => fb.fs.doc(fb.db, projRot(), id);
     const gamlaProjekt = () => fb.fs.collection(fb.db, "anvandare", anvandare.uid, "projekt");   // före medlemskap
     // Projektkoder: projektet har fältet kod och koder/{kod} pekar tillbaka på projektet.
     // Den som skapar konto med koden ansöker i projekt/{id}/ansokningar/{uid}; projektadmin godkänner.
@@ -182,7 +190,7 @@
     const rensaKod = (k) => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     const kodDoc = (k) => fb.fs.doc(fb.db, "koder", k);
     const ansokDoc = (pid, uid) => fb.fs.doc(fb.db, "projekt", pid, "ansokningar", uid);
-    const personDoc = (pid, uid) => fb.fs.doc(fb.db, "projekt", pid, "personer", uid);
+    const personDoc = (pid, uid) => fb.fs.doc(fb.db, projRot(), pid, "personer", uid);
     const projektMeta = new Map();   // id → { namn, arkiverad, medlemmar, lasare, projektAdmin, tavlaBeh, tavlor }
     function metaFran(x) {
         let tavlor = [];
@@ -250,16 +258,17 @@
     const arTpNyckel = (key) => key.indexOf(TPN) === 0;
     const nyckelFor = (coll, id) => coll === "delar" ? id : coll === "dagbok" ? DBN + id : coll === "tidplan" ? TPN + id : coll + "/" + id;
     function delRef(pid, key) {
-        if (arDbNyckel(key)) return fb.fs.doc(fb.db, "projekt", pid, "dagbok", key.slice(DBN.length));
-        if (arTpNyckel(key)) return fb.fs.doc(fb.db, "projekt", pid, "tidplan", key.slice(TPN.length));
-        if (key.indexOf("/") < 0) return fb.fs.doc(fb.db, "projekt", pid, "delar", key);
+        const r = projRot();
+        if (arDbNyckel(key)) return fb.fs.doc(fb.db, r, pid, "dagbok", key.slice(DBN.length));
+        if (arTpNyckel(key)) return fb.fs.doc(fb.db, r, pid, "tidplan", key.slice(TPN.length));
+        if (key.indexOf("/") < 0) return fb.fs.doc(fb.db, r, pid, "delar", key);
         const i = key.indexOf("/");
-        return fb.fs.doc(fb.db, "projekt", pid, "tavlor", key.slice(0, i), "poster", key.slice(i + 1));
+        return fb.fs.doc(fb.db, r, pid, "tavlor", key.slice(0, i), "poster", key.slice(i + 1));
     }
-    const delSamling = (pid, coll) => coll === "delar" ? fb.fs.collection(fb.db, "projekt", pid, "delar")
-        : coll === "dagbok" ? fb.fs.collection(fb.db, "projekt", pid, "dagbok")
-        : coll === "tidplan" ? fb.fs.collection(fb.db, "projekt", pid, "tidplan")
-        : fb.fs.collection(fb.db, "projekt", pid, "tavlor", coll, "poster");
+    const delSamling = (pid, coll) => coll === "delar" ? fb.fs.collection(fb.db, projRot(), pid, "delar")
+        : coll === "dagbok" ? fb.fs.collection(fb.db, projRot(), pid, "dagbok")
+        : coll === "tidplan" ? fb.fs.collection(fb.db, projRot(), pid, "tidplan")
+        : fb.fs.collection(fb.db, projRot(), pid, "tavlor", coll, "poster");
     const kopiaDoc = (pid) => fb.fs.doc(fb.db, "projektkopior", pid);
     const msAv = (t) => t && typeof t.toMillis === "function" ? t.toMillis() : 0;
 
@@ -890,7 +899,13 @@
         const skriv = (bt, o) => bt.set(delRef(pid, o.key), Object.assign({ rev: o.rev, andrad: fb.fs.serverTimestamp() }, o.falt));
         for (let i = 0; i < ops.length || (ny && i === 0); i += 400) {
             const del = ops.slice(i, i + 400), bt = fb.fs.writeBatch(fb.db);
-            if (ny && i === 0) {
+            if (ny && i === 0 && behorighet.foretag) {
+                if (!foretag) throw new Error("Företaget är inte laddat än");
+                taPlanPlats(bt, [anvandare.uid]);
+                bt.set(projektDoc(pid), { namn: p.projekt, arkiverad: !!p.arkiverad, version: 2, enhet: ENHET,
+                    tavlor: p.tavlor.map((t) => ({ id: t.id, namn: t.namn || "Tavla" })), foretag: behorighet.foretag,
+                    medlemmar: [anvandare.uid], lasare: [], tavlaBeh: {}, projektAdmin: [anvandare.uid], andrad: fb.fs.serverTimestamp() });
+            } else if (ny && i === 0) {
                 const kod = nyKod();
                 bt.set(projektDoc(pid), { namn: p.projekt, arkiverad: !!p.arkiverad, version: 2, enhet: ENHET,
                     tavlor: p.tavlor.map((t) => ({ id: t.id, namn: t.namn || "Tavla" })),
@@ -1436,7 +1451,8 @@
     }
 
     // Har användaren något att arbeta i? Admin alltid; andra bara med minst ett projekt.
-    function harTillgang() { return arAdmin() || Object.keys(moln.delar).length + Object.keys(moln.v1).length > 0; }
+    // Ett företag utan Plan (bara Forma) har alltid tillgång: appen öppnar Forma.
+    function harTillgang() { return arAdmin() || (behorighet.foretag && foretag && !foretagHar("plan")) || Object.keys(moln.delar).length + Object.keys(moln.v1).length > 0; }
     function kontrolleraTillgang() {
         if (!appStartad || !synkKlar) return;
         if (!harTillgang()) visaVy("vantar");
@@ -1642,6 +1658,7 @@
         if (!sida) return;
         try {
             sida.innerHTML = anvandare ? kontosidaHtml() : utanKontoHtml();
+            ritaForetagskort();
             ritaSynkkort();
             ritaAnsokningar();
             ritaAdmin();
@@ -1674,24 +1691,26 @@
                   " · konto skapat " + esc(datumText(anvandare.metadata && anvandare.metadata.creationTime)) +
                   (arAdmin() ? ' · <span class="p4-ks-tagg admin">Huvudadmin</span>' : "") + "</p>" +
               "</div>" +
-              '<button type="button" class="navknapp" data-ks="tillbaka">' + (document.body.classList.contains("modul-forma") ? "← Till Forma" : "← Till tavlan") + '</button>' +
+              '<div class="p4-ks-toppknappar">' + (arAdmin() ? '<a class="navknapp" href="portal.html">Företagsportal</a>' : "") +
+              '<button type="button" class="navknapp" data-ks="tillbaka">' + (document.body.classList.contains("modul-forma") ? "← Till Forma" : "← Till tavlan") + '</button></div>' +
             "</div>" +
 
             '<div class="p4-ks-siffror" id="ksSiffror"></div>' +
 
+            '<section class="p4-ks-kort p4-ks-projekt dold" id="ksForetag"></section>' +
             '<section class="p4-ks-kort p4-ks-projekt" id="ksSynk"></section>' +
             '<section class="p4-ks-kort p4-ks-projekt dold" id="ksAnsok"></section>' +
             '<section class="p4-ks-kort p4-ks-projekt dold" id="ksAdmin"></section>' +
             '<section class="p4-ks-kort dold" id="ksForslag"></section>' +
             '<section class="p4-ks-kort dold" id="ksKorg"></section>' +
 
-            '<div class="p4-ks-rutnat">' +
+            '<div class="p4-ks-rutnat' + (behorighet.foretag ? " tva" : "") + '">' +
 
               '<section class="p4-ks-kort">' +
                 "<h2>Profil</h2>" +
                 '<p class="hjalp">Namnet visas i kontoikonen. Det syns inte för någon annan.</p>' +
                 '<div class="falt"><label for="ksNamn">Namn</label><input class="f" id="ksNamn" value="' + esc(namn) + '" placeholder="Förnamn Efternamn" autocomplete="name"></div>' +
-                '<div class="falt"><label>E-post</label><input class="f" value="' + esc(anvandare.email || "") + '" disabled></div>' +
+                '<div class="falt"><label>E-post</label><div class="p4-ks-varde">' + esc(anvandare.email || "") + '</div></div>' +
                 '<div class="notis dold" id="ksNamnSvar"></div>' +
                 '<div class="p4-ks-knappar"><button type="button" class="mknapp primar" data-ks="namn">Spara namn</button></div>' +
               "</section>" +
@@ -1704,18 +1723,18 @@
                     '<div class="falt"><label for="ksLosenNytt2">Upprepa nytt lösenord</label><input class="f" id="ksLosenNytt2" type="password" autocomplete="new-password"></div>' +
                     '<div class="notis dold" id="ksLosenSvar"></div>' +
                     '<div class="p4-ks-knappar"><button type="button" class="mknapp primar" data-ks="losen">Byt lösenord</button>' +
-                    '<button type="button" class="p4-konto-lank" data-ks="aterstall">Skicka en länk i stället</button></div>'
+                    '<button type="button" class="mknapp" data-ks="aterstall" title="Få en länk på e-post för att välja nytt lösenord i stället">Skicka länk</button></div>'
                   : '<p class="hjalp">Du loggar in med Google, så lösenordet hanteras av ditt Google-konto.</p>' +
                     '<div class="p4-ks-knappar"><a class="mknapp" href="https://myaccount.google.com/security" target="_blank" rel="noopener">Öppna Google-kontot</a></div>') +
               "</section>" +
 
-              '<section class="p4-ks-kort p4-ks-planbara">' +
+              (behorighet.foretag ? "" : '<section class="p4-ks-kort p4-ks-planbara">' +
                 "<h2>Gå med i ett projekt</h2>" +
                 '<p class="hjalp">Har du fått en projektkod? Skriv in den här så skickas en ansökan till projektadmin för projektet.</p>' +
                 '<div class="falt"><label for="ksKod">Projektkod</label><div class="p4-ks-gamed"><input class="f p4-kodfalt" id="ksKod" autocomplete="off" spellcheck="false" maxlength="12" placeholder="T.ex. K7M4QX">' +
                 '<button type="button" class="mknapp primar" data-ks="gamed">Skicka ansökan</button></div></div>' +
                 '<div class="notis dold" id="ksKodSvar"></div>' +
-              "</section>" +
+              "</section>") +
 
               '<section class="p4-ks-kort">' +
                 "<h2>Den här datorn</h2>" +
@@ -1727,23 +1746,23 @@
                 '<p class="hjalp">Ändringar sparas först här och laddas upp till molnet inom någon sekund, och andras ändringar kommer in av sig själva. Utan nät sparas de här tills nätet är tillbaka.</p>' +
               "</section>" +
 
-              '<section class="p4-ks-kort">' +
+              '<section class="p4-ks-kort p4-ks-utgang">' +
                 "<h2>Logga ut</h2>" +
                 '<p class="hjalp">Projekten tas bort från den här datorn när du loggar ut, men finns kvar i molnet. ' +
                   "Logga alltid ut på en delad dator, till exempel i bodan.</p>" +
                 '<div class="p4-ks-knappar"><button type="button" class="mknapp" data-ks="loggaut">Logga ut</button></div>' +
-              "</section>" +
-
-              '<section class="p4-ks-kort p4-ks-fara">' +
-                "<h2>Radera konto</h2>" +
-                '<p class="hjalp">Ditt konto tas bort för gott. Projekten du är med i finns kvar för de andra medlemmarna. Det går inte att ångra.</p>' +
-                '<div class="p4-ks-knappar"><button type="button" class="mknapp fara" data-ks="radera">Radera mitt konto…</button></div>' +
+                '<div class="p4-ks-fara">' +
+                  "<h3>Radera konto</h3>" +
+                  '<p class="hjalp">Ditt konto tas bort för gott. Projekten du är med i finns kvar för de andra medlemmarna. Det går inte att ångra.</p>' +
+                  '<div class="p4-ks-knappar"><button type="button" class="mknapp fara" data-ks="radera">Radera mitt konto…</button></div>' +
+                "</div>" +
               "</section>" +
             "</div>";
     }
 
     // Projektkoden i tabellen: huvudadmin ser den för alla projekt, projektadmin för sina.
     function kodText(id) {
+        if (behorighet.foretag) return "";
         const m = projektMeta.get(id);
         if (!m || !arProjektAdmin(id)) return "";
         return m.kod
@@ -2059,7 +2078,9 @@
     let ansokningar = [];        // [{ uid, pid, namn, epost, kod, tid }] som jag får godkänna
     const arAdmin = () => behorighet.roll === "admin" && behorighet.status === "godkand";
     // Huvudadmin, eller en godkänd användare som fått "Får skapa projekt" av huvudadmin.
-    const kanSkapaProjekt = () => arAdmin() || (behorighet.status === "godkand" && behorighet.skapa === true);
+    // I ett företag: den som har (eller kan få) en Plan-plats, om företaget har Plan och inte är pausat.
+    const kanSkapaProjekt = () => behorighet.foretag ? foretagKanPlan()
+        : arAdmin() || (behorighet.status === "godkand" && behorighet.skapa === true);
     const tidAv = (v) => v && typeof v.toDate === "function" ? v.toDate()
         : typeof v === "string" && !isNaN(Date.parse(v)) ? new Date(v) : null;
 
@@ -2080,10 +2101,15 @@
 
     function hanteraBehorighet(d) {
         setTimeout(() => window.dispatchEvent(new CustomEvent("wimo-konto", { detail: { inloggad: !!anvandare } })), 0);
-        const forraRoll = behorighet.roll;
+        const forraRoll = behorighet.roll, forraForetag = behorighet.foretag || "";
         behorighet = { roll: (d && d.roll) || "user", status: (d && d.status) || "vantar", skapa: !!(d && d.skapa === true),
-            ansokan: (d && d.ansokan) || "", ansokanNamn: (d && d.ansokanNamn) || "" };
-        skrivJson(BEHNYCKEL, { uid: anvandare.uid, roll: behorighet.roll, status: behorighet.status, skapa: behorighet.skapa });
+            ansokan: (d && d.ansokan) || "", ansokanNamn: (d && d.ansokanNamn) || "",
+            foretag: (d && typeof d.foretag === "string") ? d.foretag : "" };
+        skrivJson(BEHNYCKEL, { uid: anvandare.uid, roll: behorighet.roll, status: behorighet.status, skapa: behorighet.skapa, foretag: behorighet.foretag });
+        if (behorighet.foretag !== forraForetag) startaForetag();
+        if (!behorighet.foretag && !inbjudanLyss) lyssnaForetagsinbjudan();
+        // Kontot har gått med i ett företag (t.ex. på en annan dator): börja om med företagets projekt.
+        if (appStartad && behorighet.foretag !== forraForetag) return bytSamling();
         if (behorighet.status === "godkand") {
             // Ny roll ger andra projekt (admin ser alla): synka om från början.
             if (appStartad && forraRoll !== behorighet.roll) stoppaApp();
@@ -2098,6 +2124,9 @@
     }
 
     function startaApp() {
+        // Den lokala kopian hör till en annan samling (konto som gått med i ett företag): töm och börja om.
+        if (moln.uid === anvandare.uid && (moln.rot || "projekt") !== projRot()) return bytSamling();
+        if (moln.rot !== projRot()) { moln.rot = projRot(); skrivJson(MOLNNYCKEL, moln); }
         appStartad = true;
         setTimeout(() => window.dispatchEvent(new CustomEvent("wimo-konto", { detail: { inloggad: true } })), 0);
         // Samma konto som senast: visa den lokala kopian direkt och synka i bakgrunden.
@@ -2151,6 +2180,28 @@
                 }).catch(() => { });
             }
         }
+        // projektkoder gäller inte företagens konton eller den som har en inbjudan till ett företag
+        const kodForm = $("p4VantarKodForm");
+        if (kodForm) kodForm.classList.toggle("dold", !!(behorighet.foretag || (foretagsInbjudan && !nekad)));
+        if (behorighet.foretag && foretag && ingaProjekt) {
+            // företagets konto utan projekt (än)
+            $("p4VantarSkapa").classList.toggle("dold", !kanSkapaProjekt());
+            $("p4VantarRubrik").textContent = "Välkommen till " + (foretag.namn || "Wimo") + (anvandare.displayName ? ", " + anvandare.displayName.split(" ")[0] : "");
+            $("p4VantarText").textContent = foretag.status === "pausad"
+                ? "Företagets Wimo är pausat. Kontakta Wimo för att öppna det igen."
+                : "Du är inte med i något projekt än. När en projektadmin lägger till dig öppnas projektet här av sig självt." +
+                  (kanSkapaProjekt() ? " Du kan också skapa ett eget projekt." : "");
+            $("p4Vantar").classList.remove("nekad");
+            return;
+        }
+        if (!nekad && !behorighet.foretag && foretagsInbjudan) {
+            $("p4VantarSkapa").classList.add("dold");
+            $("p4VantarRubrik").textContent = "Du är inbjuden till " + foretagsInbjudan.namn;
+            $("p4VantarText").textContent = "Tryck på Gå med för att öppna företagets Wimo.";
+            $("p4Vantar").classList.remove("nekad");
+            visaForetagsinbjudan();
+            return;
+        }
         const sokt = pnamn && !nekad ? (ansokanFinns
             ? " Du har ansökt om att gå med i " + pnamn + ". Projektadmin för " + pnamn + " godkänner dig."
             : " Din ansökan till " + pnamn + " är avslutad utan att du lagts till. Fråga projektadmin, eller skriv in en ny kod nedan.") : "";
@@ -2176,6 +2227,281 @@
             : "En administratör behöver godkänna " + (anvandare.email || "ditt konto") + " innan du kommer åt Wimo. Sidan öppnas av sig själv så fort det är klart — du behöver inte ladda om.";
         $("p4Vantar").classList.toggle("nekad", nekad);
     }
+
+
+    // ---------- företag (kunder) ----------
+    // foretag/{id}: paket, moduler, gränser och status sätts av Wimo i portalen. Företagets egna admins
+    // bjuder in personer och delar ut platser. Wimo är aldrig medlem och kommer inte åt företagets data.
+    //   platserPlan  uid för alla som får redigera i Plan (projektadmin och redigerare). Läsare är gratis.
+    //   platserForma e-post för alla som är med i företagets Forma-projekt, även externa.
+    let foretag = null;              // företagets dokument (för konton i ett företag)
+    let foretagLyss = null;
+    let foretagPersoner = [];        // [{ uid, namn, epost }] företagets namnlista
+    let foretagPersLyss = null;
+    let foretagsInbjudan = null;     // { id, namn, admin } giltig inbjudan för ett konto utan företag
+    let inbjudanLyss = null;
+    const foretagRef = (id) => fb.fs.doc(fb.db, "foretag", id);
+    const FORETAG_PAKET = { liten: { namn: "Liten", plan: 3, forma: 10 }, mellan: { namn: "Mellan", plan: 8, forma: 30 },
+        stor: { namn: "Stor", plan: 12, forma: 50 }, eget: { namn: "Eget" } };
+    const arForetagsAdmin = () => !!(foretag && anvandare && (foretag.admins || []).includes(anvandare.uid));
+    const foretagAktivt = () => !!(foretag && foretag.status !== "pausad");
+    const foretagHar = (modul) => !!(foretag && (foretag.moduler || []).includes(modul));
+    const harPlanPlats = (uid) => !!(foretag && (foretag.platserPlan || []).includes(uid || (anvandare && anvandare.uid)));
+    const harFormaPlats = (epost) => !!(foretag && (foretag.platserForma || []).includes(String(epost || minEpost()).toLowerCase()));
+    const ledigaPlan = () => foretag ? Math.max(0, (foretag.gransPlan || 0) - (foretag.platserPlan || []).length) : 0;
+    const ledigaForma = () => foretag ? Math.max(0, (foretag.gransForma || 0) - (foretag.platserForma || []).length) : 0;
+    function foretagKanPlan() {
+        return !!(foretag && foretagAktivt() && foretagHar("plan") && (harPlanPlats() || ledigaPlan() > 0));
+    }
+
+    function stoppaForetag() {
+        if (foretagLyss) { foretagLyss(); foretagLyss = null; }
+        if (foretagPersLyss) { foretagPersLyss(); foretagPersLyss = null; }
+        if (inbjudanLyss) { inbjudanLyss(); inbjudanLyss = null; }
+        foretag = null; foretagPersoner = []; foretagsInbjudan = null; inbjudanVisad = "";
+        document.body.classList.remove("p4-foretag", "p4-foretag-pausat");
+    }
+    function startaForetag() {
+        if (foretagLyss) { foretagLyss(); foretagLyss = null; }
+        if (foretagPersLyss) { foretagPersLyss(); foretagPersLyss = null; }
+        foretag = null; foretagPersoner = [];
+        if (!anvandare || !behorighet.foretag || !fb) return;
+        const fid = behorighet.foretag;
+        foretagLyss = fb.fs.onSnapshot(foretagRef(fid), (d) => {
+            const forra = foretag;
+            foretag = d.exists() ? Object.assign({ id: d.id }, d.data()) : null;
+            document.body.classList.toggle("p4-foretag", !!foretag);
+            document.body.classList.toggle("p4-foretag-pausat", !!foretag && foretag.status === "pausad");
+            window.dispatchEvent(new CustomEvent("wimo-foretag", { detail: { foretag: window.p4Foretag.info() } }));
+            if (!forra && foretag) skrivForetagsstat();
+            if (forra && foretag && forra.status !== "pausad" && foretag.status === "pausad") status("Företagets Wimo är pausat. Kontakta Wimo.", true);
+            kontrolleraTillgang();
+            try { markeraLasvy(); } catch (e) { }
+            if (document.body.classList.contains("p4-vantar")) ritaVantesida();
+            if (document.body.classList.contains("p4-kontovy")) ritaForetagskort();
+            uppdateraUI();
+        }, (e) => console.warn("Wimo företag:", e));
+        foretagPersLyss = fb.fs.onSnapshot(fb.fs.collection(fb.db, "foretag", fid, "personer"), (snap) => {
+            foretagPersoner = snap.docs.map((d) => Object.assign({ uid: d.id }, d.data()));
+            samlaPersoner();
+            if (document.body.classList.contains("p4-kontovy")) ritaForetagskort();
+        }, (e) => console.warn("Wimo företagets personer:", e));
+        // min egen rad i namnlistan
+        fb.fs.setDoc(fb.fs.doc(fb.db, "foretag", fid, "personer", anvandare.uid),
+            { namn: String(anvandare.displayName || "").slice(0, 200), epost: minEpost() }).catch(() => { });
+    }
+
+    // Nyckeltal till portalen (inget innehåll): antal projekt och personer, senast aktiv. Högst var sjätte timme.
+    async function skrivForetagsstat() {
+        if (!foretag || !anvandare) return;
+        const st = foretag.stat || {};
+        if (Date.now() - (st.senast || 0) < 6 * 3600 * 1000) return;
+        try {
+            await fb.fs.updateDoc(foretagRef(foretag.id), { stat: Object.assign({}, st, {
+                senast: Date.now(), projektPlan: projektMeta.size || st.projektPlan || 0, personer: (foretag.medlemmar || []).length }), andrad: fb.fs.serverTimestamp() });
+        } catch (e) { console.warn("Wimo företagsstat:", e); }
+    }
+
+    // Ta en plats (om den inte redan finns) i samma skrivning som det som kräver den. Kastar om paketet är fullt.
+    function taPlanPlats(bt, uids) {
+        const saknas = [...new Set(uids)].filter((u) => !harPlanPlats(u));
+        if (!saknas.length) return;
+        if (saknas.length > ledigaPlan()) throw { fullt: "plan", behov: saknas.length, lediga: ledigaPlan() };
+        bt.update(foretagRef(foretag.id), { platserPlan: fb.fs.arrayUnion(...saknas), andrad: fb.fs.serverTimestamp() });
+    }
+    function taFormaPlats(bt, epostLista) {
+        const saknas = [...new Set(epostLista.map((e) => String(e || "").toLowerCase()).filter(Boolean))].filter((e) => !harFormaPlats(e));
+        if (!saknas.length) return;
+        if (saknas.length > ledigaForma()) throw { fullt: "forma", behov: saknas.length, lediga: ledigaForma() };
+        bt.update(foretagRef(foretag.id), { platserForma: fb.fs.arrayUnion(...saknas), andrad: fb.fs.serverTimestamp() });
+    }
+    const fulltText = (e) => e && e.fullt === "plan"
+        ? "Företagets paket har plats för " + (foretag.gransPlan || 0) + " som redigerar i Plan och alla är upptagna. Kontakta Wimo för att uppgradera, eller gör någon till läsare (gratis)."
+        : "Företagets paket har plats för " + ((foretag && foretag.gransForma) || 0) + " användare i Forma och alla är upptagna. Kontakta Wimo för att uppgradera.";
+
+    // Kontot byter samling (har gått med i ett företag): töm den lokala Plan-kopian och ladda om.
+    function bytSamling() {
+        appStartad = false;
+        clearTimeout(pushTimer);
+        if (lyssnare) { lyssnare(); lyssnare = null; }
+        sparaNu = async () => true;
+        clearTimeout(sparaTimer);
+        try { localStorage.removeItem(NYCKEL); localStorage.removeItem(MOLNNYCKEL); localStorage.removeItem(LASNYCKEL); } catch (e) { }
+        location.reload();
+    }
+
+    // Inbjudan till ett företag: e-posten måste vara bekräftad (reglerna kräver det).
+    function lyssnaForetagsinbjudan() {
+        if (inbjudanLyss) { inbjudanLyss(); inbjudanLyss = null; }
+        foretagsInbjudan = null;
+        if (!anvandare || behorighet.foretag || arAdmin() || !minEpost()) return;
+        const starta = () => {
+            inbjudanLyss = fb.fs.onSnapshot(fb.fs.query(fb.fs.collection(fb.db, "foretag"), fb.fs.where("inbjudna", "array-contains", minEpost())), (snap) => {
+                const giltig = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()))
+                    .find((x) => ((x.inbjudTid || {})[minEpost()] || 0) > Date.now() && !(x.medlemmar || []).includes(anvandare.uid));
+                foretagsInbjudan = giltig ? { id: giltig.id, namn: giltig.namn || "företaget", admin: (giltig.inbjudAdmin || []).includes(minEpost()) } : null;
+                if (foretagsInbjudan) {
+                    if (document.body.classList.contains("p4-vantar")) ritaVantesida();
+                    else visaForetagsinbjudan();
+                }
+            }, (e) => console.warn("Wimo företagsinbjudan:", e));
+        };
+        if (anvandare.emailVerified) starta();
+        else anvandare.reload().then(() => anvandare.emailVerified ? anvandare.getIdToken(true).then(starta) : null).catch(() => { });
+    }
+    let inbjudanVisad = "";
+    function visaForetagsinbjudan() {
+        const inb = foretagsInbjudan;
+        if (!inb || inbjudanVisad === inb.id) return;
+        inbjudanVisad = inb.id;
+        const harLokalt = plan4.projekt.some((p) => !(p.reserv && arTomt(p)));
+        modal("Du är inbjuden till " + inb.namn, inb.admin ? "Som administratör för företaget" : "",
+            '<p class="hjalp" style="margin-top:0">' + esc(inb.namn) + " har en egen Wimo. När du går med öppnas företagets projekt här" +
+            (inb.admin ? ", och du kan bjuda in kollegor och dela ut platser under Mitt konto." : ".") + "</p>" +
+            (harLokalt && !behorighet.foretag ? '<p class="hjalp">Projekten du har i Wimo i dag visas inte längre i det här kontot. De finns kvar i molnet.</p>' : ""), [
+            { txt: "Inte nu", fn: stangModal },
+            { txt: "Gå med", primar: true, fn: () => gaMedIForetag(inb) }]);
+    }
+    async function gaMedIForetag(inb) {
+        stangModal();
+        // osparade Plan-ändringar sparas först, annars avbryts det
+        try { if (synkKlar && !konflikter.size) { clearTimeout(pushTimer); await push(); } } catch (e) { }
+        const osparade = plan4.projekt.filter((p) => arAndrad(p) || konflikter.has(p.id));
+        if (osparade.length) return status("Spara dina ändringar i " + osparade.map((p) => p.projekt).join(", ") + " först (kontrollera nätverket) och försök igen.", true);
+        try {
+            const ref = foretagRef(inb.id);
+            await fb.fs.runTransaction(fb.db, async (t) => {
+                const d = await t.get(ref);
+                if (!d.exists()) throw new Error("Företaget finns inte längre.");
+                const x = d.data() || {};
+                if (!(x.inbjudna || []).includes(minEpost())) throw new Error("Inbjudan gäller inte längre.");
+                const admin = (x.inbjudAdmin || []).includes(minEpost());
+                const upd = { medlemmar: (x.medlemmar || []).concat(anvandare.uid), inbjudna: (x.inbjudna || []).filter((e) => e !== minEpost()) };
+                if (admin) { upd.admins = (x.admins || []).concat(anvandare.uid); upd.inbjudAdmin = (x.inbjudAdmin || []).filter((e) => e !== minEpost()); }
+                t.update(ref, upd);
+                t.update(anvDoc(), { status: "godkand", foretag: inb.id });
+                t.set(fb.fs.doc(fb.db, "foretag", inb.id, "personer", anvandare.uid),
+                    { namn: String(anvandare.displayName || "").slice(0, 200), epost: minEpost() });
+            });
+            status("Välkommen till " + inb.namn + ". Öppnar företagets Wimo…");
+            // hanteraBehorighet ser det nya företaget och laddar om med företagets projekt
+        } catch (e) {
+            console.warn("Wimo gå med:", e);
+            inbjudanVisad = "";
+            status("Det gick inte att gå med: " + (e && e.message ? e.message : "kontrollera nätverket och att e-posten är bekräftad."), true);
+        }
+    }
+
+    // ---- Företagets admin: personer, inbjudningar och platser (under Mitt konto) ----
+    const INBJUD_DAGAR = 14;
+    const foretagLank = () => location.origin + location.pathname.replace(/[^/]*$/, "") + "konto.html";
+    function foretagNamnFor(uid) { const x = foretagPersoner.find((p) => p.uid === uid); return x ? (x.namn || x.epost || "Okänd") : "Okänd"; }
+    function foretagEpostFor(uid) { const x = foretagPersoner.find((p) => p.uid === uid); return x ? (x.epost || "") : ""; }
+    function ritaForetagskort() {
+        const kort = $("ksForetag");
+        if (!kort) return;
+        if (!foretag) { kort.classList.add("dold"); return; }
+        kort.classList.remove("dold");
+        const f = foretag, admin = arForetagsAdmin();
+        const paket = (FORETAG_PAKET[f.paket] || FORETAG_PAKET.eget).namn;
+        const mod = (f.moduler || []).map((m) => m === "plan" ? "Plan" : "Forma").join(" och ") || "inga moduler";
+        const pp = (f.platserPlan || []), pf = (f.platserForma || []);
+        let h = '<div class="p4-ks-rubrikrad"><h2>' + esc(f.namn || "Företaget") + "</h2>" +
+            '<span class="p4-ks-tagg">' + esc(paket) + "</span>" +
+            (f.status === "pausad" ? '<span class="p4-ks-status konflikt">Pausat</span>' : f.status === "prov" ? '<span class="p4-ks-status vantar">Provperiod' + (f.slut ? " till " + new Date(f.slut).toLocaleDateString("sv-SE") : "") + "</span>" : "") +
+            "</div>" +
+            '<p class="hjalp">Företagets egen Wimo med ' + esc(mod) + ". " + (admin ? "Du är administratör för företaget." : "Kontakta företagets administratör för fler platser eller nya personer.") + "</p>" +
+            '<div class="p4-ks-platser">' +
+              (foretagHar("plan") ? '<div><b>' + pp.length + " av " + (f.gransPlan || 0) + "</b><span>redigerar i Plan</span><small>Läsare är gratis</small></div>" : "") +
+              (foretagHar("forma") ? '<div><b>' + pf.length + " av " + (f.gransForma || 0) + "</b><span>användare i Forma</span><small>Även externa räknas</small></div>" : "") +
+              "<div><b>" + (f.medlemmar || []).length + "</b><span>personer i företaget</span></div>" +
+            "</div>";
+        if (admin) {
+            const inbjudna = f.inbjudna || [];
+            h += '<h3 class="p4-ks-underrubrik">Bjud in</h3>' +
+                '<div class="p4-ks-gamed"><input class="f" id="ksFtgEpost" type="email" placeholder="namn@foretag.se" autocomplete="off">' +
+                '<label class="p4-ks-kryss"><input type="checkbox" id="ksFtgAdmin"> Administratör</label>' +
+                '<button type="button" class="mknapp primar" data-ftg="bjud">Bjud in</button></div>' +
+                '<p class="hjalp">Personen får ett mejl med en länk, skapar ett konto med just den e-postadressen och går med. Inbjudan gäller i ' + INBJUD_DAGAR + " dagar.</p>" +
+                (inbjudna.length ? '<ul class="p4-ks-ftglista">' + inbjudna.map((e) => '<li><span><span class="p4-ks-ftgnamn">' + esc(e) + ((f.inbjudAdmin || []).includes(e) ? ' <span class="p4-ks-tagg">Admin</span>' : "") + "</span>" +
+                    '<small>Inbjuden · gäller till ' + new Date((f.inbjudTid || {})[e] || 0).toLocaleDateString("sv-SE") + "</small></span>" +
+                    '<span class="p4-ks-ftgknappar"><button type="button" class="mknapp" data-ftg="mejl" data-e="' + esc(e) + '">Skicka igen</button>' +
+                    '<button type="button" class="mknapp" data-ftg="aterkalla" data-e="' + esc(e) + '">Återkalla</button></span></li>').join("") + "</ul>" : "");
+            h += '<h3 class="p4-ks-underrubrik">Personer</h3><ul class="p4-ks-ftglista">' + (f.medlemmar || []).map((uid) => {
+                const ep = foretagEpostFor(uid), arA = (f.admins || []).includes(uid);
+                return '<li><span><span class="p4-ks-ftgnamn"><b>' + esc(foretagNamnFor(uid)) + "</b>" + (arA ? ' <span class="p4-ks-tagg admin">Admin</span>' : "") + "</span>" +
+                    "<small>" + esc(ep) + "</small></span>" +
+                    '<span class="p4-ks-ftgknappar">' +
+                    (foretagHar("plan") ? '<label class="p4-ks-kryss" title="Får redigera i Plan (tar en plats)"><input type="checkbox" data-ftgplan="' + esc(uid) + '"' + (pp.includes(uid) ? " checked" : "") + "> Plan</label>" : "") +
+                    (foretagHar("forma") && ep ? '<label class="p4-ks-kryss" title="Får vara med i Forma (tar en plats)"><input type="checkbox" data-ftgforma="' + esc(ep) + '"' + (pf.includes(ep) ? " checked" : "") + "> Forma</label>" : "") +
+                    (uid !== anvandare.uid ? '<button type="button" class="mknapp" data-ftg="admin" data-u="' + esc(uid) + '">' + (arA ? "Ta bort admin" : "Gör till admin") + "</button>" +
+                        '<button type="button" class="mknapp fara" data-ftg="tabort" data-u="' + esc(uid) + '">Ta bort</button>' : "") +
+                    "</span></li>";
+            }).join("") + "</ul>";
+            const externa = pf.filter((e) => !foretagPersoner.some((p) => p.epost === e));
+            if (externa.length) h += '<h3 class="p4-ks-underrubrik">Externa i Forma</h3><p class="hjalp">Personer utanför företaget som bjudits in till företagets Forma-projekt. De tar en plats var.</p>' +
+                '<ul class="p4-ks-ftglista">' + externa.map((e) => "<li><span>" + esc(e) + '</span><span class="p4-ks-ftgknappar"><button type="button" class="mknapp" data-ftg="slappforma" data-e="' + esc(e) + '">Frigör platsen</button></span></li>').join("") + "</ul>";
+        }
+        kort.innerHTML = h;
+        if (admin) kopplaForetagskort(kort);
+    }
+    function kopplaForetagskort(kort) {
+        const fid = foretag.id;
+        const spara = async (upd, ok) => {
+            try { await fb.fs.updateDoc(foretagRef(fid), Object.assign(upd, { andrad: fb.fs.serverTimestamp() })); if (ok) status(ok); }
+            catch (e) { console.warn("Wimo företag:", e); status("Ändringen kunde inte sparas. Kontrollera nätverket och att paketet har plats.", true); ritaForetagskort(); }
+        };
+        const mejla = (e) => {
+            const amne = "Inbjudan till " + (foretag.namn || "Wimo");
+            const text = "Hej!\n\nDu är inbjuden till " + (foretag.namn || "företagets") + " Wimo.\n\n1. Öppna " + foretagLank() +
+                "\n2. Skapa ett konto med den här e-postadressen (" + e + ") och bekräfta adressen via mejlet du får.\n3. Tryck på Gå med.\n\nInbjudan gäller i " + INBJUD_DAGAR + " dagar.";
+            location.href = "mailto:" + encodeURIComponent(e) + "?subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(text);
+        };
+        kort.querySelectorAll("[data-ftg]").forEach((b) => b.addEventListener("click", () => {
+            const vad = b.dataset.ftg, e = b.dataset.e, u = b.dataset.u;
+            if (vad === "bjud") {
+                const ep = String($("ksFtgEpost").value || "").trim().toLowerCase(), adm = $("ksFtgAdmin").checked;
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ep)) return status("Skriv en giltig e-postadress.", true);
+                if (foretagPersoner.some((p) => p.epost === ep)) return status(ep + " är redan med i företaget.", true);
+                const tid = Object.assign({}, foretag.inbjudTid || {}, { [ep]: Date.now() + INBJUD_DAGAR * 864e5 });
+                spara({ inbjudna: fb.fs.arrayUnion(ep), inbjudTid: tid, inbjudAdmin: adm ? fb.fs.arrayUnion(ep) : fb.fs.arrayRemove(ep) }, "Inbjudan är sparad. Skicka mejlet som öppnas.")
+                    .then(() => mejla(ep));
+            } else if (vad === "mejl") mejla(e);
+            else if (vad === "aterkalla") spara({ inbjudna: fb.fs.arrayRemove(e), inbjudAdmin: fb.fs.arrayRemove(e) }, "Inbjudan är återkallad.");
+            else if (vad === "slappforma") spara({ platserForma: fb.fs.arrayRemove(e) }, "Platsen är frigjord. Personen kommer inte in i nya Forma-projekt.");
+            else if (vad === "admin") {
+                const arA = (foretag.admins || []).includes(u);
+                spara({ admins: arA ? fb.fs.arrayRemove(u) : fb.fs.arrayUnion(u) }, arA ? "Personen är inte längre administratör." : "Personen är nu administratör för företaget.");
+            } else if (vad === "tabort") {
+                modal("Ta bort " + foretagNamnFor(u) + "?", "", '<p class="hjalp" style="margin-top:0">Personen tas bort ur företaget och förlorar sina platser. Ta också bort personen ur de projekt hen är med i.</p>', [
+                    { txt: "Avbryt", fn: stangModal },
+                    { txt: "Ta bort", primar: true, fara: true, fn: () => { stangModal(); const ep = foretagEpostFor(u);
+                        spara({ medlemmar: fb.fs.arrayRemove(u), admins: fb.fs.arrayRemove(u), platserPlan: fb.fs.arrayRemove(u), platserForma: ep ? fb.fs.arrayRemove(ep) : fb.fs.arrayRemove("") }, "Personen är borttagen ur företaget."); } }]);
+            }
+        }));
+        kort.querySelectorAll("[data-ftgplan]").forEach((c) => c.addEventListener("change", () => {
+            const u = c.dataset.ftgplan;
+            if (c.checked && ledigaPlan() < 1) { c.checked = false; return status(fulltText({ fullt: "plan" }), true); }
+            spara({ platserPlan: c.checked ? fb.fs.arrayUnion(u) : fb.fs.arrayRemove(u) }, c.checked ? "Personen får redigera i Plan." : "Platsen är frigjord. Personen kan bara läsa i Plan.");
+        }));
+        kort.querySelectorAll("[data-ftgforma]").forEach((c) => c.addEventListener("change", () => {
+            const ep = c.dataset.ftgforma;
+            if (c.checked && ledigaForma() < 1) { c.checked = false; return status(fulltText({ fullt: "forma" }), true); }
+            spara({ platserForma: c.checked ? fb.fs.arrayUnion(ep) : fb.fs.arrayRemove(ep) }, c.checked ? "Personen har en plats i Forma." : "Platsen i Forma är frigjord.");
+        }));
+    }
+
+    // För Forma och resten av appen
+    window.p4Foretag = {
+        info: () => foretag ? { id: foretag.id, namn: foretag.namn || "", moduler: (foretag.moduler || []).slice(), status: foretag.status || "aktiv",
+            gransPlan: foretag.gransPlan || 0, gransForma: foretag.gransForma || 0, admin: arForetagsAdmin() } : null,
+        id: () => behorighet.foretag || "",
+        far: (modul) => !behorighet.foretag || foretagHar(modul),
+        harFormaPlats: (e) => harFormaPlats(e),
+        ledigaForma: () => ledigaForma(),
+        fulltText: (e) => fulltText(e),
+        taFormaPlats: (bt, lista) => taFormaPlats(bt, lista)
+    };
 
     // ---------- Wimo Forma: egna projekt i forma/{id} ----------
     // Formas data är helt skild från Plan. Ett Forma-projekt är ett dokument med
@@ -2210,7 +2536,7 @@
         let data = null, trasig = false;
         try { data = await formaAvkoda(x.data); } catch (e) { data = null; trasig = !!x.data; }
         return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [], rev: x.rev || 0, data: data, trasig: trasig,
-            kopior: Array.isArray(x.kopior) ? x.kopior : [], kopiaTid: x.kopiaTid || 0, franCache: !!(d.metadata && d.metadata.fromCache) };
+            kopior: Array.isArray(x.kopior) ? x.kopior : [], kopiaTid: x.kopiaTid || 0, foretag: x.foretag || "", franCache: !!(d.metadata && d.metadata.fromCache) };
     };
     /* Säkerhetskopior: forma/{id}/kopior/r{rev} är en exakt kopia av projektet i den versionen (reglerna kontrollerar
        att innehållet är identiskt). De kan aldrig ändras eller tas bort från appen. En kopia tas automatiskt
@@ -2233,11 +2559,17 @@
         redo: formaRedo,
         uid: () => anvandare ? anvandare.uid : "",
         arAdmin: () => arAdmin(),
-        farSkapa: () => kanSkapaProjekt(),
+        // Forma är öppet för huvudadmin och för konton i ett företag som har modulen Forma.
+        farForma: () => arAdmin() || !!(behorighet.foretag && foretag && foretagHar("forma")),
+        foretag: () => behorighet.foretag || "",
+        farSkapa: () => behorighet.foretag
+            ? !!(foretag && foretagAktivt() && foretagHar("forma") && (harFormaPlats() || ledigaForma() > 0))
+            : kanSkapaProjekt(),
         personer: () => allaAnvandare.map((a) => ({ uid: a.uid, namn: a.namn || "", epost: a.epost || "" })),
         lista(cb, fel) {
             if (!formaRedo()) return () => { };
-            const q = arAdmin() ? formaSamling() : fb.fs.query(formaSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
+            // Alla (även huvudadmin) ser de Forma-projekt de är medlemmar i. Huvudadmin har aldrig åtkomst till företagens projekt.
+            const q = fb.fs.query(formaSamling(), fb.fs.where("medlemmar", "array-contains", anvandare.uid));
             const som = (d) => { const x = d.data() || {}; return { id: d.id, namn: x.namn || "Projekt", medlemmar: x.medlemmar || [], admins: x.admins || [] }; };
             let egna = [], inbjudna = [];
             // franCache: listan kommer från webbläsarens minne (t.ex. offline) och kan vara ofullständig.
@@ -2270,8 +2602,16 @@
             return fb.fs.onSnapshot(formaDoc(id), (d) => { kedja = kedja.then(async () => cb(d.exists() ? await formaLas(d) : null, { franCache: !!(d.metadata && d.metadata.fromCache) })).catch((e) => console.warn("Forma projekt:", e)); }, fel || ((e) => console.warn("Forma projekt:", e)));
         },
         async skapa(id, namn, data) {
-            await fb.fs.setDoc(formaDoc(id), { namn: String(namn || "Projekt").slice(0, 200), medlemmar: [anvandare.uid], admins: [anvandare.uid],
-                data: await formaKoda(data), rev: 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid });
+            const dok = { namn: String(namn || "Projekt").slice(0, 200), medlemmar: [anvandare.uid], admins: [anvandare.uid],
+                data: await formaKoda(data), rev: 1, andrad: fb.fs.serverTimestamp(), andradAv: anvandare.uid };
+            if (behorighet.foretag) {
+                // företagets projekt: den som skapar tar en Forma-plats i samma skrivning
+                if (!foretag) throw new Error("Företaget är inte laddat än");
+                const bt = fb.fs.writeBatch(fb.db);
+                taFormaPlats(bt, [minEpost()]);
+                bt.set(formaDoc(id), Object.assign(dok, { foretag: behorighet.foretag }));
+                await bt.commit();
+            } else await fb.fs.setDoc(formaDoc(id), dok);
             return 1;
         },
         // Sparar om rev fortfarande stämmer. Annars kastas { konflikt, fjarr } med den nyare versionen.
@@ -2331,6 +2671,11 @@
                 if (!d.exists()) throw { saknas: true };
                 const x = d.data() || {}, tider = Object.assign({}, x.inbjudTid || {});
                 tider[epost] = utgar;
+                // i företagets projekt tar den inbjudna en Forma-plats (även externa)
+                if (x.foretag) {
+                    if (x.foretag !== behorighet.foretag || !foretag) { if (!harFormaPlats(epost)) throw { fullt: "forma", annat: true }; }
+                    else taFormaPlats(t, [epost]);
+                }
                 t.update(formaDoc(id), { inbjudna: [...new Set((x.inbjudna || []).concat(epost))], inbjudTid: tider });
             });
         },
@@ -2458,7 +2803,7 @@
     let koderPagar = false;
     const kodForsokt = new Set();
     async function skapaSaknadeKoder() {
-        if (koderPagar || !anvandare || !synkKlar) return;
+        if (koderPagar || !anvandare || !synkKlar || behorighet.foretag) return;
         koderPagar = true;
         try {
             for (const [id, m] of [...projektMeta]) {
@@ -2628,7 +2973,7 @@
         for (const [id, av] of persLyss) if (!vill.has(id)) { av(); persLyss.delete(id); persPer.delete(id); }
         vill.forEach((id) => {
             if (persLyss.has(id)) return;
-            persLyss.set(id, fb.fs.onSnapshot(fb.fs.collection(fb.db, "projekt", id, "personer"), (snap) => {
+            persLyss.set(id, fb.fs.onSnapshot(fb.fs.collection(fb.db, projRot(), id, "personer"), (snap) => {
                 persPer.set(id, snap.docs.map((d) => Object.assign({ uid: d.id }, d.data())));
                 samlaPersoner();
             }, (e) => console.warn("Wimo namnlista:", e)));
@@ -2638,6 +2983,8 @@
     function samlaPersoner() {
         if (arAdmin()) return;
         const alla = new Map();
+        // i ett företag kan alla företagets personer väljas till projekten
+        if (behorighet.foretag) foretagPersoner.forEach((a) => alla.set(a.uid, { uid: a.uid, namn: a.namn || "", epost: a.epost || "", status: "godkand", roll: "user" }));
         persPer.forEach((lista) => lista.forEach((a) => {
             if (!alla.has(a.uid)) alla.set(a.uid, { uid: a.uid, namn: a.namn || "", epost: a.epost || "", status: "godkand", roll: "user" });
         }));
@@ -2722,7 +3069,8 @@
     let gruppFel = false;        // gick inte frågan över alla projekt läser huvudadmin projekt för projekt
     function startaAnsokningar() {
         if (!anvandare || !synkKlar) return;
-        const vill = new Set(arAdmin() ? (gruppFel ? [...projektMeta.keys()] : ["*"])
+        // Företagets projekt har inga projektkoder och därför inga ansökningar.
+        const vill = new Set(behorighet.foretag ? [] : arAdmin() ? (gruppFel ? [...projektMeta.keys()] : ["*"])
             : [...projektMeta].filter(([, m]) => m.projektAdmin.includes(anvandare.uid)).map(([id]) => id));
         for (const [k, av] of ansokLyss) if (!vill.has(k)) { av(); ansokLyss.delete(k); ansokPer.delete(k); }
         vill.forEach((k) => {
@@ -2823,6 +3171,7 @@
         return kod;
     }
     function kodrutaHtml(pid, m) {
+        if (behorighet.foretag) return "";       // företagets projekt: personerna bjuds in till företaget
         return '<div class="p4-ks-kodruta"><span class="et">Projektkod</span><b class="p4-ks-kod" id="mdKod">' + esc(m.kod || "—") + "</b>" +
             '<span class="p4-ks-knappar">' +
               (m.kod ? '<button type="button" class="mknapp" data-pkod="kopiera" data-pid="' + esc(pid) + '">Kopiera</button>' : "") +
@@ -3058,7 +3407,16 @@
     }
     async function sparaMeta(pid, m, ny, kalla) {
         const fore = m.medlemmar.slice();
-        await fb.fs.updateDoc(projektDoc(pid), ny);
+        if (behorighet.foretag && ny.medlemmar) {
+            // Företagets projekt: alla som kan redigera tar en Plan-plats (läsare är gratis), i samma skrivning.
+            const tb = ny.tavlaBeh || m.tavlaBeh || {};
+            const red = ny.medlemmar.filter((u) => !(ny.lasare || []).includes(u) || (ny.projektAdmin || []).includes(u)
+                || Object.values(tb[u] || {}).some((r) => r === "red" || r === "admin"));
+            const bt = fb.fs.writeBatch(fb.db);
+            taPlanPlats(bt, red);
+            bt.update(projektDoc(pid), ny);
+            await bt.commit();
+        } else await fb.fs.updateDoc(projektDoc(pid), ny);
         Object.assign(m, ny);
         if (!ny.medlemmar) return;
         // projektets namnlista följer medlemmarna: nya läggs till, borttagna tas bort
@@ -3125,14 +3483,15 @@
         };
         const kropp = (full ? kodrutaHtml(pid, m) : "") +
             '<p class="hjalp" style="margin-top:0">' + (full
-                ? (arAdmin() ? "" : "Listan visar personerna i projekten du är admin för. Nya personer kommer in med projektkoden ovan. ") +
+                ? (behorighet.foretag ? "Listan visar personerna i " + esc((foretag && foretag.namn) || "företaget") + ". Den som får redigera tar en av företagets platser i Plan, läsare är gratis. Nya personer bjuds in av företagets administratör under Mitt konto. "
+                   : arAdmin() ? "" : "Listan visar personerna i projekten du är admin för. Nya personer kommer in med projektkoden ovan. ") +
                   "Bocka i vilka som ska vara med i projektet och välj roll. <b>Projektadmin</b> får allt i projektet och väljer själv vilka som är med. " +
                   "Under varje person står tavlorna. De följer rollen i projektet, men du kan välja något annat på en tavla: <b>Admin</b>, <b>Kan redigera</b>, <b>Kan läsa</b> eller <b>Ingen åtkomst</b> (tavlan syns inte alls)."
                 : "Du är admin för " + mina.map((t) => "<b>" + esc(t.namn) + "</b>").join(", ") + ". Välj vilka av projektets medlemmar som ska komma åt " +
                   (mina.length === 1 ? "tavlan" : "tavlorna") + " och vad de får göra där.") + "</p>" +
             (godkanda.length || !full ? (lista.length ? '<ul class="p4-ks-valista p4-ks-medlista">' + lista.map(rad).join("") + "</ul>"
                 : '<p class="listtom">Inga andra medlemmar i projektet.</p>')
-                : '<p class="listtom">' + (arAdmin() ? "Användarlistan hämtas… Stäng och öppna igen om en stund." : "Inga personer ännu. Ge projektkoden till dem som ska vara med.") + "</p>") +
+                : '<p class="listtom">' + (arAdmin() ? "Användarlistan hämtas… Stäng och öppna igen om en stund." : behorighet.foretag ? "Inga andra personer i företaget ännu. Företagets administratör bjuder in under Mitt konto." : "Inga personer ännu. Ge projektkoden till dem som ska vara med.") + "</p>") +
             '<div class="notis rod dold" id="mdFel"></div>';
         modal((full ? "Medlemmar i " : "Behörigheter i ") + m.namn, full ? "" : "Tavlor du är admin för", kropp, [
             { txt: "Avbryt", fn: stangModal },
@@ -3177,7 +3536,7 @@
                     await sparaMeta(pid, m, ny);
                     status((full ? "Medlemmarna i " : "Behörigheterna i ") + m.namn + " är sparade");
                     if (kontoOppen()) { ritaSynkkort(); ritaAdmin(); }
-                } catch (e) { status("Kunde inte spara: " + (e.code || e.message), true); }
+                } catch (e) { status(e && e.fullt ? fulltText(e) : "Kunde inte spara: " + (e.code || e.message), true); }
             } },
         ]);
     }
@@ -3253,7 +3612,7 @@
                 if (!tvinga && c && c.h === h && Date.now() - c.t < 12 * 3600000) continue;
                 const t = p.tavlor.find((x) => x.id === tid);
                 try {
-                    await fb.fs.setDoc(visningDoc(tok), { projekt: p.id, tavla: tid, namn: p.projekt + " · " + (t.namn || "Tavla"),
+                    await fb.fs.setDoc(visningDoc(tok), { samling: projRot(), projekt: p.id, tavla: tid, namn: p.projekt + " · " + (t.namn || "Tavla"),
                         data: txt, uppdaterad: fb.fs.serverTimestamp() });
                     cache[tok] = { h, t: Date.now() };
                 } catch (e) { console.warn("Wimo skärmlänk:", e); }
@@ -3268,7 +3627,7 @@
         if (m) { m.visning = Object.assign({}, m.visning); if (ny) m.visning[tid] = ny; else delete m.visning[tid]; }
         if (ny) {
             const p = plan4.projekt.find((x) => x.id === pid), t = p && p.tavlor.find((x) => x.id === tid);
-            await fb.fs.setDoc(visningDoc(ny), { projekt: pid, tavla: tid, namn: p.projekt + " · " + (t.namn || "Tavla"),
+            await fb.fs.setDoc(visningDoc(ny), { samling: projRot(), projekt: pid, tavla: tid, namn: p.projekt + " · " + (t.namn || "Tavla"),
                 data: skarmData(p, tid) || "{}", uppdaterad: fb.fs.serverTimestamp() });
         }
         if (gammal) await fb.fs.deleteDoc(visningDoc(gammal)).catch(() => { });
@@ -3453,6 +3812,7 @@
     laddaFirebase().then(() => {
         fb.auth.onAuthStateChanged(fb.authInst, (u) => {
             if (anvLyssnare) { anvLyssnare(); anvLyssnare = null; }
+            stoppaForetag();
             stoppaAdmin();
             stoppaPersoner();
             stoppaAnsokningar();
@@ -3474,7 +3834,8 @@
             // behörigheten kontrolleras i bakgrunden. Annars väntar vi på svaret.
             const cache = lasJson(BEHNYCKEL, null);
             if (cache && cache.uid === u.uid && cache.status === "godkand") {
-                behorighet = { roll: cache.roll || "user", status: "godkand", skapa: !!cache.skapa };
+                behorighet = { roll: cache.roll || "user", status: "godkand", skapa: !!cache.skapa, foretag: cache.foretag || "" };
+                if (behorighet.foretag) startaForetag();
                 startaApp();
             } else {
                 visaVy("laddar", "Kontrollerar ditt konto…");
