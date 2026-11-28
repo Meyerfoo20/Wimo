@@ -105,6 +105,7 @@ function foPanelFraga(f, ok, kan, leda, jag) {
         '<div class="fo-litefalt"><span>Ska svara</span>' + foPartValjare("foPMott", foMottagare(f), { lasa: !kanMott, status: svaratStatus, tomText: "Välj vem som ska svara …", merText: "+ Fler mottagare …" }) + '</div>' +
         '<div class="fo-ugrid"><label class="fo-litefalt"><span>Svar senast' + (f.svarSenast ? ' <em class="fo-vecka">v. ' + foVecka(f.svarSenast) + '</em>' : "") + '</span><input class="f" type="date" id="foPSenast" value="' + esc(f.svarSenast || "") + '"' + (lasa ? " disabled" : "") + '></label></div>' +
         (forum.length ? '<div class="fo-litefalt fo-motesval"><span>Ta upp på möte</span>' + foValChips("moten", forum.map(x => ({ id: x.id, namn: x.namn })), f.moten) + '</div>' : "") +
+        foBehandladHtml(p, f) +
         '<details class="fo-fler"' + (f.berorda.length || f.berordaP.length || f.indelning.length ? " open" : "") + '><summary>Fler uppgifter</summary>' +
         '<label class="fo-litefalt"><span>Frågeställare</span>' + foPersonSelect("foPStallare", foStallarePerson(f), "–", (lasa || !(foArStallare(p, jag, f) || superu)) ? " disabled" : "") + '</label>' +
         (!lasa && (foArStallare(p, jag, f) || superu) ? '<p class="hjalp fo-litenhjalp">Byter du frågeställare flyttas frågan till den personens Mina frågor. Ändringen syns i historiken.</p>' : "") +
@@ -173,6 +174,7 @@ function foPostHtml(f, x, jag, agare, superu, kan) {
         (x.typ === "svar" && agare && !f.makulerad ? '<button type="button" class="fo-minknapp fo-slutknapp' + (x.slutligt ? " pa" : "") + '" data-slutligt="' + x.id + '" aria-pressed="' + !!x.slutligt + '" title="Svaren du väljer utgör tillsammans det slutliga beskedet och visas i frågelistan">' + (x.slutligt ? "Slutligt ✓" : "Välj som slutligt") + '</button>' : "") +
         '</div>' +
         (redigerar ? foSkrivRuta("post", x.text, foRedigerar.lage, x.id) : '<div class="fo-text">' + foTextHtml(x.text) + '</div>' +
+            (x.till && x.till.length ? '<p class="fo-posttill">Skickat även till ' + esc(x.till.map(t => foPartText(p, t)).filter(Boolean).join(", ")) + '</p>' : "") +
             (kan && !f.makulerad && (x.av === jag || superu) ? '<div class="fo-textknappar fo-postknappar">' + foAndraKnappar("post", x.id) + '</div>' : "")) +
         foBilagorHtml(f.bilagor, "d:" + x.id) + '</li>';
 }
@@ -186,6 +188,8 @@ function foSvarsruta(f, jag) {
         '<button type="button" role="radio" aria-checked="' + (typ === "foljd") + '" class="' + (typ === "foljd" ? "vald" : "") + '" data-svartyp="foljd">Följdfråga</button></div>' +
         '<textarea class="f" id="foSkriv_ny" rows="3" data-behall placeholder="' + (typ === "svar" ? "Skriv ett svar …" : "Skriv en följdfråga …") + '"></textarea>' +
         '<div id="foSvarBil"></div>' +
+        '<div class="fo-litefalt fo-svartill"><span>' + (typ === "svar" ? "Skicka även till <small>– frivilligt, för kännedom</small>" : "Skicka även till <small>– frivilligt, de blir mottagare och ska svara</small>") + '</span>' +
+            foPartValjare("foSvarTill", (foSvarTill[f.id] || []).filter(t => foPartText(p, t)), { tomText: "Lägg till person eller disciplin …", merText: "+ Fler" }) + '</div>' +
         (lamnat !== "" ? '<div class="fo-uppdragrad"><label class="fo-litefalt"><span>Beskedet lämnades av</span>' + foPersonSelect("foSvarLamnat", lamnat, "Välj person …") + '</label>' +
             '<p class="hjalp fo-litenhjalp">Till exempel ett muntligt besked. Det syns att du registrerade det och att det inte är bekräftat digitalt av personen.</p></div>' : "") +
         (typ === "svar" && foKanSkriva(p, jag) ? '<details class="fo-svaratg"><summary>+ Åtgärd åt mig</summary><div class="fo-nyrad"><input class="f" id="foSvarAtg" placeholder="Vad behöver du göra? Till exempel Uppdatera dörruppställningen">' +
@@ -193,7 +197,15 @@ function foSvarsruta(f, jag) {
         '<div class="fo-skrivknappar"><button type="button" class="p4-btn p4-btn-primar" data-sparatext="ny" title="Ctrl+Enter">' + (typ === "svar" ? "Skicka svar" : "Skicka följdfråga") + '</button>' +
         foFilZon("foFilSvar", "Bifoga") + (lamnat === "" ? '<button type="button" class="p4d-lank fo-uppdraglank" id="foSvarUppdrag">Registrera åt någon annan</button>' : "") + '</div></div>';
 }
-let foSvarTyp = {}, foSvarLamnat = {};
+let foSvarTyp = {}, foSvarLamnat = {}, foSvarTill = {};
+// Möten där frågan behandlats. Behandlad betyder att den togs upp, inte att den är klar eller besvarad.
+function foBehandladHtml(p, f) {
+    const l = Object.keys(f.behandlad || {}).map(id => ({ fo: foForum(p, id), datum: f.behandlad[id] })).filter(x => x.fo && x.datum).sort((a, b) => b.datum.localeCompare(a.datum));
+    if (!l.length) return "";
+    const svarPaMote = (x) => (f.dialog || []).some(d => d.mote && d.mote.forum === x.fo.id && d.mote.datum === x.datum);
+    return '<div class="fo-litefalt fo-behandlad"><span>Behandlad på möte</span><ul>' + l.map(x => '<li><b>' + esc(x.fo.namn) + '</b> ' + foDatumKort(x.datum) +
+        (svarPaMote(x) ? "" : ' <small>– utan svar på mötet</small>') + '</li>').join("") + '</ul></div>';
+}
 function foKonsHtml(f, jag, superu) {
     const p = foP, alla = f.konsekvens || [];
     const rad = k => '<li class="' + (k.avskriven ? "avskriven" : "") + '"><b>' + esc(FO_KONS[k.typ]) + '</b><span>' + esc(foPersonNamn(p, k.av) || "–") + " · " + foNarText(k.tid) +
@@ -363,9 +375,10 @@ function foKopplaPanel(pan, f, kan, leda, jag) {
             const typ = (pan.querySelector("[data-svartyp].vald") || {}).dataset.svartyp || "svar";
             const lEl = document.getElementById("foSvarLamnat"), lamnat = lEl ? lEl.value : "";
             if (lEl && !lamnat) { lEl.focus(); return status("Välj vem som lämnade beskedet.", true); }
-            const x = foGor("dialogPost", { id: f.id, post: foId(), typ: typ, text: text, lamnat: lamnat || undefined, bilagor: foSvarBilagor }, true);
+            const till = (foSvarTill[f.id] || []).filter(t => foPartText(foP, t));
+            const x = foGor("dialogPost", { id: f.id, post: foId(), typ: typ, text: text, lamnat: lamnat || undefined, bilagor: foSvarBilagor, till: till.length ? till : undefined }, true);
             if (!x) return;
-            foSvarBilagor = []; delete foSvarLamnat[f.id]; delete foSvarTyp[f.id];
+            foSvarBilagor = []; delete foSvarLamnat[f.id]; delete foSvarTyp[f.id]; delete foSvarTill[f.id];
             nyT.value = "";
             // Svar och åtgärd i samma arbetsmoment (frivilligt)
             const atgT = document.getElementById("foSvarAtg");
@@ -373,11 +386,18 @@ function foKopplaPanel(pan, f, kan, leda, jag) {
             foRita();
             if (atg) { status("Svaret är skickat och åtgärd Å-" + atg.nr + " ligger i din att göra-lista."); return; }
             foRita();
-            status(typ === "svar" ? "Svaret är skickat. Frågeställaren bedömer det." : "Följdfrågan är skickad.");
+            const ocksa = till.length ? " Även skickat till " + till.map(t => foPartText(foP, t)).join(", ") + "." : "";
+            status((typ === "svar" ? "Svaret är skickat. Frågeställaren bedömer det." : "Följdfrågan är skickad.") + ocksa);
         };
         nyKnapp.addEventListener("click", skicka);
         nyT.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); skicka(); } });
     }
+    foKopplaPartValjare(pan, "foSvarTill", (foSvarTill[f.id] || []).filter(t => foPartText(foP, t)), (lista) => {
+        const t = document.getElementById("foSkriv_ny"), v = t ? t.value : "";
+        foSvarTill[f.id] = lista; foRitaPanel();
+        const n = document.getElementById("foSkriv_ny"); if (n) n.value = v;
+        const sel = document.querySelector("#foSvarTill .fo-partlagg"); if (sel) sel.focus();
+    });
     pan.querySelectorAll("[data-svartyp]").forEach(b => b.addEventListener("click", () => {
         const t = document.getElementById("foSkriv_ny"), v = t ? t.value : "";
         foSvarTyp[f.id] = b.dataset.svartyp; foRitaPanel();

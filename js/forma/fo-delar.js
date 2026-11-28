@@ -11,6 +11,16 @@ function foTopp(rubrik, hoger) {
 }
 
 // Läget visas alltid med text och symbol, aldrig bara färg (UX-003).
+// Senaste mötet där frågan behandlades (även utan svar), så att det syns i listan.
+function foBehandladSenast(p, f) {
+    let ut = null;
+    Object.keys(f.behandlad || {}).forEach(id => { const d = f.behandlad[id], fo = foForum(p, id); if (fo && d && (!ut || d > ut.datum)) ut = { fo, datum: d }; });
+    return ut;
+}
+function foBehandladTagg(p, f) {
+    const b = foBehandladSenast(p, f);
+    return b ? '<span class="fo-tagg t-beh" title="Behandlad på ' + esc(b.fo.namn) + " " + esc(b.datum) + '">Behandlad ' + esc(b.fo.kort || b.fo.namn) + " " + foDatumKort(b.datum) + '</span>' : "";
+}
 function foLageChip(f) {
     if (f.makulerad) return '<span class="fo-lage mak"><i aria-hidden="true"></i>Makulerad</span>';
     const l = FO_LAGE[f.lage];

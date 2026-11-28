@@ -88,7 +88,7 @@ function foCell(k, f, ctx) {
         case "senast": return f.svarSenast ? '<span class="' + (ctx.sen ? "fo-sentext" : "") + '">' + foDatumVecka(f.svarSenast) + '</span>' : '<span class="fo-dampad">–</span>';
         case "status": return '<div class="fo-taggrad">' + (ctx.ok.length ? '<span class="fo-lage revision">Att kvittera</span>' : foLageChip(f)) +
             (ctx.sen ? '<span class="fo-tagg t-sen">Försenad</span>' : "") + (f.bradskande && foAktiv(f) ? '<span class="fo-tagg t-sen">Brådskande</span>' : "") + (ctx.kol.includes("tid") || ctx.kol.includes("kostnad") ? "" : foKonsTaggar(f)) +
-            (f.moten.length && !ctx.kol.includes("mote") ? '<span class="fo-tagg t-mote" title="Tas upp på möte">Möte ' + f.moten.map(id => esc((foForum(p, id) || { kort: "?" }).kort)).join(" · ") + '</span>' : "") + '</div>';
+            (f.moten.length && !ctx.kol.includes("mote") ? '<span class="fo-tagg t-mote" title="Tas upp på möte">Möte ' + f.moten.map(id => esc((foForum(p, id) || { kort: "?" }).kort)).join(" · ") + '</span>' : "") + foBehandladTagg(p, f) + '</div>';
         case "stallare": return esc(foPersonNamn(p, foStallarePerson(f)) || "–");
         case "foretag": return esc(foRadForetag(f) || "–");
         case "disc": return esc(foDiscText(p, f.fran) || "–");

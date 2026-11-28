@@ -228,9 +228,16 @@ const FO_AVIS_HAKAR = {
         const f = foFraga(p, a.id);
         if (!f || !x) return;
         const o = { typ: "fraga", id: f.id };
-        if (x.typ === "svar") foAvisera(p, ctx, "nytt_svar", o, [foStallarePerson(f)], "Nytt svar på fråga " + f.nr + " från " + (foPersonNamn(p, foPostLamnat(x)) || "–"), { nr: f.nr });
-        else if (fore && fore.lage !== "ofullstandig" && f.lage === "ofullstandig") foAvisera(p, ctx, "komplettering", o, foAvisPersoner(p, foMottagare(f)), "Följdfråga – komplettering begärd i fråga " + f.nr, { nr: f.nr });
-        else foAvisera(p, ctx, "info", o, foPersonerIFraga(p, f, false), "Följdfråga i fråga " + f.nr, { nr: f.nr });
+        // Nya mottagare via "Skicka även till" på en följdfråga: de ska svara och aviseras som sådana.
+        const nyaMott = x.typ === "foljd" && fore ? foAvisPersoner(p, foMottagare(f)).filter(id => !fore.mott.includes(id)) : [];
+        let mott = [];
+        if (x.typ === "svar") mott = [foStallarePerson(f)], foAvisera(p, ctx, "nytt_svar", o, mott, "Nytt svar på fråga " + f.nr + " från " + (foPersonNamn(p, foPostLamnat(x)) || "–"), { nr: f.nr });
+        else if (fore && fore.lage !== "ofullstandig" && f.lage === "ofullstandig") mott = foAvisPersoner(p, foMottagare(f)).filter(id => !nyaMott.includes(id)), foAvisera(p, ctx, "komplettering", o, mott, "Följdfråga – komplettering begärd i fråga " + f.nr, { nr: f.nr });
+        else mott = foPersonerIFraga(p, f, false).filter(id => !nyaMott.includes(id)), foAvisera(p, ctx, "info", o, mott, "Följdfråga i fråga " + f.nr, { nr: f.nr });
+        if (nyaMott.length) foAvisera(p, ctx, "ny_ansvarig", o, nyaMott, "Följdfråga till dig i fråga " + f.nr + ": " + x.text, { nr: f.nr });
+        // Övriga i "Skicka även till" får svaret eller följdfrågan för kännedom.
+        const extra = foAvisPersoner(p, x.till || []).filter(id => !mott.includes(id) && !nyaMott.includes(id) && id !== ctx.av);
+        if (extra.length) foAvisera(p, ctx, "info", o, extra, (x.typ === "svar" ? "Svar i fråga " : "Följdfråga i fråga ") + f.nr + " från " + (foPersonNamn(p, foPostLamnat(x)) || "–") + ": " + x.text, { nr: f.nr });
     },
     svara(p, a, ctx, svar, fore) {
         const f = foFraga(p, a.id);

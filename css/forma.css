@@ -1360,3 +1360,43 @@ body.modul-forma .fo-nygrupp.fo-bara.dold { display: none; }
 .fo-kopia-knappar { text-align: right; white-space: nowrap; }
 .fo-kopia-knappar .p4d-lank + .p4d-lank { margin-left: 12px; }
 .fo-ejsparade { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-left: 3px solid var(--leverans); border-radius: var(--r-s); }
+
+/* ---------- Marcus förslag 27 nov ---------- */
+/* behandlad på möte: etikett i listan och rad på frågan */
+.fo-tagg.t-beh { --cc: var(--text-muted); --cf: var(--bg-main); --ck: var(--border-color); }
+.fo-behandlad { margin-top: 10px; }
+.fo-behandlad ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.fo-behandlad small { color: var(--text-muted); }
+/* skicka även till */
+.fo-svartill { margin: 8px 0 4px; }
+.fo-svartill small { font-weight: 400; color: var(--text-muted); }
+.fo-posttill { margin: 6px 0 0; font-size: 12px; color: var(--text-muted); }
+/* ny disciplin i kontaktdialogen */
+.fo-pdnydisc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 10px; }
+.fo-pdlank { border: 0; background: none; padding: 2px 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.fo-pdlank:hover { text-decoration-color: currentColor; }
+.fo-pdlank:focus-visible { outline: 0; box-shadow: var(--pop-ring); border-radius: 4px; }
+.fo-pdnyrad { flex-basis: 100%; display: flex; align-items: center; gap: 8px; }
+.fo-pdnyrad.dold { display: none; }
+.fo-pdnyrad .f { height: 38px; }
+.fo-pdnyrad #foPdDiscKod { width: 120px; flex: none; }
+.fo-pdnyrad #foPdDiscNamn { flex: 1; min-width: 0; }
+.fo-pdnyrad .mknapp { flex: none; }
+/* protokollfil */
+.fo-protfiler .fo-bilagor { margin: 0 0 4px; }
+.fo-prfillista { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
+.fo-prfillista li { display: flex; align-items: center; gap: 8px; }
+.fo-prfillista .fo-bilagor { margin: 0; }
+/* kolumnval i tidplanen */
+.fo-tp-kolval { position: relative; }
+.fo-tp-kolval > summary { list-style: none; cursor: pointer; }
+.fo-tp-kolval > summary::-webkit-details-marker { display: none; }
+.fo-tp-kolmeny { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 220px; display: grid; gap: 6px; padding: 12px 14px;
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--r-s); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.fo-tp-kolmeny .hjalp { margin: 4px 0 0; font-size: 12px; }
+.fo-prfillista li { justify-content: flex-start; }
+.fo-prfillista li .fo-bilagor { flex: none; }
+.fo-prfillista .fo-farlank { margin-left: 4px; }
+/* filzon som eget fält (protokoll, signerat dokument): bred ruta med texten i mitten */
+.falt > label.fo-filzon, label.fo-filzon#foSigFil { display: flex; width: 100%; height: 44px; justify-content: center; margin: 0; border-radius: var(--r-s); font-size: 13px; font-weight: 600; }

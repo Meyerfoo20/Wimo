@@ -99,7 +99,7 @@ function foVyFragor(yta) {
     const rub = { aktiva: "Aktiva frågor", mina: "Mina frågor", klara: "Klara frågor", alla: "Alla frågor" }[vy] || "Frågor";
     // urval – de fyra frågevyerna ser ut och fungerar likadant, bara grundurvalet skiljer
     let lista = p.fragor.filter(f => vy === "alla" ? (foFilter.visaMak || !f.makulerad) : vy === "klara" ? (!f.makulerad && f.lage === "klar") :
-        vy === "mina" ? foMinFraga(p, jag, f) : foAktiv(f));
+        vy === "mina" ? (foMinFraga(p, jag, f) || foMinKlar(p, jag, f)) : foAktiv(f));
     const snabb = {
         alla: () => true,
         mina: f => (f.lage === "obesvarad" || f.lage === "ofullstandig") && foArMottagare(p, jag, f),
@@ -114,11 +114,14 @@ function foVyFragor(yta) {
         paverkar: f => f.paverkar,
         tid: f => foKonsAktiva(f, "tid").length > 0,
         kostnad: f => foKonsAktiva(f, "kostnad").length > 0,
-        ejslutligt: f => foHarSvar(f) && !foSlutliga(f).length && !f.makulerad
+        ejslutligt: f => foHarSvar(f) && !foSlutliga(f).length && !f.makulerad,
+        minaklara: f => f.lage === "klar"
     };
+    // Mina frågor: aktiva frågor som standard, mina klara frågor under en egen knapp.
+    if (vy === "mina") Object.keys(snabb).forEach(k => { if (k !== "minaklara") { const g = snabb[k]; snabb[k] = f => f.lage !== "klar" && g(f); } });
     const antal = {};
     Object.keys(snabb).forEach(k => { antal[k] = lista.filter(snabb[k]).length; });
-    const huvud = vy === "aktiva" ? ["alla", "mina", "kvittera", "forsenade"] : vy === "mina" ? ["alla", "mintur", "stallda", "mina"] : ["alla", "stallda", "kvittera"];
+    const huvud = vy === "aktiva" ? ["alla", "mina", "kvittera", "forsenade"] : vy === "mina" ? ["alla", "mintur", "stallda", "mina", "minaklara"] : ["alla", "stallda", "kvittera"];
     const flerMojliga = vy === "aktiva" ? ["stallda", "obesvarade", "ejslutligt", "mote", "tid", "kostnad"] : vy === "mina" ? ["avsluta", "kvittera", "forsenade", "berord", "tid", "kostnad"] : ["tid", "kostnad"];
     if (!huvud.concat(flerMojliga).includes(foFilter.snabb)) foFilter.snabb = "alla";
     lista = lista.filter(snabb[foFilter.snabb] || snabb.alla);
@@ -154,7 +157,7 @@ function foVyFragor(yta) {
     const fler = flerMojliga.filter(k => antal[k] || foFilter.snabb === k);
     const namnet = { alla: "Alla", mina: "Att svara på", mintur: "Väntar på mig", avsluta: "Att avsluta", stallda: "Ställda av mig", obesvarade: "Obesvarade",
         kvittera: "Att kvittera", forsenade: "Försenade", mote: "På mötesurval", paverkar: "Tid/kostnad", tid: "Risk tid", kostnad: "Risk kostnad",
-        berord: "Berör mig", ejslutligt: "Slutligt svar ej valt" };
+        berord: "Berör mig", ejslutligt: "Slutligt svar ej valt", minaklara: "Klara" };
     const extraAktivt = foFilter.disc || foFilter.plats || foFilter.lage || foFilter.mote || (foFilter.sort !== "std" && !(foFilter.sort || "").startsWith("kol:")) || foFilter.visaMak || fler.includes(foFilter.snabb);
     const visaFler = foFilter.oppen || extraAktivt;
     html += '<div class="fo-verktygsrad"><label class="fo-sokfalt"><span class="p4-ik ik-sok" aria-hidden="true"></span><input class="f" id="foFSok" type="search" placeholder="Sök nummer eller text" value="' + esc(foFilter.sok) + '" data-behall></label>' +
@@ -173,7 +176,8 @@ function foVyFragor(yta) {
         (extraAktivt ? '<button type="button" class="p4d-lank" id="foRensaFilter">Rensa filter</button>' : "") + '</div>';
     const filtrerat = foFilter.sok || foFilter.disc || foFilter.plats || foFilter.lage || foFilter.mote || foFilter.snabb !== "alla";
     if (!lista.length) {
-        html += vy === "mina" && !filtrerat ? foTomt("Inga frågor för dig just nu", "Här samlas aktiva frågor som du har ställt, ska besvara eller behöver kvittera eller avsluta.")
+        html += vy === "mina" && !filtrerat ? foTomt("Inga aktiva frågor för dig just nu", "Här samlas aktiva frågor som du har ställt, ska besvara eller behöver kvittera eller avsluta." +
+                (antal.minaklara ? " Dina klarmarkerade frågor ligger under Klara." : ""), antal.minaklara ? '<button type="button" class="mknapp" id="foVisaMinaKlara">Visa mina ' + antal.minaklara + (antal.minaklara === 1 ? " klara fråga" : " klara frågor") + '</button>' : "")
             : p.fragor.length || filtrerat
             ? foTomt("Inga frågor matchar", "Byt filter eller sökning.", filtrerat ? '<button type="button" class="mknapp" id="foRensa">Visa alla</button>' : "")
             : foTomt(vy === "klara" ? "Inga klara frågor ännu" : "Inga frågor ännu", vy === "klara" ? "När en besvarad fråga markeras Klar hamnar den här." :
@@ -193,6 +197,7 @@ function foVyFragor(yta) {
         const el = document.getElementById(id); if (el) el.addEventListener("change", () => { foFilter[k] = el.value; foRita(); });
     });
     const mak = document.getElementById("foFMak"); if (mak) mak.addEventListener("change", () => { foFilter.visaMak = mak.checked; foRita(); });
+    const vmk = document.getElementById("foVisaMinaKlara"); if (vmk) vmk.addEventListener("click", () => { foFilter.snabb = "minaklara"; foRita(); });
     const r = document.getElementById("foRensa"); if (r) r.addEventListener("click", () => { foFilter = { snabb: "alla", sok: "", disc: "", plats: "", lage: "", mote: "", sort: "std", visaMak: false }; foRita(); });
     document.getElementById("foExport").addEventListener("click", () => {
         foLaddaNer(foFilnamn(p.namn) + "-fragor-" + idag + ".csv", foCsvFragor(p, lista), "text/csv;charset=utf-8");
@@ -449,10 +454,11 @@ function foVyMoten(yta) {
         prot.map(x => { const r = x.sammanstallning ? p.rapporter.find(y => y.id === x.sammanstallning) : null;
             return '<tr><td><b>' + esc(x.nr || "–") + '</b>' + (x.extra ? ' <span class="fo-chip">Extra</span>' : "") + (x.version > 1 ? '<small>Version ' + x.version + '</small>' : "") + '</td><td class="dat">' + esc(x.datum || "–") + '</td>' +
                 '<td>' + esc((foForum(p, x.forum) || {}).namn || "–") + '</td><td>' + (x.status === "utkast" ? "Utkast" : "Slutligt") + '</td>' +
-                '<td>' + (x.lank && /^https?:\/\//i.test(x.lank) ? '<a href="' + esc(x.lank) + '" target="_blank" rel="noopener">Öppna</a>' : esc(x.lank || "–")) + '</td>' +
+                '<td>' + ((x.bilagor || []).length ? '<div class="fo-protfiler" data-protfiler="' + x.id + '">' + foBilagorHtml(x.bilagor) + '</div>' : "") +
+                    (x.lank && /^https?:\/\//i.test(x.lank) ? '<a href="' + esc(x.lank) + '" target="_blank" rel="noopener">Öppna länk</a>' : (x.bilagor || []).length && !x.lank ? "" : esc(x.lank || "–")) + '</td>' +
                 '<td>' + (r ? '<button type="button" class="p4d-lank" data-visarap="' + r.id + '">' + esc(r.nr) + '</button>' : "–") + '</td>' +
                 '<td class="fo-snabbkol">' + (kan ? '<button type="button" class="fo-minknapp" data-prot="' + x.id + '">Ändra</button>' : "") + '</td></tr>'; }).join("") + '</tbody></table></div>'
-        : '<p class="hjalp">Inga protokoll registrerade här. Protokollfilen ligger kvar där ni har den i dag (Teams, SharePoint …). Registrera mötesnummer, datum och länk så hamnar protokollet i Formas översikt och bevakning.</p>';
+        : '<p class="hjalp">Inga protokoll registrerade här. Registrera mötesnummer och datum, och ladda upp protokollet som PDF eller länka till var det ligger (Teams, SharePoint …). Då hamnar protokollet i Formas översikt och bevakning.</p>';
     html += '</div></div>';
     yta.innerHTML = html;
     yta.querySelectorAll("[data-forumflik]").forEach(b => b.addEventListener("click", () => { foFlik.mote = b.dataset.forumflik; foSattAdress(true); foRita(); }));
@@ -468,6 +474,7 @@ function foVyMoten(yta) {
     const ark = document.getElementById("foArkMote"); if (ark) ark.addEventListener("click", () => foArkiveraMote(fo));
     const np = document.getElementById("foNyttProt"); if (np) np.addEventListener("click", () => foProtokollDialog(null, fo));
     yta.querySelectorAll("[data-prot]").forEach(b => b.addEventListener("click", () => foProtokollDialog((p.protokoll || []).find(x => x.id === b.dataset.prot), fo)));
+    yta.querySelectorAll("[data-protfiler]").forEach(el => { const x = (p.protokoll || []).find(y => y.id === el.dataset.protfiler); if (x) foKopplaBilagor(el, x.bilagor || []); });
     yta.querySelectorAll("[data-visarap]").forEach(b => b.addEventListener("click", () => { const r = p.rapporter.find(x => x.id === b.dataset.visarap); if (r && typeof foRapVisa === "function") foRapVisa(r, kanLeda); }));
     yta.querySelectorAll("li[data-fraga], tr[data-fraga]").forEach(el => el.addEventListener("click", (e) => {
         if (e.target.closest("button")) return;
@@ -476,7 +483,7 @@ function foVyMoten(yta) {
     yta.querySelectorAll("[data-behandlad]").forEach(b => b.addEventListener("click", () => {
         const f = foFraga(p, b.dataset.behandlad);
         if (foGor("behandlad", { id: f.id, forum: fo.id, datum: foMotesDag }))
-            status("Fråga " + f.nr + " markerad som behandlad på " + fo.namn + ". Behandlad betyder inte att frågan är klar.");
+            status("Fråga " + f.nr + " markerad som behandlad på " + fo.namn + ". Det syns på frågan, i listan och i historiken. Behandlad betyder inte att frågan är klar.");
     }));
     yta.querySelectorAll("[data-tillurval]").forEach(b => b.addEventListener("click", () => foGor("motesmarkering", { id: b.dataset.tillurval, forum: fo.id, pa: true })));
     yta.querySelectorAll("[data-ururval]").forEach(b => b.addEventListener("click", () => foGor("motesmarkering", { id: b.dataset.ururval, forum: fo.id, pa: false })));
@@ -505,11 +512,13 @@ function foProtokollDialog(x, fo) {
     const p = foP, ny = !x;
     const valbara = p.forum.filter(f => f.aktiv).sort((a, b) => foForumSokvag(p, a).localeCompare(foForumSokvag(p, b), "sv"));
     const forum = x ? x.forum : fo.id;
-    modal(ny ? "Registrera protokoll" : "Protokoll " + (x.nr || x.datum), "Filen ligger kvar där ni har den. Forma håller ordning, bevakning och avisering.",
+    let filer = x ? (x.bilagor || []).slice() : [];
+    modal(ny ? "Registrera protokoll" : "Protokoll " + (x.nr || x.datum), "Ladda upp protokollet eller länka till var det ligger. Forma håller ordning, bevakning och avisering.",
         '<div class="falt"><label for="foPrFo">Mötesforum / mapp</label><select class="f" id="foPrFo">' + valbara.map(f => '<option value="' + f.id + '"' + (f.id === forum ? " selected" : "") + '>' + esc(foForumSokvag(p, f)) + '</option>').join("") + '</select></div>' +
         '<div class="tva"><div class="falt"><label for="foPrNr">Mötesnummer</label><input class="f" id="foPrNr" value="' + esc(x ? x.nr : "") + '" placeholder="PM15"></div>' +
         '<div class="falt"><label for="foPrDat">Mötesdatum</label><input class="f" type="date" id="foPrDat" value="' + esc(x ? x.datum : foMotesDag || foIdag()) + '"></div></div>' +
-        '<div class="falt"><label for="foPrLank">Länk till protokollet <span class="hjalp">(Teams, SharePoint …)</span></label><input class="f" id="foPrLank" value="' + esc(x ? x.lank : "") + '" placeholder="https://"></div>' +
+        '<div class="falt"><label>Protokollfil <span class="hjalp">PDF eller annan fil, högst 750 kB</span></label><div id="foPrFiler"></div>' + foFilZon("foPrFil", "Dra hit eller välj protokollet (PDF)") + '</div>' +
+        '<div class="falt"><label for="foPrLank">Eller länk till protokollet <span class="hjalp">(Teams, SharePoint …)</span></label><input class="f" id="foPrLank" value="' + esc(x ? x.lank : "") + '" placeholder="https://"></div>' +
         '<div class="tva"><div class="falt"><label for="foPrSt">Status</label><select class="f" id="foPrSt"><option value="slutligt">Slutligt</option><option value="utkast"' + (x && x.status === "utkast" ? " selected" : "") + '>Utkast</option></select></div>' +
         '<div class="falt"><label for="foPrForare">Protokollförare</label>' + foPersonSelect("foPrForare", x ? x.forare : (fo && fo.sekreterare) || foJagId(), "–") + '</div></div>' +
         '<label class="fo-kryss"><input type="checkbox" id="foPrExtra"' + (x && x.extra ? " checked" : "") + '> Extra möte (påverkar inte bevakningen)</label>' +
@@ -520,10 +529,20 @@ function foProtokollDialog(x, fo) {
             const v = id => document.getElementById(id).value;
             const fid = v("foPrFo"), dat = v("foPrDat");
             const rap = p.rapporter.find(r => r.typ === "mote" && r.urval && r.urval.forum === fid && r.urval.datum === dat && !r.ersattAv);
-            const r = foGor("registreraProtokoll", { id: x ? x.id : foId(), forum: fid, nr: v("foPrNr"), datum: dat, lank: v("foPrLank"), status: v("foPrSt"), forare: v("foPrForare"),
+            const r = foGor("registreraProtokoll", { id: x ? x.id : foId(), forum: fid, nr: v("foPrNr"), datum: dat, lank: v("foPrLank"), status: v("foPrSt"), forare: v("foPrForare"), bilagor: filer,
                 extra: document.getElementById("foPrExtra").checked, direkt: document.getElementById("foPrDirekt").checked, sammanstallning: x && x.sammanstallning ? x.sammanstallning : rap ? rap.id : "" });
             if (r) { stangModal(); status(ny ? "Protokollet är registrerat. Projektgruppen informeras." : "Protokollet är ändrat."); }
         } }]);
+    const ritaFiler = () => {
+        const el = document.getElementById("foPrFiler");
+        if (!el) return;
+        el.innerHTML = filer.length ? '<ul class="fo-prfillista">' + filer.map(b => '<li>' + foBilagorHtml([b]) + '<button type="button" class="fo-minknapp fo-farlank" data-prfilbort="' + b.id + '">Ta bort</button></li>').join("") + '</ul>' : "";
+        foKopplaBilagor(el, filer);
+        el.querySelectorAll("[data-prfilbort]").forEach(k => k.addEventListener("click", () => { filer = filer.filter(b => b.id !== k.dataset.prfilbort); ritaFiler(); }));
+    };
+    ritaFiler();
+    const zon = document.getElementById("foPrFil");
+    if (zon) foFilMottagare(zon, null, (meta) => { filer = filer.concat(meta); ritaFiler(); });
 }
 function foMotesTabell(lista, fo, kan, iUrval) {
     const p = foP;

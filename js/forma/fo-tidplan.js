@@ -373,7 +373,8 @@ function foVyTidplaner(yta) {
     const kolumner = [
         { id: "nr", namn: "#", b: "52px" }, { id: "namn", namn: "Aktivitet", b: "minmax(180px, 1fr)" }, { id: "ansv", namn: "Ansvarig", b: "92px" },
         { id: "start", namn: "Start", b: "92px" }, { id: "slut", namn: "Slut", b: "92px" }, { id: "dgr", namn: "Dgr", b: "50px" }
-    ].concat(uppfLage ? [{ id: "status", namn: "Status", b: "168px" }] : [{ id: "fore", namn: "Efter", b: "64px" }]);
+    ].concat(uppfLage ? [{ id: "status", namn: "Status", b: "168px" }] : [{ id: "fore", namn: "Efter", b: "64px" }])
+        .filter(k => !foTpDoldaKol().includes(k.id));
     const kolMall = kolumner.map(k => k.b).join(" ");
     const nrAv = {}; struktur.forEach((x, i) => { nrAv[x.r.id] = i + 1; });
     const cell = (x, k) => {
@@ -450,7 +451,7 @@ function foVyTidplaner(yta) {
             '<button type="button" data-tpverk="upp" title="Flytta upp (Alt+↑)" aria-label="Flytta upp">↑</button><button type="button" data-tpverk="ned" title="Flytta ned (Alt+↓)" aria-label="Flytta ned">↓</button>' +
             '<button type="button" data-tpverk="mer" title="Ansvar, färg och leverans">Detaljer</button><button type="button" data-tpverk="bort" title="Ta bort markerad rad (Delete)">Ta bort</button></div>' +
             '<div class="tp-nav" role="group" aria-label="Ångra"><button type="button" id="foTpAngra" title="Ångra (Ctrl+Z)" aria-label="Ångra">' + FO_TP_ANGRA_IK + '</button><button type="button" id="foTpGorOm" title="Gör om (Ctrl+Y)" aria-label="Gör om">' + FO_TP_GOROM_IK + '</button></div>' : "") +
-        '<span class="fo-tp-hoger"><label class="fo-litefalt"><span class="sr">Disciplin</span><select class="f" id="foTpDisc"><option value="">Alla discipliner</option>' +
+        '<span class="fo-tp-hoger">' + foTpKolValHtml(uppfLage) + '<label class="fo-litefalt"><span class="sr">Disciplin</span><select class="f" id="foTpDisc"><option value="">Alla discipliner</option>' +
         p.discipliner.filter(d => d.aktiv).map(d => '<option value="' + d.id + '"' + (foTpFilter.disc === d.id ? " selected" : "") + '>' + esc(d.kod + " " + d.namn) + '</option>').join("") + '</select></label>' +
         '<label class="fo-kryss"><input type="checkbox" id="foTpMin"' + (foTpFilter.min ? " checked" : "") + '> Mina leveranser</label>' +
         (tp.revisioner.length ? '<select class="f" id="foTpRevVal" aria-label="Revision"><option value="">Gällande</option>' + tp.revisioner.slice().reverse().map(r => '<option value="' + r.rev + '"' + (foTpFilter.rev === r.rev ? " selected" : "") + '>Rev ' + esc(r.rev) + ' · ' + foDatumKort(r.tid) + '</option>').join("") + '</select>' : "") + '</span></div>';
@@ -525,6 +526,14 @@ function foTpKoppla(yta, tp, c) {
     sel("foTpVal", el => { foTpVal = el.value; foTpFilter.rev = ""; foTpMark = ""; foTpKoppla.scroll = undefined; foRita(); });
     sel("foTpDisc", el => { foTpFilter.disc = el.value; foRita(); });
     sel("foTpMin", el => { foTpFilter.min = el.checked; foRita(); });
+    yta.querySelectorAll("[data-tpkolval]").forEach(el => el.addEventListener("change", () => {
+        const d = foTpDoldaKol().filter(x => x !== el.dataset.tpkolval);
+        if (!el.checked) d.push(el.dataset.tpkolval);
+        foSkrivLs(FO_TP_KOL_LS, d);
+        foTpKolOppen = true; foRita();
+    }));
+    const kd = yta.querySelector(".fo-tp-kolval");
+    if (kd) kd.addEventListener("toggle", () => { foTpKolOppen = kd.open; });
     sel("foTpRevVal", el => { foTpFilter.rev = el.value; foRita(); });
     yta.querySelectorAll("[data-tpzoom]").forEach(b => b.addEventListener("click", () => { foTpZoom = b.dataset.tpzoom; foTpKoppla.scroll = undefined; foRita(); }));
     yta.querySelectorAll("[data-tpihop]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); const id = b.dataset.tpihop; foTpIhop.has(id) ? foTpIhop.delete(id) : foTpIhop.add(id); foRita(); }));
@@ -558,6 +567,17 @@ function foTpKoppla(yta, tp, c) {
     });
 }
 const FO_TP_FALT = ["namn", "ansv", "start", "slut", "dgr", "fore"];
+// Dolda kolumner i tidplanens tabell. Gäller bara visningen på den här datorn, aldrig projektets data.
+const FO_TP_KOL_LS = "wimo_forma_tpkol", FO_TP_KOL_VAL = [["ansv", "Ansvarig"], ["start", "Start"], ["slut", "Slut"], ["dgr", "Dgr"], ["fore", "Efter"], ["status", "Status"]];
+let foTpKolOppen = false;
+function foTpDoldaKol() { const l = foLasLs(FO_TP_KOL_LS, []); return Array.isArray(l) ? l : []; }
+function foTpKolValHtml(uppfLage) {
+    const d = foTpDoldaKol(), val = FO_TP_KOL_VAL.filter(([id]) => uppfLage ? id !== "fore" : id !== "status");
+    const n = val.filter(([id]) => d.includes(id)).length;
+    return '<details class="fo-tp-kolval"' + (foTpKolOppen ? " open" : "") + '><summary class="navknapp p4-tonknapp" title="Välj vilka kolumner som visas">Kolumner' + (n ? " (" + n + " dolda)" : "") + '</summary>' +
+        '<div class="fo-tp-kolmeny">' + val.map(([id, namn]) => '<label class="fo-kryss"><input type="checkbox" data-tpkolval="' + id + '"' + (d.includes(id) ? "" : " checked") + '> ' + namn + '</label>').join("") +
+        '<p class="hjalp">Gäller bara din visning. Inget i tidplanen ändras.</p></div></details>';
+}
 function foTpBorja(tp, el, c) {
     if (el.classList.contains("redigerar")) return;
     const radEl = el.closest("[data-tprad]"), id = radEl.dataset.tprad, falt = el.dataset.tpfalt;
@@ -614,8 +634,9 @@ function foTpBorja(tp, el, c) {
             let mal = null;
             if (steg === "ned") { const n = rader[i + 1]; mal = n && n.querySelector('[data-tpfalt="' + (n.dataset.tprad === "ny" ? "namn" : falt) + '"]'); }
             if (steg === "hoger" || steg === "vanster") {
-                const j = FO_TP_FALT.indexOf(falt) + (steg === "hoger" ? 1 : -1);
-                mal = rader[i] && FO_TP_FALT[j] && rader[i].querySelector('[data-tpfalt="' + FO_TP_FALT[j] + '"].tp-e');
+                // hoppa över dolda kolumner
+                for (let j = FO_TP_FALT.indexOf(falt) + (steg === "hoger" ? 1 : -1); !mal && rader[i] && j >= 0 && j < FO_TP_FALT.length; j += steg === "hoger" ? 1 : -1)
+                    mal = rader[i].querySelector('[data-tpfalt="' + FO_TP_FALT[j] + '"].tp-e');
             }
             if (mal) foTpBorja(foTp(foP, tp.id), mal, foTpCtx());
         }, 20);

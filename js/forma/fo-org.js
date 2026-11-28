@@ -12,7 +12,8 @@ function foVyOrg(yta) {
         ["disc", "Discipliner", p.discipliner.filter(x => x.aktiv).length], ["forum", "Mötesforum", p.forum.filter(x => x.aktiv).length], ["ind", "Indelningar", p.indelningar.length]];
     if (!flikar.some(f => f[0] === foFlik.org)) foFlik.org = "personer";
     const nyText = { personer: "+ Ny kontakt", foretag: "+ Nytt företag", disc: "+ Ny disciplin", forum: "+ Nytt mötesforum", ind: "+ Ny indelning" }[foFlik.org];
-    let html = foTopp("Projektmedlemmar", leda ? '<button class="navknapp" type="button" id="foOrgNy">' + nyText + '</button>' : "");
+    let html = foTopp("Projektmedlemmar", (foFlik.org === "personer" ? '<button class="navknapp p4-tonknapp" type="button" id="foOrgSkriv" title="Skriv ut kontaktlistan eller spara den som PDF">Skriv ut / PDF</button>' : "") +
+        (leda ? '<button class="navknapp" type="button" id="foOrgNy">' + nyText + '</button>' : ""));
     html += '<div class="fo-flikar" role="tablist">' + flikar.map(([k, t, n]) => '<button type="button" role="tab" class="fo-flik' + (foFlik.org === k ? " vald" : "") + '" aria-selected="' + (foFlik.org === k) + '" data-orgflik="' + k + '">' +
         t + ' <span>' + n + '</span></button>').join("") + '</div>';
     if (foFlik.org === "personer") {
@@ -104,8 +105,7 @@ function foVyOrg(yta) {
     yta.querySelectorAll("[data-ind]").forEach(b => b.addEventListener("click", () => foIndDialog(p.indelningar.find(x => x.id === b.dataset.ind))));
     const std = document.getElementById("foStdDisc");
     if (std) std.addEventListener("click", () => {
-        [["A", "Arkitekt"], ["K", "Konstruktör"], ["VS", "Värme och sanitet"], ["V", "Ventilation"], ["E", "El"], ["B", "Brand"], ["L", "Landskap"], ["G", "Geoteknik"]]
-            .forEach(([k, n]) => foGor("sparaDisc", { id: foId(), kod: k, namn: n }, true));
+        foStandardDiscipliner();
         foRita(); status("Åtta vanliga discipliner lades till. Ta bort eller byt namn på dem som inte passar.");
     });
     yta.querySelectorAll("[data-bjudin]").forEach(b => b.addEventListener("click", () => foBjudIn([b.dataset.bjudin])));
@@ -113,6 +113,8 @@ function foVyOrg(yta) {
     if (alla) alla.addEventListener("click", () => foBjudIn(p.personer.filter(x => x.aktiv !== false && x.epost && foAnslutning(p, x, molnMedl) === "kontakt").map(x => x.id)));
     const ers = document.getElementById("foErsatt");
     if (ers) ers.addEventListener("click", () => foErsattDialog(null));
+    const skriv = document.getElementById("foOrgSkriv");
+    if (skriv) skriv.addEventListener("click", foSkrivUtKontakter);
     const katKnapp = document.getElementById("foKategorier");
     if (katKnapp) katKnapp.addEventListener("click", foKategoriDialog);
     const sok = document.getElementById("foOrgSok");
@@ -122,6 +124,33 @@ function foVyOrg(yta) {
         // dölj tomma grupper medan man söker
         document.querySelectorAll(".fo-katgrupp").forEach(g => { g.hidden = !!q && !g.querySelector("tbody tr:not([hidden])"); });
     });
+}
+
+// Kontaktlistan som utskrift/PDF: aktiva personer, grupperade efter kategori som på skärmen.
+function foSkrivUtKontakter() {
+    const p = foP;
+    const w = window.open("", "_blank");
+    if (!w) return status("Webbläsaren stoppade utskriftsfönstret. Tillåt popup-fönster för Wimo.", true);
+    const l = p.personer.filter(x => x.aktiv !== false).sort((a, b) => foPersonNamn(p, a.id).localeCompare(foPersonNamn(p, b.id), "sv"));
+    const kat = foKategorierSorterade(p);
+    const grupper = kat.map(k => ({ namn: k.namn, rader: l.filter(x => (x.kategorier || []).includes(k.id)) })).filter(g => g.rader.length);
+    const utan = l.filter(x => !(x.kategorier || []).some(id => foKategori(p, id)));
+    if (utan.length) grupper.push({ namn: kat.length ? "Utan kategori" : "", rader: utan });
+    const rad = x => { const ft = foForetag(p, x.foretagId);
+        return '<tr><td><b>' + esc(foPersonNamn(p, x.id)) + '</b>' + (x.befattning ? '<div class="m">' + esc(String(x.befattning).split(",").map(r => r.trim()).filter(Boolean).join(" · ")) + '</div>' : "") + '</td>' +
+            '<td>' + esc(ft ? ft.namn : "–") + '</td><td>' + esc((x.disc || []).map(d => foDiscText(p, d)).filter(Boolean).join(", ") || "–") + '</td>' +
+            '<td>' + esc(x.epost || "–") + '</td><td class="nw">' + esc(x.tel || "–") + '</td></tr>'; };
+    const tabell = g => (g.namn ? '<h2>' + esc(g.namn) + ' <span>' + g.rader.length + '</span></h2>' : "") +
+        '<table><thead><tr><th>Namn och roller</th><th>Företag</th><th>Disciplin</th><th>E-post</th><th>Telefon</th></tr></thead><tbody>' + g.rader.map(rad).join("") + '</tbody></table>';
+    w.document.write('<!DOCTYPE html><html lang="sv"><head><meta charset="utf-8"><title>' + esc(p.namn + " – Kontaktlista") + '</title><style>' +
+        'body{font:12px/1.4 Inter,system-ui,sans-serif;margin:24px;color:#181c19}h1{font-size:18px;margin:0 0 2px}p{margin:0 0 14px;color:#56615a}' +
+        'h2{font-size:13px;margin:18px 0 4px}h2 span{color:#56615a;font-weight:400}table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}' +
+        'th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#56615a}' +
+        '.m{color:#56615a;font-size:11px;margin-top:2px}.nw{white-space:nowrap}</style></head><body>' +
+        '<h1>' + esc(p.namn) + (p.nummer ? " · " + esc(p.nummer) : "") + '</h1><p>Kontaktlista · ' + l.length + (l.length === 1 ? " person" : " personer") + " · utskrivet " + foIdag() + " " + foKlocka(foNu()) + '</p>' +
+        (l.length ? grupper.map(tabell).join("") : '<p>Inga personer i projektet ännu.</p>') + '</body></html>');
+    w.document.close();
+    setTimeout(() => w.print(), 300);
 }
 
 function foPersonDialog(x) {
@@ -134,7 +163,11 @@ function foPersonDialog(x) {
         '<div class="falt"><label>Kategorier <span class="hjalp">en person kan stå i flera</span></label>' + (foKategorierSorterade(p).length
             ? foValChips("pkat", foKategorierSorterade(p).map(k => ({ id: k.id, namn: k.namn })), x ? x.kategorier || [] : [])
             : '<p class="hjalp" style="margin:0">Inga kategorier ännu. Skapa dem under Kategorier … i Projektmedlemmar.</p>') + "</div>" +
-        '<div class="falt"><label>Discipliner</label>' + foValChips("pdisc", p.discipliner.filter(d => d.aktiv).sort((a, b) => a.ordning - b.ordning).map(d => ({ id: d.id, namn: d.kod + " " + d.namn })), x ? x.disc || [] : []) + '</div>' +
+        '<div class="falt"><label>Discipliner</label><div id="foPdDiscRuta">' + foPdDiscChips(x ? x.disc || [] : []) + '</div>' +
+            (foKanLeda(p, foJagId()) ? '<div class="fo-pdnydisc"><button type="button" class="fo-pdlank" id="foPdNyDisc" aria-expanded="false">+ Ny disciplin</button>' +
+                (p.discipliner.some(d => d.aktiv) ? "" : '<button type="button" class="fo-pdlank" id="foPdStdDisc">Lägg till vanliga discipliner</button>') +
+                '<div class="fo-pdnyrad dold" id="foPdNyDiscRad"><input class="f" id="foPdDiscKod" maxlength="6" placeholder="Kod, t.ex. K" aria-label="Kortkod">' +
+                '<input class="f" id="foPdDiscNamn" placeholder="Namn, t.ex. Konstruktör" aria-label="Disciplinens namn"><button type="button" class="mknapp" id="foPdDiscLagg">Lägg till</button></div></div>' : "") + '</div>' +
         '<div class="tva"><div class="falt"><label for="foPdEp">E-post</label><input class="f" id="foPdEp" type="email" value="' + esc(x ? x.epost : "") + '"></div>' +
         '<div class="falt"><label for="foPdTel">Telefon</label><input class="f" id="foPdTel" type="tel" value="' + esc(x ? x.tel : "") + '"></div></div>' +
         '<div class="tva"><div class="falt"><label for="foPdRoll">Behörighet i Forma</label><select class="f" id="foPdRoll">' + Object.keys(FO_ROLLER).map(r =>
@@ -154,6 +187,7 @@ function foPersonDialog(x) {
     } });
     modal(ny ? "Ny kontakt" : foPersonNamn(p, x.id), ny ? "En kontakt behöver inget Wimo-konto." : (FO_ROLLER[x.roll] || ""), kropp, knappar);
     foKopplaValChips(document.getElementById("overlay"));
+    foKopplaPdNyDisc();
     setTimeout(() => { const t = document.getElementById("foPdFn"); if (t) t.focus(); }, 30);
 }
 // Kategorierna: skapa, döp om, sortera och ta bort. Personerna behåller sina övriga kategorier.
@@ -191,6 +225,57 @@ function foKategoriDialog() {
     ny.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lagg(); } });
 }
 
+// Disciplinvalet i kontaktdialogen. Ritas om när en ny disciplin skapas, utan att övriga fält påverkas.
+function foPdDiscChips(valda) {
+    return foValChips("pdisc", foP.discipliner.filter(d => d.aktiv).sort((a, b) => a.ordning - b.ordning).map(d => ({ id: d.id, namn: d.kod + " " + d.namn })), valda);
+}
+function foPdRitaDisc(valda) {
+    const ruta = document.getElementById("foPdDiscRuta");
+    if (!ruta) return;
+    ruta.innerHTML = foPdDiscChips(valda);
+    foKopplaValChips(ruta);
+}
+function foKopplaPdNyDisc() {
+    const knapp = document.getElementById("foPdNyDisc"), rad = document.getElementById("foPdNyDiscRad");
+    if (!knapp || !rad) return;
+    knapp.addEventListener("click", () => {
+        const pa = rad.classList.toggle("dold") === false;
+        knapp.setAttribute("aria-expanded", pa);
+        if (pa) document.getElementById("foPdDiscKod").focus();
+    });
+    const lagg = () => {
+        const kod = document.getElementById("foPdDiscKod"), namn = document.getElementById("foPdDiscNamn");
+        if (!kod.value.trim()) return kod.focus();
+        if (!namn.value.trim()) return namn.focus();
+        const valda = foValda("pdisc"), id = foId();
+        if (!foGor("sparaDisc", { id: id, kod: kod.value, namn: namn.value }, true)) return;
+        foPdRitaDisc(valda.concat(id));
+        kod.value = ""; namn.value = "";
+        rad.classList.add("dold"); knapp.setAttribute("aria-expanded", "false");
+        const std = document.getElementById("foPdStdDisc"); if (std) std.remove();
+        status("Disciplinen lades till och är vald för kontakten.");
+    };
+    document.getElementById("foPdDiscLagg").addEventListener("click", lagg);
+    ["foPdDiscKod", "foPdDiscNamn"].forEach(id => document.getElementById(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lagg(); } }));
+    const std = document.getElementById("foPdStdDisc");
+    if (std) std.addEventListener("click", () => {
+        const valda = foValda("pdisc");
+        foStandardDiscipliner();
+        foPdRitaDisc(valda);
+        std.remove();
+        status("Åtta vanliga discipliner lades till. Välj den som gäller för kontakten.");
+    });
+}
+const FO_STD_DISC = [["A", "Arkitekt"], ["K", "Konstruktör"], ["VS", "Värme och sanitet"], ["V", "Ventilation"], ["E", "El"], ["B", "Brand"], ["L", "Landskap"], ["G", "Geoteknik"]];
+// Lägger till de vanliga disciplinerna som saknas (samma kod läggs aldrig till två gånger).
+function foStandardDiscipliner() {
+    let n = 0;
+    FO_STD_DISC.forEach(([k, namn]) => {
+        if (foP.discipliner.some(d => String(d.kod).toUpperCase() === k)) return;
+        if (foGor("sparaDisc", { id: foId(), kod: k, namn: namn }, true)) n++;
+    });
+    return n;
+}
 function foLasPersonForm() {
     return { fornamn: document.getElementById("foPdFn").value, efternamn: document.getElementById("foPdEn").value, foretagId: document.getElementById("foPdFt").value,
         befattning: document.getElementById("foPdBef").value.split(",").map(r => r.trim()).filter(Boolean).join(", "), disc: foValda("pdisc"), kategorier: foValda("pkat"), epost: document.getElementById("foPdEp").value,
@@ -428,9 +513,9 @@ function foVyProjekt(yta) {
         try {
             const id = await foSkapaProjekt(namn, null, iMoln);
             foOppnaProjekt(id);
-            foFlik.org = "disc";
+            foFlik.org = "personer";
             foGaTill("org");
-            status("Projektet " + namn + " är skapat. Börja med discipliner och personer.");
+            foKomIgangDialog();
         } catch (e) { console.warn(e); status("Projektet kunde inte skapas i molnet. Kontrollera nätet och att Firestore-reglerna för Forma är publicerade.", true); }
     };
     document.getElementById("foSkapa").addEventListener("click", skapa);
@@ -459,6 +544,35 @@ function foVyProjekt(yta) {
         });
         inp.click();
     });
+}
+
+// Första inställningarna direkt när ett projekt skapas. Allt kan ändras senare under Projektinställningar.
+function foKomIgangDialog() {
+    const p = foP, jag = foJagId();
+    if (!p) return;
+    const harDisc = p.discipliner.some(d => d.aktiv);
+    modal("Kom igång med " + p.namn, "De viktigaste inställningarna. Allt går att ändra senare under Projektinställningar.",
+        '<div class="tva"><div class="falt"><label for="foKiNr">Projektnummer</label><input class="f" id="foKiNr" value="' + esc(p.nummer || "") + '"></div>' +
+        '<div class="falt"><label for="foKiPl">Projekteringsledare</label>' + foPersonSelect("foKiPl", p.plId || jag || "", "–") + '</div></div>' +
+        '<div class="tva"><div class="falt"><label for="foKiBest">Beställare</label><input class="f" id="foKiBest" value="' + esc(p.bestallare || "") + '"></div>' +
+        '<div class="falt"><label for="foKiEnt">Entreprenör</label><input class="f" id="foKiEnt" value="' + esc(p.entreprenor || "") + '"></div></div>' +
+        '<div class="tva"><div class="falt"><label for="foKiStart">Start</label><input class="f" type="date" id="foKiStart" value="' + esc(p.start || "") + '"></div>' +
+        '<div class="falt"><label for="foKiSlut">Slut</label><input class="f" type="date" id="foKiSlut" value="' + esc(p.slut || "") + '"></div></div>' +
+        '<div class="falt"><label for="foKiSvarstid">Förinställd svarstid för nya frågor</label><div class="fo-svarstid"><input class="f" type="number" min="0" max="60" id="foKiSvarstid" value="' + (+p.inst.svarstid || 0) + '"><span>arbetsdagar</span></div></div>' +
+        (harDisc ? "" : '<label class="fo-kryss"><input type="checkbox" id="foKiDisc" checked> Lägg till vanliga discipliner (A, K, VS, V, E, B, L, G)</label>') +
+        '<p class="hjalp" style="margin:8px 0 0">Nästa steg är projektets personer. Välj disciplin på varje person en gång, så följer den med när personen ställer eller tar emot frågor.</p>', [
+        { txt: "Hoppa över", fn: () => { stangModal(); status("Projektet " + p.namn + " är skapat. Lägg till personerna."); } },
+        { txt: "Spara och fortsätt", primar: true, fn: () => {
+            const v = id => document.getElementById(id).value;
+            foGor("projektUppgifter", { nummer: v("foKiNr").trim(), plId: v("foKiPl"), bestallare: v("foKiBest").trim(), entreprenor: v("foKiEnt").trim(), start: v("foKiStart"), slut: v("foKiSlut") }, true);
+            const n = Math.max(0, Math.min(60, Math.round(+v("foKiSvarstid") || 0)));
+            if (n !== (+p.inst.svarstid || 0)) foGor("installning", { nyckel: "svarstid", varde: n, text: n ? "förinställd svarstid " + n + " arbetsdagar" : "ingen förinställd svarstid" }, true);
+            const disc = document.getElementById("foKiDisc"), nd = disc && disc.checked ? foStandardDiscipliner() : 0;
+            stangModal();
+            foRitaHeader(); foRita();
+            status("Inställningarna är sparade" + (nd ? " och " + nd + " vanliga discipliner lades till" : "") + ". Lägg nu till projektets personer.");
+        } }]);
+    setTimeout(() => { const t = document.getElementById("foKiNr"); if (t) t.focus(); }, 30);
 }
 
 /* ======================= Säkerhetskopior ======================= */

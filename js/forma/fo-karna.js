@@ -351,6 +351,11 @@ function foMinFraga(p, personId, f) {
     return foArStallare(p, personId, f) || foArMottagare(p, personId, f) ||
         foOkvitterade(f).some(r => foArPart(p, personId, r.mottagare));
 }
+// Klar fråga som jag ställt, skulle svara på eller registrerade (visas under Mina frågor → Klara).
+function foMinKlar(p, personId, f) {
+    if (!personId || f.makulerad || f.lage !== "klar") return false;
+    return foArStallare(p, personId, f) || foArMottagare(p, personId, f) || f.av === personId;
+}
 // Kräver frågan något av mig just nu?
 function foMinTur(p, personId, f) {
     if (!personId || f.makulerad) return false;
@@ -622,10 +627,21 @@ const FO_OPS = {
         const ny = !x;
         if (ny) { x = { id: a.id || foId(), forum: fo.id, skapad: ctx.tid, av: ctx.av, hist: [], kopplingar: [], version: 1 }; p.protokoll.push(x); }
         else if (a.lank !== undefined && a.lank !== x.lank) x.version = (x.version || 1) + 1;
+        // Uppladdad protokollfil (PDF m.m.). Äldre klienter skickar inga bilagor: då behålls de som finns.
+        let filText = "";
+        if (Array.isArray(a.bilagor)) {
+            const fore = (x.bilagor || []).map(b => b.id);
+            const nya = a.bilagor.filter(b => b && b.id && b.namn).map(b => ({ id: b.id, namn: String(b.namn), typ: b.typ || "", storlek: +b.storlek || 0, tid: b.tid || ctx.tid }));
+            const tillagda = nya.filter(b => !fore.includes(b.id)), borttagna = fore.filter(id => !nya.some(b => b.id === id));
+            if (!ny && tillagda.length) x.version = (x.version || 1) + 1;
+            if (tillagda.length) filText += " · fil: " + tillagda.map(b => b.namn).join(", ");
+            if (borttagna.length) filText += " · " + borttagna.length + (borttagna.length === 1 ? " fil borttagen" : " filer borttagna");
+            x.bilagor = nya;
+        }
         Object.assign(x, { forum: fo.id, nr: String(a.nr || "").trim(), datum: a.datum || foDag(ctx.tid), lank: String(a.lank || "").trim(), status: a.status === "utkast" ? "utkast" : "slutligt",
             forare: a.forare || "", extra: !!a.extra, sammanstallning: a.sammanstallning !== undefined ? a.sammanstallning : x.sammanstallning || "", andrad: ctx.tid });
         foKrav(x.nr || x.datum, "Ange mötesnummer eller datum.");
-        foHist(x, ctx, ny ? "Protokoll registrerat" : "Protokollet ändrat" + (x.version > 1 ? " (version " + x.version + ")" : ""));
+        foHist(x, ctx, (ny ? "Protokoll registrerat" : "Protokollet ändrat" + (x.version > 1 ? " (version " + x.version + ")" : "")) + filText);
         foLogg(p, ctx, x.id, fo.namn + (x.nr ? " " + x.nr : "") + ": protokoll " + (ny ? "registrerat" : "ändrat"));
         return x;
     },
@@ -831,6 +847,11 @@ const FO_OPS = {
         // Svar eller besked lämnat på ett möte (frivilligt): forum och mötesdatum sparas i historiken.
         const mfo = a.mote && foForum(p, a.mote.forum);
         if (mfo) x.mote = { forum: mfo.id, datum: a.mote.datum || foDag(ctx.tid) };
+        // Skickas även till (frivilligt): personer eller discipliner utöver de vanliga mottagarna.
+        const till = (Array.isArray(a.till) ? a.till : []).filter(t => t && ((t.person && foPerson(p, t.person)) || (t.disc && foDisc(p, t.disc))))
+            .map(t => t.person ? { person: t.person } : { disc: t.disc })
+            .filter((t, i, l) => l.findIndex(u => (u.person || u.disc) === (t.person || t.disc)) === i);
+        if (till.length) x.till = till;
         f.dialog.push(x);
         (a.bilagor || []).forEach(b => f.bilagor.push(Object.assign({}, b, { del: "d:" + x.id })));
         const fore = f.lage, pa = lamnat !== ctx.av ? " (lämnat av " + (foPersonNamn(p, lamnat) || "–") + ", registrerat av " + (foPersonNamn(p, ctx.av) || "–") + ")" : "";
@@ -840,7 +861,16 @@ const FO_OPS = {
         } else {
             if (foArStallare(p, lamnat, f) && (f.lage === "besvarad" || f.lage === "klar")) f.lage = "ofullstandig";
             foHist(f, ctx, "Följdfråga" + pa + (fore === "klar" && f.lage !== "klar" ? " – frågan återöppnades" : ""));
+            // En följdfråga till fler: de nya blir mottagare (ska svara), om man får ändra mottagare.
+            const agare = foFragaAgare(p, ctx.av, f) || f.av === ctx.av || foKanLeda(p, ctx.av);
+            const nyaMott = agare ? till.filter(t => !foMottagare(f).some(m => (m.person || m.disc) === (t.person || t.disc))) : [];
+            if (nyaMott.length) {
+                f.mottagare = foMottagare(f).concat(nyaMott);
+                foSynkFraga(f);
+                foHist(f, ctx, "Ska svara: " + (foMottagareText(p, f) || "–"));
+            }
         }
+        if (till.length) foHist(f, ctx, (typ === "svar" ? "Svaret" : "Följdfrågan") + " skickades även till " + till.map(t => foPartText(p, t)).filter(Boolean).join(", "));
         f.andrad = ctx.tid;
         foLogg(p, ctx, f.id, "Fråga " + f.nr + ": " + (typ === "svar" ? "svar lämnat" : "följdfråga"));
         return x;
