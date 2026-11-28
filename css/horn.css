@@ -166,3 +166,68 @@ body.p4-foretag-pausat .p4-header::after { content: "Företagets Wimo är pausat
 body.fo-bara-forma #p4ModulMeny, body.fo-bara-forma .p4-modulmeny { display: none !important; }
 .p4-ks-toppknappar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .p4-ks-ftgnamn { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ==== Forma: lugnare knappar (28 nov) =============================================
+   Tre nivåer så att sidorna inte blir röriga:
+   1. Primär (fylld) – oförändrad.
+   2. Vanliga knappar (verktyg, export, Ny …): tonen syns alltid, inga hörn i vila.
+      Hörnen växer fram först vid hover/fokus, som "Boka en genomgång" på startsidan.
+   3. Filterval och små radknappar i tabeller: rundade, lugna, helt utan hörn.
+   Gäller bara Forma (:is(#forma, #foPanel) och Formas dialoger), inte Plan eller Mitt konto. */
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv, .fo-filterknapp) {
+  background: color-mix(in srgb, currentColor 7%, transparent) !important;
+  background-size: 100% 100% !important;
+  transition: background-color .15s, color .15s !important;
+}
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp:not(.plan):not(.aktiv):not(.pa), .mknapp:not(.primar):not(.fara):not(.tp-planinst), .parkiv, .fo-filterknapp):is(:hover, :focus-visible, .oppen):not(:disabled) {
+  background: color-mix(in srgb, currentColor 11%, transparent) !important;
+}
+/* hörnen: osynliga i vila, växer fram vid hover */
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp)::before,
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp)::after {
+  width: 0; height: 0; opacity: 0;
+  transition: width .45s cubic-bezier(.65, 0, .35, 1), height .45s cubic-bezier(.65, 0, .35, 1), opacity .2s;
+}
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp):is(:hover, :focus-visible, .oppen):not(:disabled)::before,
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp):is(:hover, :focus-visible, .oppen):not(:disabled)::after {
+  width: 40%; height: 64%; opacity: 1;
+}
+/* hörnen ligger på knappens kant, inte utanför (gav intryck av förskjutning) */
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp)::before { top: 0; left: 0; }
+:is(#forma, #foPanel, body.modul-forma #overlay) :is(.navknapp, .mknapp, .parkiv, .fo-filterknapp)::after { right: 0; bottom: 0; }
+
+/* filterval (Alla / Att svara på / Ställda av mig …): rundade val, inga hörn */
+:is(#forma, #foPanel) .fo-snabb:not(.vald) {
+  border: 1px solid var(--border-color) !important;
+  border-radius: 999px !important;
+  background: var(--bg-card) !important;
+  transition: border-color .15s, background-color .15s !important;
+}
+:is(#forma, #foPanel) .fo-snabb:not(.vald):is(:hover, :focus-visible) { border-color: var(--text-muted) !important; background: color-mix(in srgb, currentColor 5%, var(--bg-card)) !important; }
+:is(#forma, #foPanel) .fo-snabb::before, :is(#forma, #foPanel) .fo-snabb::after { content: none !important; }
+
+/* små knappar i tabellrader (Klar, Behandlad, Ta bort, Ändra …): lugna, inga hörn */
+:is(#forma, #foPanel) .fo-minknapp:not(.pa) {
+  height: 28px; padding: 0 11px;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 999px !important;
+  background: var(--bg-card) !important;
+  transition: border-color .15s, background-color .15s !important;
+}
+:is(#forma, #foPanel) .fo-minknapp:not(.pa):is(:hover, :focus-visible):not(:disabled) { border-color: var(--text-muted) !important; background: color-mix(in srgb, currentColor 5%, var(--bg-card)) !important; }
+:is(#forma, #foPanel) .fo-minknapp.klar:not(.pa) { border-color: var(--produktion-kant) !important; }
+:is(#forma, #foPanel) .fo-minknapp.klar:not(.pa):is(:hover, :focus-visible) { background: var(--produktion-fyll) !important; border-color: var(--produktion) !important; }
+:is(#forma, #foPanel) .fo-minknapp.fo-farlank:not(.pa) { color: var(--leverans); }
+:is(#forma, #foPanel) .fo-minknapp::before, :is(#forma, #foPanel) .fo-minknapp::after { content: none !important; }
+:is(#forma, #foPanel) .fo-minknapp.fo-ikonknapp { width: 28px; padding: 0; }
+/* radknappar i en kolumn: på samma linje och med samma avstånd */
+:is(#forma, #foPanel) .fo-snabbkol { white-space: nowrap; }
+:is(#forma, #foPanel) .fo-snabbkol > * + * { margin-left: 6px; }
+:is(#forma, #foPanel) td .fo-minknapp { vertical-align: middle; }
+
+/* knappgrupper i sidhuvud och verktygsrader: samma höjd och avstånd */
+:is(#forma, #foPanel) .fo-topp :is(.navknapp, .mknapp) { height: 34px; }
+.p4-tonknapp + .p4-tonknapp { margin-left: 0; }
+/* i tabeller: radknapparna centreras på radens första textrad, som etiketterna */
+:is(#forma, #foPanel) td .fo-minknapp:not(.pa), :is(#forma, #foPanel) td .fo-minknapp.pa { height: 26px; margin-top: -3px; margin-bottom: -3px; }
+:is(#forma, #foPanel) td .fstat { vertical-align: middle; }

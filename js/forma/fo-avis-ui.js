@@ -297,25 +297,11 @@ function foMarkeraAvisLasta() {
 /* ---------- personliga inställningar ---------- */
 const FO_AVIS_PERS_STD = { daglig: true, tid: 7, direkt: true, info: false };
 async function foAvisInstDialog() {
-    let v = Object.assign({}, FO_AVIS_PERS_STD);
-    const moln = foMoln();
-    try { v = Object.assign(v, moln ? await window.p4FormaMoln.avisInst() : foLasLs("wimo_forma_avisinst", {})); } catch (e) { }
-    const obl = Object.keys(FO_AVIS_TYPER).filter(k => FO_AVIS_TYPER[k].obl).map(k => FO_AVIS_TYPER[k].namn);
-    const kropp = (moln ? "" : '<div class="notis">Logga in för att få mejl. Inställningarna sparas annars bara på den här datorn.</div>') +
-        '<label class="fo-kryss fo-installning"><input type="checkbox" id="foAiDaglig"' + (v.daglig ? " checked" : "") + '><span><b>Daglig sammanställning</b><small>Ett mejl per arbetsdag med det du behöver hantera i alla dina projekt. Inget mejl om inget väntar.</small></span></label>' +
-        '<div class="falt" style="margin:6px 0 12px 27px"><label for="foAiTid">Tidpunkt</label><select class="f" id="foAiTid" style="max-width:160px">' + [5, 6, 7, 8, 9, 10, 11].map(h => '<option value="' + h + '"' + (+v.tid === h ? " selected" : "") + '>kl ' + String(h).padStart(2, "0") + ':00</option>').join("") + '</select></div>' +
-        '<label class="fo-kryss fo-installning"><input type="checkbox" id="foAiDirekt"' + (v.direkt ? " checked" : "") + '><span><b>Viktiga direktaviseringar</b><small>Till exempel särskilt brådskande frågor och begärda kvitteringar.</small></span></label>' +
-        '<label class="fo-kryss fo-installning"><input type="checkbox" id="foAiInfo"' + (v.info ? " checked" : "") + '><span><b>Allmän projektinformation via mejl</b><small>Annars syns den bara i Forma.</small></span></label>' +
-        '<div class="notis" style="margin-top:12px"><b>Alltid direkt med mejl:</b> ' + esc(obl.join(", ")) + '. De går inte att stänga av, så att viktiga besked inte faller mellan stolarna.</div>' +
-        '<p class="hjalp">Uppgifterna och historiken finns alltid kvar i Forma, oavsett vad du väljer här.</p>';
-    modal("Mina aviseringar", "Gäller alla dina Forma-projekt", kropp, [
-        { txt: "Avbryt", fn: stangModal },
-        { txt: "Spara", primar: true, fn: async () => {
-            const ny = { daglig: document.getElementById("foAiDaglig").checked, tid: +document.getElementById("foAiTid").value, direkt: document.getElementById("foAiDirekt").checked, info: document.getElementById("foAiInfo").checked };
-            try { if (moln) await window.p4FormaMoln.sparaAvisInst(ny); else foSkrivLs("wimo_forma_avisinst", ny); stangModal(); status("Dina aviseringsinställningar är sparade."); }
-            catch (e) { status("Inställningarna kunde inte sparas. Försök igen.", true); }
-        } }
-    ]);
+    const dir = Object.keys(FO_AVIS_TYPER).filter(k => foP && foAvisRegel(foP, k) === "direkt").map(k => FO_AVIS_TYPER[k].namn);
+    modal("Aviseringar och mejl", foP ? foP.namn : "", '<p style="margin-top:0">Wimo skickar inga mejl automatiskt. Allt du behöver hantera samlas under klockan och i Min översikt.</p>' +
+        '<p>När någon gör en viktig ändring får hen färdigskrivna mejl till de berörda, som skickas från hens eget mejlprogram. Det gäller:</p>' +
+        '<ul class="fo-punktlista">' + dir.map(n => '<li>' + esc(n) + '</li>').join("") + '</ul>' +
+        '<p class="hjalp">Projekteringsledaren väljer under Projektinställningar vilka händelser som ska ge färdiga mejl.</p>', [{ txt: "Stäng", primar: true, fn: stangModal }]);
 }
 
 /* ---------- Påminn ---------- */
@@ -340,18 +326,18 @@ function foPaminnDialog(fragor) {
             (!en ? ' <span class="hjalp">– ' + per[id].length + (per[id].length === 1 ? " fråga: " : " frågor: ") + per[id].map(f => f.nr).join(", ") + '</span>' : "") +
             (!(foPerson(p, id) || {}).epost ? ' <span class="fo-tagg t-sen">Saknar e-post</span>' : "") + '</label>').join("") + '</div></div>' +
         '<div class="falt"><label for="foPamText">Meddelande <span class="hjalp">(valfritt)</span></label><textarea class="f" id="foPamText" rows="3" placeholder="' + (en ? "Till exempel: Vi behöver svaret inför projekteringsmötet på tisdag." : "Till exempel: Inför projekteringsmötet – återkom gärna senast måndag.") + '"></textarea></div>' +
-        '<p class="hjalp" style="margin:0">' + (en ? "Påminnelsen skickas direkt med mejl med länk till frågan." : "Varje mottagare får ett mejl med bara sina frågor.") + ' Den syns också i Forma och sparas i frågans historik.</p>' +
-        (utanEpost.length ? '<div class="notis rod" style="margin-top:10px">' + esc(utanEpost.map(id => foPersonNamn(p, id)).join(", ")) + ' saknar e-post i Projektmedlemmar och får bara påminnelsen i Forma.</div>' : "");
+        '<p class="hjalp" style="margin:0">' + (en ? "Sedan öppnas ett färdigskrivet mejl med länk till frågan, som du skickar från ditt mejlprogram." : "Sedan öppnas ett färdigskrivet mejl per mottagare, med bara hens frågor, som du skickar från ditt mejlprogram.") + ' Påminnelsen syns också i Forma och sparas i frågans historik.</p>' +
+        (utanEpost.length ? '<div class="notis rod" style="margin-top:10px">' + esc(utanEpost.map(id => foPersonNamn(p, id)).join(", ")) + ' saknar e-post i Projektmedlemmar. Du kan kopiera texten och skicka den på annat sätt.</div>' : "");
     modal(en ? "Påminn om fråga " + f0.nr : "Påminn om " + fragor.length + " frågor", "", kropp, [
         { txt: "Avbryt", fn: stangModal },
-        { txt: "Skicka påminnelse", primar: true, fn: () => {
+        { txt: "Skapa mejl", primar: true, fn: () => {
             const valda = [...document.querySelectorAll(".fo-pammott input:checked")].map(i => i.value);
             if (!valda.length) return status("Välj minst en mottagare.", true);
             const medd = document.getElementById("foPamText").value.trim();
             // Påminn flera: bara frågor som har någon av de valda mottagarna.
             const fl = en ? [f0.id] : fragor.filter(f => valda.some(id => per[id] && per[id].includes(f))).map(f => f.id);
             const r = foGor("paminn", { fragor: fl, till: en ? valda : undefined, meddelande: medd });
-            if (r) { stangModal(); foValjLage = false; foValdaFragor = new Set(); foRita(); status("Påminnelse skickad till " + r.mottagare + (r.mottagare === 1 ? " person." : " personer.")); }
+            if (r) { stangModal(); foValjLage = false; foValdaFragor = new Set(); foRita(); status("Påminnelsen är sparad i Forma. Skicka mejlen från ditt mejlprogram."); }
         } }
     ]);
 }
@@ -410,7 +396,7 @@ function foKopplaKvitt(rot) {
     }));
     rot.querySelectorAll("[data-kvpaminn]").forEach(b => b.addEventListener("click", () => {
         const k = (foP.kvittkrav || []).find(x => x.id === b.dataset.kvpaminn);
-        if (k && foGor("kvittPaminn", { kid: k.id })) status("Påminnelse skickad till de som inte har kvitterat.");
+        if (k && foGor("kvittPaminn", { kid: k.id })) status("Påminnelsen är sparad i Forma. Skicka mejlen från ditt mejlprogram.");
     }));
 }
 Object.assign(FO_OPS, {
@@ -452,14 +438,14 @@ function foAvisInstHtml(p, leda) {
     const inst = foAvisInst(p), dis = leda ? "" : " disabled";
     const rad = Object.keys(FO_AVIS_TYPER).map(k => {
         const t = FO_AVIS_TYPER[k], regel = foAvisRegel(p, k);
-        return '<tr><td>' + esc(t.namn) + '</td><td>' + (t.obl ? '<span class="fo-oblig">Direkt · obligatorisk</span>' :
-            '<select class="f fo-litenselect" data-avisregel="' + k + '"' + dis + '>' + Object.keys(FO_AVIS_MEJL).map(m => '<option value="' + m + '"' + (regel === m ? " selected" : "") + '>' + FO_AVIS_MEJL[m] + '</option>').join("") + '</select>') + '</td>' +
+        return '<tr><td>' + esc(t.namn) + '</td><td>' + (t.obl ? '<span class="fo-oblig">Färdigt mejl · alltid</span>' :
+            '<select class="f fo-litenselect" data-avisregel="' + k + '"' + dis + '>' + [["direkt", "Färdigt mejl"], ["daglig", "Bara i Forma"]].map(([m, n]) => '<option value="' + m + '"' + ((regel === "direkt") === (m === "direkt") ? " selected" : "") + '>' + n + '</option>').join("") + '</select>') + '</td>' +
             '<td>' + (t.kvitt ? '<label class="fo-kryss"><input type="checkbox" data-aviskvitt="' + k + '"' + (foAvisKvittKrav(p, k) ? " checked" : "") + dis + '> Kvittering</label>' : '<span class="hjalp">–</span>') + '</td></tr>';
     }).join("");
     const disc = p.discipliner.filter(d => d.aktiv !== false).slice().sort((a, b) => (a.ordning || 0) - (b.ordning || 0));
     const utanEpost = p.personer.filter(x => x.aktiv && !x.epost);
     return '<div class="dashblock fo-avisinst"><h3>Aviseringar och kvitteringar</h3>' +
-        '<p class="hjalp" style="margin-top:0">Grundinställningar som fungerar direkt. Ändringar gäller framåt – redan begärda kvitteringar och historik finns kvar. Allt syns alltid i Forma, oavsett mejlinställning.</p>' +
+        '<p class="hjalp" style="margin-top:0">Grundinställningar som fungerar direkt. Ändringar gäller framåt – redan begärda kvitteringar och historik finns kvar. Allt syns alltid i Forma. Wimo skickar inga mejl själv: vid händelser med Färdigt mejl får den som gör ändringen färdigskrivna mejl att skicka från sitt mejlprogram.</p>' +
         '<div class="fo-tabellram"><table class="lista fo-tabell"><thead><tr><th>Händelse</th><th>Mejl</th><th>Krav</th></tr></thead><tbody>' + rad + '</tbody></table></div>' +
         '<div class="tva" style="margin-top:12px"><div class="falt"><label for="foAvFore">Uppmärksamma mottagaren</label><div class="fo-svarstid"><input class="f" type="number" min="0" max="10" id="foAvFore" value="' + inst.fore + '"' + dis + '><span>arbetsdagar före svarsdatum</span></div></div>' +
         '<div class="falt"><label for="foAvEsk">Uppmärksamma projekteringsledaren efter</label><div class="fo-svarstid"><input class="f" type="number" min="1" max="30" id="foAvEsk" value="' + inst.eskalera + '"' + dis + '><span>arbetsdagars försening</span></div></div></div>' +
@@ -467,8 +453,7 @@ function foAvisInstHtml(p, leda) {
         '<h4 class="fo-raph4">Aviseringsmottagare per disciplin</h4><p class="hjalp" style="margin-top:0">Frågor till en disciplin aviseras till disciplinens utsedda mottagare. Saknas sådana aviseras alla i disciplinen.</p>' +
         '<div class="fo-tabellram"><table class="lista fo-tabell"><tbody>' + disc.map(d => '<tr><td style="width:160px"><b>' + esc(d.kod) + '</b> ' + esc(d.namn) +
             (foDiscSaknarAvis(p, d.id) ? '<br><span class="fo-tagg t-sen">Saknar mottagare</span>' : "") + '</td><td><div id="foAvDisc_' + d.id + '"></div></td></tr>').join("") + '</tbody></table></div>' +
-        (utanEpost.length ? '<div class="notis rod" style="margin-top:12px"><b>Saknar e-post:</b> ' + utanEpost.map(x => esc(foPersonNamn(p, x.id))).join(", ") + '. De får aviseringar i Forma men inga mejl. Lägg till e-post under Projektmedlemmar.</div>' : "") +
-        '<div class="fo-knapprad" style="margin-top:12px"><button type="button" class="mknapp" id="foMejllogg">Utskickslogg</button><button type="button" class="mknapp" id="foMinaAvis">Mina aviseringar</button></div></div>';
+        (utanEpost.length ? '<div class="notis rod" style="margin-top:12px"><b>Saknar e-post:</b> ' + utanEpost.map(x => esc(foPersonNamn(p, x.id))).join(", ") + '. De får aviseringar i Forma, men inga färdiga mejl kan skapas till dem. Lägg till e-post under Projektmedlemmar.</div>' : "") + '</div>';
 }
 function foKopplaAvisInst(rot, p, leda) {
     rot.querySelectorAll("[data-avisregel]").forEach(s => s.addEventListener("change", () => { if (foGor("avisRegler", { regel: { typ: s.dataset.avisregel, mejl: s.value } }, true)) foVisaSparat(s); }));
@@ -495,48 +480,104 @@ function foKopplaAvisInst(rot, p, leda) {
     const ma = rot.querySelector("#foMinaAvis"); if (ma) ma.addEventListener("click", foAvisInstDialog);
 }
 
-/* ---------- mejlkön ---------- */
-// Den som utförde en ändring lägger direktmejlen i kön. Servern skickar, loggar, försöker igen vid fel och
-// skyddar mot dubbletter (id per händelse och mottagare). Ett misslyckat mejl tar aldrig bort uppgiften i Forma.
+/* ---------- färdiga mejl (mailto) ---------- */
+// Wimo skickar inga mejl själv. När den som gör en ändring skapar en viktig avisering (regeln "direkt")
+// erbjuds färdigskrivna mejl – ett per mottagare – som öppnas i personens eget mejlprogram.
+// Ett mejl per person gör att det fungerar likadant i Outlook, Gmail och Apple Mail.
+// Ett mejl som inte skickas tar aldrig bort något i Forma: aviseringen finns alltid under klockan.
+const FO_MAILTO_MAX = 1900;   // längre länkar klarar inte alla mejlprogram
 function foMejlLank(pid, a) {
     const bas = location.origin + location.pathname;
     const f = a.obj && a.obj.typ === "fraga" ? foFraga(foP, a.obj.id) : (a.fragor && a.fragor.length === 1 ? foFraga(foP, a.fragor[0]) : null);
     return bas + "#forma/p:" + pid + "/" + (f ? (f.lage === "klar" ? "klara" : "aktiva") + "/f" + f.nr : a.typ === "paminnelse" ? "mina" : "oversikt");
 }
-let foKoarMejl = false;
+function foMailto(till, amne, text) {
+    const enc = t => encodeURIComponent(t).replace(/%0A/g, "%0D%0A");
+    let body = String(text || "").replace(/\r\n/g, "\n");
+    const bas = "mailto:" + encodeURIComponent(till || "").replace(/%40/g, "@") + "?subject=" + enc(amne || "") + "&body=";
+    let url = bas + enc(body);
+    // för lång: korta texten (frågetexterna står i Forma, länken finns kvar sist)
+    while (url.length > FO_MAILTO_MAX && body.length > 200) {
+        const rader = body.split("\n"), sista = rader.slice(-3).join("\n");
+        body = rader.slice(0, -3).join("\n").slice(0, Math.max(150, body.length - 300 - sista.length)).replace(/\s+\S*$/, "") + " …\n\n" + sista;
+        url = bas + enc(body);
+    }
+    return url;
+}
+// Ett färdigt mejl till en person, byggt av en eller flera aviseringar som gäller hen.
+function foMejlTill(p, pid, avis) {
+    const x = foPerson(p, pid) || {}, jag = foJagId();
+    const fragor = [];
+    avis.forEach(a => (a.fragor || (a.obj && a.obj.typ === "fraga" ? [a.obj.id] : [])).forEach(id => { const f = foFraga(p, id); if (f && !fragor.includes(f)) fragor.push(f); }));
+    const typ = FO_AVIS_TYPER[avis[0].typ] || { namn: "Avisering" };
+    const rubrik = { paminnelse: "Påminnelse", kvittering: "Kvittera", bradskande: "Brådskande fråga" }[avis[0].typ] || typ.namn;
+    const amne = (avis.every(a => a.typ === avis[0].typ) ? rubrik : "Från Wimo Forma") + (fragor.length === 1 ? " – fråga " + fragor[0].nr : fragor.length > 1 ? " – " + fragor.length + " frågor" : "") + " · " + p.namn;
+    const bas = location.origin + location.pathname + "#forma/p:" + foPid;
+    const meddelanden = [...new Set(avis.map(a => a.meddelande).filter(Boolean))];
+    const rader = ["Hej " + (x.fornamn || foPersonNamn(p, pid) || "") + "!", ""];
+    avis.forEach(a => { const t = a.meddelande && a.text.endsWith(" – " + a.meddelande) ? a.text.slice(0, -(" – " + a.meddelande).length) : a.text; if (!rader.includes(t)) rader.push(t); });
+    if (meddelanden.length) rader.push("", meddelanden.join("\n"));
+    if (fragor.length) {
+        rader.push("");
+        fragor.forEach(f => rader.push("Fråga " + f.nr + ": " + f.text.replace(/\s+/g, " ").slice(0, 220) + (f.svarSenast ? "\nSvar senast " + foDatumKort(f.svarSenast) + " (v. " + foVecka(f.svarSenast) + ")" : "") + "\n" + bas + "/" + (f.lage === "klar" ? "klara" : "aktiva") + "/f" + f.nr, ""));
+    } else rader.push("", foMejlLank(foPid, avis[0]), "");
+    rader.push("Hälsningar", foPersonNamn(p, jag) || "", "", "Projekt " + p.namn + " i Wimo Forma");
+    return { pid, namn: foPersonNamn(p, pid) || "–", epost: (x.epost || "").trim(), amne: amne.slice(0, 180), text: rader.join("\n").replace(/\n{3,}/g, "\n\n") };
+}
+// Visar färdiga mejl: en rad per person med Öppna mejl och Kopiera text.
+function foMejlDialog(rubrik, mejl, fot) {
+    if (!mejl.length) return;
+    const med = mejl.filter(m => m.epost), utan = mejl.filter(m => !m.epost);
+    const rad = (m, i) => '<li class="fo-mejlrad" data-mejl="' + i + '"><div class="fo-mejlvem"><b>' + esc(m.namn) + '</b><small>' + (m.epost ? esc(m.epost) : '<span class="fo-tagg t-sen">Saknar e-post</span>') + '</small></div>' +
+        '<div class="fo-mejlknappar">' + (m.epost ? '<a class="mknapp' + (med.length === 1 ? " primar" : "") + '" href="' + esc(foMailto(m.epost, m.amne, m.text)) + '" data-mejloppna="' + i + '">Öppna mejl</a>' : "") +
+        '<button type="button" class="mknapp" data-mejlkopiera="' + i + '">Kopiera text</button></div></li>';
+    modal(rubrik, med.length === 1 && !utan.length ? "Mejlet är färdigskrivet. Öppna det och tryck Skicka i ditt mejlprogram." : "Ett färdigskrivet mejl per person. Öppna dem ett i taget och tryck Skicka i ditt mejlprogram.",
+        '<ul class="fo-mejllista">' + mejl.map(rad).join("") + '</ul>' +
+        (utan.length ? '<p class="hjalp">' + esc(utan.map(m => m.namn).join(", ")) + (utan.length === 1 ? " saknar" : " saknar") + ' e-post under Projektmedlemmar. Kopiera texten och skicka den på annat sätt, eller lägg till e-post.</p>' : "") +
+        '<p class="hjalp">' + esc(fot === undefined ? "Aviseringen finns också i Forma under klockan, även om mejlet inte skickas." : fot) + '</p>',
+        [{ txt: "Klar", primar: med.length !== 1, fn: stangModal }]);
+    const ov = document.getElementById("overlay");
+    ov.querySelectorAll("[data-mejloppna]").forEach(a => a.addEventListener("click", () => {
+        const li = a.closest(".fo-mejlrad"); li.classList.add("oppnad");
+        a.textContent = "Öppnat ✓"; a.classList.remove("primar");
+    }));
+    ov.querySelectorAll("[data-mejlkopiera]").forEach(b => b.addEventListener("click", () => {
+        const m = mejl[+b.dataset.mejlkopiera];
+        const t = (m.epost ? "Till: " + m.epost + "\n" : "") + "Ämne: " + m.amne + "\n\n" + m.text;
+        (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = "Kopierat ✓"; status("Mejlet är kopierat."); }, () => status("Texten kunde inte kopieras.", true));
+    }));
+}
+// Nya viktiga aviseringar som jag själv skapat: erbjud färdiga mejl. Körs efter varje sparning.
+const FO_MEJL_FARSK = 10 * 60 * 1000;
+let foMejlVantar = [];
 async function foKoaMejl() {
-    if (foKoarMejl || !foP || !foPid) return;
-    const post = foLista.find(x => x.id === foPid);
+    if (!foP || !foPid) return;
     const jag = foJagId();
     if (!jag) return;
     const nyckel = "wimo_forma_mejlkoad_" + foPid, koade = new Set(foLasLs(nyckel, []));
-    const grans = new Date(Date.now() - 3 * 864e5).toISOString();
+    const grans = new Date(Date.now() - FO_MEJL_FARSK).toISOString();
     const nya = (foP.aviseringar || []).filter(a => a.av === jag && a.tid > grans && !koade.has(a.id) && foAvisRegel(foP, a.typ) === "direkt");
     if (!nya.length) return;
-    // Lokala projekt och demoprojekt har ingen server – där finns aviseringarna bara i Forma.
-    if (!post || !post.moln || !foMoln()) { nya.forEach(a => koade.add(a.id)); foSkrivLs(nyckel, [...koade].slice(-500)); return; }
-    foKoarMejl = true;
-    try {
-        for (const a of nya) {
-            let ok = true;
-            for (const pid of a.till) {
-                const x = foPerson(foP, pid);
-                if (!x) continue;
-                const fragor = (a.fragor || (a.obj && a.obj.typ === "fraga" ? [a.obj.id] : [])).map(id => foFraga(foP, id)).filter(Boolean)
-                    .map(f => ({ nr: f.nr, text: f.text.slice(0, 300), senast: f.svarSenast || "", lank: location.origin + location.pathname + "#forma/p:" + foPid + "/aktiva/f" + f.nr }));
-                const data = { projekt: foPid, projektNamn: foP.namn, typ: a.typ, handelse: a.id, obligatorisk: !!FO_AVIS_TYPER[a.typ].obl,
-                    till: { person: pid, namn: foPersonNamn(foP, pid), epost: x.epost || "", uid: x.uid || "" },
-                    amne: (FO_AVIS_TYPER[a.typ].namn + (a.nr ? " – fråga " + a.nr : "") + " · " + foP.namn).slice(0, 200),
-                    text: a.text, meddelande: a.meddelande || "", avNamn: foPersonNamn(foP, a.av) || "", lank: foMejlLank(foPid, a), fragor: fragor };
-                try { await window.p4FormaMoln.koaMejl(foPid + "_" + a.id + "_" + pid, data); }
-                catch (e) { ok = false; console.warn("Forma mejlkö:", e); }
-            }
-            if (ok) koade.add(a.id);
-        }
-    } finally {
-        foSkrivLs(nyckel, [...koade].slice(-500));
-        foKoarMejl = false;
-    }
+    nya.forEach(a => koade.add(a.id));
+    foSkrivLs(nyckel, [...koade].slice(-500));
+    const per = {};
+    nya.forEach(a => a.till.filter(id => id !== jag).forEach(id => { (per[id] = per[id] || []).push(a); }));
+    const mejl = Object.keys(per).map(id => foMejlTill(foP, id, per[id])).sort((a, b) => a.namn.localeCompare(b.namn, "sv"));
+    if (!mejl.length) return;
+    const rubrik = nya.every(a => a.typ === "paminnelse") ? "Skicka påminnelsen" : nya.every(a => a.typ === "kvittering") ? "Skicka begäran om kvittering" : "Meddela via mejl";
+    // Är en annan dialog öppen väntar mejlen tills den stängs.
+    if (foDialogOppen()) { foMejlVantar.push({ rubrik, mejl }); foMejlVantaVisa(); return; }
+    foMejlDialog(rubrik, mejl);
+}
+function foDialogOppen() { return !!document.getElementById("overlay"); }
+function foMejlVantaVisa() {
+    const vantar = () => {
+        if (!foMejlVantar.length) return;
+        if (foDialogOppen()) return setTimeout(vantar, 400);
+        const l = foMejlVantar.splice(0);
+        foMejlDialog(l.length === 1 ? l[0].rubrik : "Meddela via mejl", l.flatMap(x => x.mejl));
+    };
+    setTimeout(vantar, 400);
 }
 const FO_MEJLSTATUS = { planerad: "Planerad", skickad: "Skickad", levererad: "Levererad", misslyckad: "Misslyckad", studsade: "Studsade", avstangd: "Avstängd av mottagaren", saknarEpost: "Saknar e-post" };
 async function foMejlloggDialog() {

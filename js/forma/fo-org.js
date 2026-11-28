@@ -677,16 +677,13 @@ async function foBjudIn(ids) {
     if (!klara.length) return;
     const lank = location.origin + location.pathname + "#forma/p:" + foPid;
     const amne = "Inbjudan till " + foP.namn + " i Wimo Forma";
-    const text = "Hej!\n\nDu är inbjuden till projektet " + foP.namn + " i Wimo Forma.\n\nÖppna länken och logga in, eller skapa ett konto, med just den här e-postadressen:\n" + lank +
-        "\n\nHar du skapat ett nytt konto behöver du först bekräfta e-postadressen via mejlet från Wimo.\nInbjudan gäller i " + FO_INBJUDAN_DAGAR + " dagar.\n";
-    const till = klara.map(x => x.epost).join(",");
-    modal("Skicka inbjudan", klara.length === 1 ? foPersonNamn(foP, klara[0].id) : klara.length + " personer",
-        '<p>Inbjudan är sparad och gäller i ' + FO_INBJUDAN_DAGAR + ' dagar. Skicka nu mejlet från ditt mejlprogram, eller kopiera texten.</p>' +
-        '<textarea class="f" id="foInbText" rows="8" readonly>' + esc(text) + '</textarea>' +
-        '<p class="hjalp">Bara den som loggar in med inbjudans e-postadress får tillgång. En vidarebefordrad inbjudan ger ingen åtkomst.</p>',
-        [{ txt: "Kopiera text", vanster: true, fn: () => { navigator.clipboard.writeText(text).then(() => status("Texten är kopierad.")); } },
-         { txt: "Stäng", fn: stangModal },
-         { txt: "Öppna i mejlprogrammet", primar: true, fn: () => { location.href = "mailto:" + (klara.length === 1 ? till : "") + "?" + (klara.length > 1 ? "bcc=" + encodeURIComponent(till) + "&" : "") + "subject=" + encodeURIComponent(amne) + "&body=" + encodeURIComponent(text); stangModal(); } }]);
+    // Ett mejl per person (fungerar likadant i Outlook och Gmail). Inbjudan gäller bara personens egen adress.
+    const mejl = klara.map(x => ({ pid: x.id, namn: foPersonNamn(foP, x.id) || x.epost, epost: x.epost, amne: amne,
+        text: "Hej " + (x.fornamn || "") + "!\n\nDu är inbjuden till projektet " + foP.namn + " i Wimo Forma.\n\nÖppna länken och logga in, eller skapa ett konto, med den här e-postadressen (" + x.epost + "):\n" + lank +
+            "\n\nHar du skapat ett nytt konto behöver du först bekräfta e-postadressen via mejlet från Wimo.\nInbjudan gäller i " + FO_INBJUDAN_DAGAR + " dagar.\n\nHälsningar\n" + (foPersonNamn(foP, foJagId()) || "") }));
+    foMejlDialog("Skicka inbjudan", mejl, "Gick mejlprogrammet inte att öppna? Kopiera texten och skicka den på annat sätt.");
+    const kropp = document.querySelector("#overlay .kropp");
+    if (kropp) kropp.insertAdjacentHTML("afterbegin", '<p style="margin-top:0">Inbjudan är sparad och gäller i ' + FO_INBJUDAN_DAGAR + ' dagar. Bara den som loggar in med inbjudans e-postadress får tillgång, så en vidarebefordrad inbjudan ger ingen åtkomst.</p>');
 }
 async function foAterkalla(x) {
     try { if (foArMolnProjekt() && x.epost) await window.p4FormaMoln.aterkalla(foPid, x.inbjudan.epost || x.epost); }

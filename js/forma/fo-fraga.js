@@ -141,7 +141,7 @@ function foPanelFraga(f, ok, kan, leda, jag) {
         }
         if (agare && f.lage === "besvarad") knappar.push('<button type="button" class="p4-btn p4-btn-ljus" data-lage="ofullstandig">Svaret är ofullständigt</button>');
         if (agare && f.lage === "klar") knappar.push('<button type="button" class="p4-btn p4-btn-ljus" data-lage="besvarad">Återöppna</button>');
-        if (foAktiv(f) && foKanPaminna(p, jag, f)) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPPaminn" title="Skickar ett mejl direkt till dem som ska svara">Påminn</button>');
+        if (foAktiv(f) && foKanPaminna(p, jag, f)) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPPaminn" title="Skapar ett färdigskrivet mejl till dem som ska svara">Påminn</button>');
         if (kan) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPKvitt" title="Be personer bekräfta att de tagit del av frågan och svaret">Begär kvittering</button>');
         if (foAktiv(f) && foKanPaminna(p, jag, f)) knappar.push('<button type="button" class="p4-btn p4-btn-ljus' + (f.bradskande ? " fo-pa" : "") + '" id="foPBrad" aria-pressed="' + !!f.bradskande + '" title="' + (f.bradskande ? "Ta bort markeringen" : "Mejlas direkt till dem som ska svara") + '">' + (f.bradskande ? "Brådskande ✓" : "Markera brådskande") + '</button>');
         if (kan) knappar.push('<button type="button" class="p4-btn p4-btn-ljus" id="foPAtg">Ny åtgärd</button>');
